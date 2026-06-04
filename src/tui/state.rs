@@ -1,0 +1,575 @@
+#[derive(PartialEq, Clone, Copy)]
+pub enum ActiveScreen {
+    Main,
+    #[cfg(target_os = "windows")]
+    DefenderSubmenu,
+    StrategySubmenu,
+    DownloadDepsSubmenu,
+    DownloadZapretSubmenu,
+    DownloadStrategiesSubmenu,
+    GamefilterSubmenu,
+    ZapretTagSelect,
+    StrategyTagSelect,
+}
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum MainMenuState {
+    #[cfg(target_os = "windows")]
+    DefenderSettings,
+    DownloadDeps,
+    Interface,
+    Strategy,
+    GamefilterSettings,
+    Run,
+    Quit,
+}
+
+impl MainMenuState {
+    pub fn next(self) -> Self {
+        match self {
+            #[cfg(target_os = "windows")]
+            Self::DefenderSettings => Self::DownloadDeps,
+            Self::DownloadDeps => Self::Interface,
+            Self::Interface => Self::Strategy,
+            Self::Strategy => Self::GamefilterSettings,
+            Self::GamefilterSettings => Self::Run,
+            Self::Run => Self::Quit,
+            #[cfg(target_os = "windows")]
+            Self::Quit => Self::DefenderSettings,
+            #[cfg(not(target_os = "windows"))]
+            Self::Quit => Self::DownloadDeps,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            #[cfg(target_os = "windows")]
+            Self::DefenderSettings => Self::Quit,
+            #[cfg(target_os = "windows")]
+            Self::DownloadDeps => Self::DefenderSettings,
+            #[cfg(not(target_os = "windows"))]
+            Self::DownloadDeps => Self::Quit,
+            Self::Interface => Self::DownloadDeps,
+            Self::Strategy => Self::Interface,
+            Self::GamefilterSettings => Self::Strategy,
+            Self::Run => Self::GamefilterSettings,
+            Self::Quit => Self::Run,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum GamefilterMenuState {
+    Tcp,
+    Udp,
+    Back,
+}
+
+impl GamefilterMenuState {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Tcp => Self::Udp,
+            Self::Udp => Self::Back,
+            Self::Back => Self::Tcp,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::Tcp => Self::Back,
+            Self::Udp => Self::Tcp,
+            Self::Back => Self::Udp,
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+#[derive(PartialEq, Clone, Copy)]
+pub enum DefenderMenuState {
+    Add,
+    Remove,
+    Back,
+}
+
+#[cfg(target_os = "windows")]
+impl DefenderMenuState {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Add => Self::Remove,
+            Self::Remove => Self::Back,
+            Self::Back => Self::Add,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::Add => Self::Back,
+            Self::Remove => Self::Add,
+            Self::Back => Self::Remove,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum DownloadDepsMenuState {
+    ZapretDownloader,
+    StrategiesDownloader,
+    Back,
+}
+
+impl DownloadDepsMenuState {
+    pub fn next(self) -> Self {
+        match self {
+            Self::ZapretDownloader => Self::StrategiesDownloader,
+            Self::StrategiesDownloader => Self::Back,
+            Self::Back => Self::ZapretDownloader,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::ZapretDownloader => Self::Back,
+            Self::StrategiesDownloader => Self::ZapretDownloader,
+            Self::Back => Self::StrategiesDownloader,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum DownloadSubmenuState {
+    Version,
+    SelectTag,
+    Start,
+    Back,
+}
+
+impl DownloadSubmenuState {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Version => Self::SelectTag,
+            Self::SelectTag => Self::Start,
+            Self::Start => Self::Back,
+            Self::Back => Self::Version,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::Version => Self::Back,
+            Self::SelectTag => Self::Version,
+            Self::Start => Self::SelectTag,
+            Self::Back => Self::Start,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone)]
+pub enum VersionTarget {
+    Recommended,
+    Latest,
+    Tag(String),
+}
+
+impl VersionTarget {
+    pub fn cycle(&self, forward: bool) -> Self {
+        if forward {
+            match self {
+                Self::Recommended => Self::Latest,
+                Self::Latest => Self::Recommended,
+                Self::Tag(_) => Self::Recommended,
+            }
+        } else {
+            match self {
+                Self::Recommended => Self::Latest,
+                Self::Latest => Self::Recommended,
+                Self::Tag(_) => Self::Latest,
+            }
+        }
+    }
+}
+
+pub struct AppState {
+    pub interfaces: Vec<String>,
+    pub selected_interface: usize,
+
+    pub strategies: Vec<String>,
+    pub selected_strategy: usize,
+    pub strategy_menu_index: usize,
+
+    pub tcp_gamefilter: bool,
+    pub udp_gamefilter: bool,
+
+    pub active_screen: ActiveScreen,
+    pub main_menu: MainMenuState,
+    
+    #[cfg(target_os = "windows")]
+    pub defender_menu: DefenderMenuState,
+    #[cfg(target_os = "windows")]
+    pub defender_status_cache: Option<bool>,
+
+    pub download_deps_menu: DownloadDepsMenuState,
+    pub download_zapret_menu: DownloadSubmenuState,
+    pub download_strategies_menu: DownloadSubmenuState,
+    pub gamefilter_menu: GamefilterMenuState,
+    pub nfqws_target: VersionTarget,
+    pub strat_target: VersionTarget,
+
+    pub available_nfqws_tags: Vec<String>,
+    pub available_strat_tags: Vec<String>,
+    pub nfqws_tag_index: usize,
+    pub strat_tag_index: usize,
+
+    pub should_run: bool,
+    pub should_quit: bool,
+    pub should_download_zapret: bool,
+    pub should_download_strategies: bool,
+    pub status_message: Option<String>,
+}
+
+impl AppState {
+    pub fn new(interfaces: Vec<String>, strategies: Vec<String>) -> Self {
+        Self {
+            interfaces,
+            selected_interface: 0,
+            strategies,
+            selected_strategy: 0,
+            strategy_menu_index: 0,
+            tcp_gamefilter: false,
+            udp_gamefilter: false,
+            active_screen: ActiveScreen::Main,
+            
+            #[cfg(target_os = "windows")]
+            main_menu: MainMenuState::DefenderSettings,
+            #[cfg(not(target_os = "windows"))]
+            main_menu: MainMenuState::DownloadDeps,
+            
+            #[cfg(target_os = "windows")]
+            defender_menu: DefenderMenuState::Add,
+            #[cfg(target_os = "windows")]
+            defender_status_cache: crate::defender::check_defender_exclusion().ok(),
+            
+            download_deps_menu: DownloadDepsMenuState::ZapretDownloader,
+            download_zapret_menu: DownloadSubmenuState::Version,
+            download_strategies_menu: DownloadSubmenuState::Version,
+            gamefilter_menu: GamefilterMenuState::Tcp,
+            nfqws_target: VersionTarget::Recommended,
+            strat_target: VersionTarget::Recommended,
+
+            available_nfqws_tags: Vec::new(),
+            available_strat_tags: Vec::new(),
+            nfqws_tag_index: 0,
+            strat_tag_index: 0,
+
+            should_run: false,
+            should_quit: false,
+            should_download_zapret: false,
+            should_download_strategies: false,
+            status_message: None,
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn refresh_defender_status(&mut self) {
+        self.defender_status_cache = crate::defender::check_defender_exclusion().ok();
+    }
+
+    pub fn next_menu(&mut self) {
+        match self.active_screen {
+            ActiveScreen::Main => self.main_menu = self.main_menu.next(),
+            #[cfg(target_os = "windows")]
+            ActiveScreen::DefenderSubmenu => self.defender_menu = self.defender_menu.next(),
+            ActiveScreen::StrategySubmenu => {
+                if !self.strategies.is_empty() {
+                    self.strategy_menu_index = (self.strategy_menu_index + 1) % (self.strategies.len() + 1);
+                }
+            }
+            ActiveScreen::DownloadDepsSubmenu => self.download_deps_menu = self.download_deps_menu.next(),
+            ActiveScreen::DownloadZapretSubmenu => self.download_zapret_menu = self.download_zapret_menu.next(),
+            ActiveScreen::DownloadStrategiesSubmenu => self.download_strategies_menu = self.download_strategies_menu.next(),
+            ActiveScreen::GamefilterSubmenu => self.gamefilter_menu = self.gamefilter_menu.next(),
+            ActiveScreen::ZapretTagSelect => {
+                if !self.available_nfqws_tags.is_empty() {
+                    self.nfqws_tag_index = (self.nfqws_tag_index + 1) % (self.available_nfqws_tags.len() + 1);
+                }
+            }
+            ActiveScreen::StrategyTagSelect => {
+                if !self.available_strat_tags.is_empty() {
+                    self.strat_tag_index = (self.strat_tag_index + 1) % (self.available_strat_tags.len() + 1);
+                }
+            }
+        }
+    }
+
+    pub fn prev_menu(&mut self) {
+        match self.active_screen {
+            ActiveScreen::Main => self.main_menu = self.main_menu.prev(),
+            #[cfg(target_os = "windows")]
+            ActiveScreen::DefenderSubmenu => self.defender_menu = self.defender_menu.prev(),
+            ActiveScreen::StrategySubmenu => {
+                if !self.strategies.is_empty() {
+                    let max = self.strategies.len() + 1;
+                    self.strategy_menu_index = (self.strategy_menu_index + max - 1) % max;
+                }
+            }
+            ActiveScreen::DownloadDepsSubmenu => self.download_deps_menu = self.download_deps_menu.prev(),
+            ActiveScreen::DownloadZapretSubmenu => self.download_zapret_menu = self.download_zapret_menu.prev(),
+            ActiveScreen::DownloadStrategiesSubmenu => self.download_strategies_menu = self.download_strategies_menu.prev(),
+            ActiveScreen::GamefilterSubmenu => self.gamefilter_menu = self.gamefilter_menu.prev(),
+            ActiveScreen::ZapretTagSelect => {
+                if !self.available_nfqws_tags.is_empty() {
+                    let max = self.available_nfqws_tags.len() + 1;
+                    self.nfqws_tag_index = (self.nfqws_tag_index + max - 1) % max;
+                }
+            }
+            ActiveScreen::StrategyTagSelect => {
+                if !self.available_strat_tags.is_empty() {
+                    let max = self.available_strat_tags.len() + 1;
+                    self.strat_tag_index = (self.strat_tag_index + max - 1) % max;
+                }
+            }
+        }
+    }
+
+    pub fn toggle_current(&mut self) {
+        match self.active_screen {
+            ActiveScreen::Main => {
+                match self.main_menu {
+                    #[cfg(target_os = "windows")]
+                    MainMenuState::DefenderSettings => {
+                        self.active_screen = ActiveScreen::DefenderSubmenu;
+                        self.refresh_defender_status();
+                        self.status_message = None;
+                    }
+                    MainMenuState::DownloadDeps => {
+                        self.active_screen = ActiveScreen::DownloadDepsSubmenu;
+                        self.status_message = None;
+                    }
+                    MainMenuState::Interface => {
+                        if !self.interfaces.is_empty() {
+                            self.selected_interface = (self.selected_interface + 1) % self.interfaces.len();
+                        }
+                    }
+                    MainMenuState::Strategy => {
+                        self.active_screen = ActiveScreen::StrategySubmenu;
+                        self.strategy_menu_index = self.selected_strategy;
+                        self.status_message = None;
+                    }
+                    MainMenuState::GamefilterSettings => {
+                        self.active_screen = ActiveScreen::GamefilterSubmenu;
+                        self.gamefilter_menu = GamefilterMenuState::Tcp;
+                        self.status_message = None;
+                    }
+                    MainMenuState::Run => self.should_run = true,
+                    MainMenuState::Quit => self.should_quit = true,
+                }
+            }
+            #[cfg(target_os = "windows")]
+            ActiveScreen::DefenderSubmenu => {
+                match self.defender_menu {
+                    DefenderMenuState::Add => {
+                        match crate::defender::add_defender_exclusion() {
+                            Ok(_) => {
+                                self.status_message = Some("✅ Added to Windows Defender Exclusions.".to_string());
+                                self.refresh_defender_status();
+                            }
+                            Err(e) => self.status_message = Some(format!("❌ {}", e)),
+                        }
+                    }
+                    DefenderMenuState::Remove => {
+                        match crate::defender::remove_defender_exclusion() {
+                            Ok(_) => {
+                                self.status_message = Some("✅ Removed from Windows Defender Exclusions.".to_string());
+                                self.refresh_defender_status();
+                            }
+                            Err(e) => self.status_message = Some(format!("❌ {}", e)),
+                        }
+                    }
+                    DefenderMenuState::Back => {
+                        self.active_screen = ActiveScreen::Main;
+                        self.status_message = None;
+                    }
+                }
+            }
+            ActiveScreen::StrategySubmenu => {
+                if self.strategy_menu_index < self.strategies.len() {
+                    self.selected_strategy = self.strategy_menu_index;
+                    self.active_screen = ActiveScreen::Main;
+                    self.status_message = Some(format!("✅ Selected strategy: {}", self.strategies[self.selected_strategy]));
+                } else {
+                    self.active_screen = ActiveScreen::Main;
+                    self.status_message = None;
+                }
+            }
+            ActiveScreen::DownloadDepsSubmenu => {
+                match self.download_deps_menu {
+                    DownloadDepsMenuState::ZapretDownloader => {
+                        self.active_screen = ActiveScreen::DownloadZapretSubmenu;
+                        self.download_zapret_menu = DownloadSubmenuState::Version;
+                        self.status_message = None;
+                    }
+                    DownloadDepsMenuState::StrategiesDownloader => {
+                        self.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
+                        self.download_strategies_menu = DownloadSubmenuState::Version;
+                        self.status_message = None;
+                    }
+                    DownloadDepsMenuState::Back => {
+                        self.active_screen = ActiveScreen::Main;
+                        self.status_message = None;
+                    }
+                }
+            }
+            ActiveScreen::DownloadZapretSubmenu => {
+                match self.download_zapret_menu {
+                    DownloadSubmenuState::Version => {
+                        self.nfqws_target = self.nfqws_target.cycle(true);
+                    }
+                    DownloadSubmenuState::SelectTag => {
+                        self.status_message = Some("Fetching Zapret tags from GitHub... Please wait.".to_string());
+                        match crate::download::fetch_repo_tags("bol-van/zapret") {
+                            Ok(tags) => {
+                                self.available_nfqws_tags = tags;
+                                self.nfqws_tag_index = 0;
+                                self.active_screen = ActiveScreen::ZapretTagSelect;
+                                self.status_message = None;
+                            }
+                            Err(e) => {
+                                self.status_message = Some(format!("Failed to fetch tags: {}", e));
+                            }
+                        }
+                    }
+                    DownloadSubmenuState::Start => {
+                        self.should_download_zapret = true;
+                    }
+                    DownloadSubmenuState::Back => {
+                        self.active_screen = ActiveScreen::DownloadDepsSubmenu;
+                        self.status_message = None;
+                    }
+                }
+            }
+            ActiveScreen::DownloadStrategiesSubmenu => {
+                match self.download_strategies_menu {
+                    DownloadSubmenuState::Version => {
+                        self.strat_target = self.strat_target.cycle(true);
+                    }
+                    DownloadSubmenuState::SelectTag => {
+                        self.status_message = Some("Fetching Strategy tags from GitHub... Please wait.".to_string());
+                        match crate::download::fetch_repo_tags("Flowseal/zapret-discord-youtube") {
+                            Ok(tags) => {
+                                self.available_strat_tags = tags;
+                                self.strat_tag_index = 0;
+                                self.active_screen = ActiveScreen::StrategyTagSelect;
+                                self.status_message = None;
+                            }
+                            Err(e) => {
+                                self.status_message = Some(format!("Failed to fetch tags: {}", e));
+                            }
+                        }
+                    }
+                    DownloadSubmenuState::Start => {
+                        self.should_download_strategies = true;
+                    }
+                    DownloadSubmenuState::Back => {
+                        self.active_screen = ActiveScreen::DownloadDepsSubmenu;
+                        self.status_message = None;
+                    }
+                }
+            }
+            ActiveScreen::ZapretTagSelect => {
+                if self.nfqws_tag_index < self.available_nfqws_tags.len() {
+                    let selected = self.available_nfqws_tags[self.nfqws_tag_index].clone();
+                    self.nfqws_target = VersionTarget::Tag(selected);
+                    self.active_screen = ActiveScreen::DownloadZapretSubmenu;
+                    self.status_message = Some("Tag selected for Zapret.".to_string());
+                } else {
+                    self.active_screen = ActiveScreen::DownloadZapretSubmenu;
+                    self.status_message = None;
+                }
+            }
+            ActiveScreen::StrategyTagSelect => {
+                if self.strat_tag_index < self.available_strat_tags.len() {
+                    let selected = self.available_strat_tags[self.strat_tag_index].clone();
+                    self.strat_target = VersionTarget::Tag(selected);
+                    self.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
+                    self.status_message = Some("Tag selected for Strategies.".to_string());
+                } else {
+                    self.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
+                    self.status_message = None;
+                }
+            }
+            ActiveScreen::GamefilterSubmenu => {
+                match self.gamefilter_menu {
+                    GamefilterMenuState::Tcp => self.tcp_gamefilter = !self.tcp_gamefilter,
+                    GamefilterMenuState::Udp => self.udp_gamefilter = !self.udp_gamefilter,
+                    GamefilterMenuState::Back => {
+                        self.active_screen = ActiveScreen::Main;
+                        self.status_message = None;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn cycle_current(&mut self, forward: bool) {
+        match self.active_screen {
+            ActiveScreen::Main => {
+                match self.main_menu {
+                    MainMenuState::Interface => {
+                        if !self.interfaces.is_empty() {
+                            let len = self.interfaces.len();
+                            if forward {
+                                self.selected_interface = (self.selected_interface + 1) % len;
+                            } else {
+                                self.selected_interface = (self.selected_interface + len - 1) % len;
+                            }
+                        }
+                    }
+                    _ => {
+                        if forward {
+                            self.toggle_current();
+                        }
+                    }
+                }
+            }
+            ActiveScreen::DownloadZapretSubmenu => {
+                match self.download_zapret_menu {
+                    DownloadSubmenuState::Version => {
+                        self.nfqws_target = self.nfqws_target.cycle(forward);
+                    }
+                    _ => {
+                        if forward {
+                            self.toggle_current();
+                        }
+                    }
+                }
+            }
+            ActiveScreen::DownloadStrategiesSubmenu => {
+                match self.download_strategies_menu {
+                    DownloadSubmenuState::Version => {
+                        self.strat_target = self.strat_target.cycle(forward);
+                    }
+                    _ => {
+                        if forward {
+                            self.toggle_current();
+                        }
+                    }
+                }
+            }
+            ActiveScreen::GamefilterSubmenu => {
+                match self.gamefilter_menu {
+                    GamefilterMenuState::Tcp => self.tcp_gamefilter = !self.tcp_gamefilter,
+                    GamefilterMenuState::Udp => self.udp_gamefilter = !self.udp_gamefilter,
+                    _ => {
+                        if forward {
+                            self.toggle_current();
+                        }
+                    }
+                }
+            }
+            _ => {
+                if forward {
+                    self.toggle_current();
+                }
+            }
+        }
+    }
+}

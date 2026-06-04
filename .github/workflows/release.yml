@@ -1,0 +1,69 @@
+name: Release Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux Packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-deb and cargo-generate-rpm
+        run: |
+          cargo install cargo-deb || true
+          cargo install cargo-generate-rpm || true
+
+      - name: Build release binary
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Generate DEB package
+        run: cargo deb --target x86_64-unknown-linux-gnu --no-build
+
+      - name: Generate RPM package
+        run: |
+          # Strip the binary before packaging
+          strip target/x86_64-unknown-linux-gnu/release/zapret-rust
+          cargo generate-rpm --target x86_64-unknown-linux-gnu
+
+      - name: Upload DEB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zapret-rust-deb
+          path: target/x86_64-unknown-linux-gnu/debian/*.deb
+
+      - name: Upload RPM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zapret-rust-rpm
+          path: target/x86_64-unknown-linux-gnu/generate-rpm/*.rpm
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            target/x86_64-unknown-linux-gnu/debian/*.deb
+            target/x86_64-unknown-linux-gnu/generate-rpm/*.rpm

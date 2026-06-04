@@ -1,0 +1,41 @@
+[package]
+name = "zapret-rust"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Zapret-Rust TUI implementation for DPI bypass"
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+inquire = "0.6"
+ctrlc = "3.4"
+nix = { version = "0.27", features = ["signal"] }
+ratatui = "0.26.1"
+crossterm = "0.27.0"
+regex = "1.10.2"
+nftables = "0.6.3"
+serde_json = "1.0"
+ureq = "2.9.1"
+tar = "0.4.46"
+flate2 = "1.1.9"
+zip = "8.6.0"
+
+[[bin]]
+name = "zapret-rust"
+path = "src/main.rs"
+
+[package.metadata.deb]
+maintainer = "Sergey <sergey@example.com>"
+copyright = "2024"
+extended-description = "Zapret-Rust TUI implementation for DPI bypass"
+depends = "$auto"
+section = "net"
+priority = "optional"
+assets = [
+    ["target/release/zapret-rust", "usr/bin/zapret-rust", "755"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/zapret-rust", dest = "/usr/bin/zapret-rust", mode = "755" }
+]
