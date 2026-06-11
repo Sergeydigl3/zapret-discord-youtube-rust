@@ -208,6 +208,19 @@ fn main() {
         }
     };
 
+    let nfqws_ok = download::check_nfqws_installed();
+    let strat_ok = download::check_strategies_installed();
+    if !nfqws_ok || !strat_ok {
+        if !nfqws_ok && !strat_ok {
+            eprintln!("Ошибка: Отсутствуют оба компонента (nfqws и стратегии). Запуск отклонен.");
+        } else if !nfqws_ok {
+            eprintln!("Ошибка: Отсутствует nfqws (ядро). Запуск отклонен.");
+        } else {
+            eprintln!("Ошибка: Отсутствуют стратегии. Запуск отклонен.");
+        }
+        exit(1);
+    }
+
     #[cfg(not(target_os = "windows"))]
     let backend = NftablesBackend;
 
