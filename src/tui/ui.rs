@@ -109,15 +109,30 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 list_state.select(Some(selected_index));
                 f.render_stateful_widget(list, main_chunks[0], &mut list_state);
 
-                let nfqws_status = if app.nfqws_installed { "✅" } else { "❌" };
-                let strat_status = if app.strategies_installed { "✅" } else { "❌" };
-                let status_text = Line::from(vec![
-                    Span::styled("📥 Dependencies Status: ", Style::default().fg(Color::Gray)),
-                    Span::styled("nfqws ", Style::default().fg(Color::White)),
-                    Span::raw(nfqws_status),
-                    Span::styled(" | strategies ", Style::default().fg(Color::White)),
-                    Span::raw(strat_status),
-                ]);
+                let mut show_error = false;
+                let mut error_msg = String::new();
+                if let Some((ref msg, instant)) = app.dependency_error {
+                    if instant.elapsed() < std::time::Duration::from_secs(3) {
+                        show_error = true;
+                        error_msg = msg.clone();
+                    }
+                }
+
+                let status_text = if show_error {
+                    Line::from(vec![
+                        Span::styled(error_msg, Style::default().fg(Color::Red).add_modifier(ratatui::style::Modifier::BOLD)),
+                    ])
+                } else {
+                    let nfqws_status = if app.nfqws_installed { "✅" } else { "❌" };
+                    let strat_status = if app.strategies_installed { "✅" } else { "❌" };
+                    Line::from(vec![
+                        Span::styled("📥 Dependencies Status: ", Style::default().fg(Color::Gray)),
+                        Span::styled("nfqws ", Style::default().fg(Color::White)),
+                        Span::raw(nfqws_status),
+                        Span::styled(" | strategies ", Style::default().fg(Color::White)),
+                        Span::raw(strat_status),
+                    ])
+                };
                 let status_paragraph = Paragraph::new(status_text)
                     .alignment(ratatui::layout::Alignment::Center);
                 

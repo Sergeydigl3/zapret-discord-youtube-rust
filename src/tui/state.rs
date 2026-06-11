@@ -227,6 +227,7 @@ pub struct AppState {
 
     pub nfqws_installed: bool,
     pub strategies_installed: bool,
+    pub dependency_error: Option<(String, std::time::Instant)>,
 }
 
 impl AppState {
@@ -284,6 +285,7 @@ impl AppState {
 
             nfqws_installed: crate::download::check_nfqws_installed(),
             strategies_installed: crate::download::check_strategies_installed(),
+            dependency_error: None,
         }
     }
 
@@ -383,7 +385,21 @@ impl AppState {
                         self.gamefilter_menu = GamefilterMenuState::Tcp;
                         self.status_message = None;
                     }
-                    MainMenuState::Run => self.should_run = true,
+                    MainMenuState::Run => {
+                        self.refresh_dep_status();
+                        if !self.nfqws_installed || !self.strategies_installed {
+                            let msg = if !self.nfqws_installed && !self.strategies_installed {
+                                "Ошибка: Отсутствуют оба компонента (nfqws и стратегии)"
+                            } else if !self.nfqws_installed {
+                                "Ошибка: Отсутствует nfqws (ядро)"
+                            } else {
+                                "Ошибка: Отсутствуют стратегии"
+                            };
+                            self.dependency_error = Some((msg.to_string(), std::time::Instant::now()));
+                        } else {
+                            self.should_run = true;
+                        }
+                    }
                     MainMenuState::Quit => self.should_quit = true,
                 }
             }
