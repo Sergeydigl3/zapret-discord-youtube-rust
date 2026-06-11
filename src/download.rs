@@ -70,19 +70,20 @@ pub fn download_nfqws(version: &str) -> Result<(), String> {
     
     // Use local temp directory inside cache_dir to avoid Windows Defender blocks
     let tmp_dir = crate::config::get_cache_dir().join(".tmp_zapret_download");
+    let _ = fs::remove_dir_all(&tmp_dir);
     let _ = fs::create_dir_all(&tmp_dir);
     let tmp_archive = tmp_dir.join(&archive);
 
     println!("[nfqws] Downloading archive: {}", url);
-    let mut response = ureq::get(&url).call().map_err(|e| format!("Failed to download archive: {}", e))?.into_reader();
-    let mut file = fs::File::create(&tmp_archive).map_err(|e| format!("Failed to create temp file: {}", e))?;
-    std::io::copy(&mut response, &mut file).map_err(|e| format!("Failed to write archive: {}", e))?;
+    let mut response = ureq::get(&url).call().map_err(|e| format!("Ошибка скачивания архива: {}", e))?.into_reader();
+    let mut file = fs::File::create(&tmp_archive).map_err(|e| format!("Ошибка создания файла: {}", e))?;
+    std::io::copy(&mut response, &mut file).map_err(|e| format!("Ошибка записи архива: {}", e))?;
 
     println!("[nfqws] Extracting archive...");
-    let tar_gz = fs::File::open(&tmp_archive).map_err(|e| format!("Failed to open archive: {}", e))?;
+    let tar_gz = fs::File::open(&tmp_archive).map_err(|e| format!("Ошибка открытия архива: {}", e))?;
     let tar = flate2::read::GzDecoder::new(tar_gz);
     let mut archive = tar::Archive::new(tar);
-    archive.unpack(&tmp_dir).map_err(|e| format!("Failed to extract tar: {}", e))?;
+    archive.unpack(&tmp_dir).map_err(|e| format!("Ошибка распаковки tar: {}", e))?;
 
     let expected_bin_path = tmp_dir.join(format!("zapret-{}", tag)).join("binaries").join(platform);
 
@@ -102,7 +103,9 @@ pub fn download_nfqws(version: &str) -> Result<(), String> {
             let bin_name = "nfqws";
             let bin_file = expected_bin_path.join(bin_name);
             if bin_file.exists() {
-                fs::copy(&bin_file, bin_dir.join(bin_name)).map_err(|e| format!("Failed to copy binary: {}", e))?;
+                let dest = bin_dir.join(bin_name);
+                let _ = fs::remove_file(&dest);
+                fs::copy(&bin_file, &dest).map_err(|e| format!("Failed to copy binary: {}", e))?;
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
@@ -112,6 +115,16 @@ pub fn download_nfqws(version: &str) -> Result<(), String> {
                     }
                 }
                 println!("[nfqws] Successfully installed nfqws to bin/{}", bin_name);
+
+                // Set CAP_NET_ADMIN so nfqws can use nfqueue without full root
+                if let Ok(output) = std::process::Command::new("setcap")
+                    .args(["cap_net_admin+ep", bin_dir.join(bin_name).to_str().unwrap()])
+                    .output()
+                {
+                    if output.status.success() {
+                        println!("[nfqws] cap_net_admin+ep set on nfqws");
+                    }
+                }
             } else {
                 return Err(format!("Could not find {} in {:?}", bin_name, expected_bin_path));
             }
