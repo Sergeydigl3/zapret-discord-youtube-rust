@@ -91,14 +91,47 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 .border_type(BorderType::Rounded)
                 .border_style(Theme::dim_item());
 
-            let list = List::new(items)
-                .block(list_block)
-                .highlight_style(Style::default().add_modifier(ratatui::style::Modifier::ITALIC));
-            
-            let mut list_state = ratatui::widgets::ListState::default();
-            list_state.select(Some(selected_index));
-            
-            f.render_stateful_widget(list, chunks[1], &mut list_state);
+            if app.active_screen == ActiveScreen::Main {
+                let inner_area = list_block.inner(chunks[1]);
+                let main_chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Min(1),
+                        Constraint::Length(1),
+                    ])
+                    .split(inner_area);
+
+                f.render_widget(list_block, chunks[1]);
+
+                let list = List::new(items)
+                    .highlight_style(Style::default().add_modifier(ratatui::style::Modifier::ITALIC));
+                let mut list_state = ratatui::widgets::ListState::default();
+                list_state.select(Some(selected_index));
+                f.render_stateful_widget(list, main_chunks[0], &mut list_state);
+
+                let nfqws_status = if app.nfqws_installed { "✅" } else { "❌" };
+                let strat_status = if app.strategies_installed { "✅" } else { "❌" };
+                let status_text = Line::from(vec![
+                    Span::styled("📥 Dependencies Status: ", Style::default().fg(Color::Gray)),
+                    Span::styled("nfqws ", Style::default().fg(Color::White)),
+                    Span::raw(nfqws_status),
+                    Span::styled(" | strategies ", Style::default().fg(Color::White)),
+                    Span::raw(strat_status),
+                ]);
+                let status_paragraph = Paragraph::new(status_text)
+                    .alignment(ratatui::layout::Alignment::Center);
+                
+                f.render_widget(status_paragraph, main_chunks[1]);
+            } else {
+                let list = List::new(items)
+                    .block(list_block)
+                    .highlight_style(Style::default().add_modifier(ratatui::style::Modifier::ITALIC));
+                
+                let mut list_state = ratatui::widgets::ListState::default();
+                list_state.select(Some(selected_index));
+                
+                f.render_stateful_widget(list, chunks[1], &mut list_state);
+            }
 
             let dynamic_help = match app.active_screen {
                 ActiveScreen::Main => match app.main_menu {
