@@ -93,10 +93,18 @@ pub fn run_zapret(
         _ => println!("  (не удалось setcap cap_net_admin+ep, может потребоваться root)"),
     }
 
+    #[cfg(target_os = "linux")]
     let mut args = vec![
         "--dpi-desync-fwmark=0x40000000".to_string(),
         "--qnum=200".to_string(),
     ];
+
+    #[cfg(target_os = "windows")]
+    let mut args = vec![
+        format!("--wf-tcp={}", parsed.tcp_ports),
+        format!("--wf-udp={}", parsed.udp_ports),
+    ];
+
     for param in &parsed.nfqws_params {
         for p in param.split_whitespace() {
             let p = p.replace('"', "");

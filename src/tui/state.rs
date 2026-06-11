@@ -1,4 +1,4 @@
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ActiveScreen {
     Main,
     #[cfg(target_os = "windows")]
@@ -10,9 +10,10 @@ pub enum ActiveScreen {
     GamefilterSubmenu,
     ZapretTagSelect,
     StrategyTagSelect,
+    ServiceSubmenu,
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum MainMenuState {
     #[cfg(target_os = "windows")]
     DefenderSettings,
@@ -20,6 +21,7 @@ pub enum MainMenuState {
     Interface,
     Strategy,
     GamefilterSettings,
+    ServiceSettings,
     Run,
     Quit,
 }
@@ -32,7 +34,8 @@ impl MainMenuState {
             Self::DownloadDeps => Self::Interface,
             Self::Interface => Self::Strategy,
             Self::Strategy => Self::GamefilterSettings,
-            Self::GamefilterSettings => Self::Run,
+            Self::GamefilterSettings => Self::ServiceSettings,
+            Self::ServiceSettings => Self::Run,
             Self::Run => Self::Quit,
             #[cfg(target_os = "windows")]
             Self::Quit => Self::DefenderSettings,
@@ -52,11 +55,13 @@ impl MainMenuState {
             Self::Interface => Self::DownloadDeps,
             Self::Strategy => Self::Interface,
             Self::GamefilterSettings => Self::Strategy,
-            Self::Run => Self::GamefilterSettings,
+            Self::ServiceSettings => Self::GamefilterSettings,
+            Self::Run => Self::ServiceSettings,
             Self::Quit => Self::Run,
         }
     }
 }
+
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum GamefilterMenuState {
@@ -232,6 +237,10 @@ pub struct AppState {
     pub nfqws_installed: bool,
     pub strategies_installed: bool,
     pub dependency_error: Option<(String, std::time::Instant)>,
+
+    pub service_installed: bool,
+    pub service_active: bool,
+    pub service_menu_index: usize,
 }
 
 impl AppState {
@@ -249,7 +258,7 @@ impl AppState {
         let tcp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_tcp);
         let udp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_udp);
 
-        Self {
+        let mut app = Self {
             interfaces,
             selected_interface,
             strategies,
@@ -291,7 +300,13 @@ impl AppState {
             nfqws_installed: crate::download::check_nfqws_installed(),
             strategies_installed: crate::download::check_strategies_installed(),
             dependency_error: None,
-        }
+
+            service_installed: false,
+            service_active: false,
+            service_menu_index: 0,
+        };
+        app.refresh_service_status();
+        app
     }
 
     pub fn refresh_dep_status(&mut self) {
@@ -302,6 +317,41 @@ impl AppState {
     #[cfg(target_os = "windows")]
     pub fn refresh_defender_status(&mut self) {
         self.defender_status_cache = crate::defender::check_defender_exclusion().ok();
+    }
+
+    pub fn refresh_service_status(&mut self) {
+        #[cfg(target_os = "linux")]
+        {
+            if let Some(mgr) = crate::inits::get_detected_manager() {
+                self.service_installed = mgr.is_installed();
+                self.service_active = mgr.is_active();
+            } else {
+                self.service_installed = false;
+                self.service_active = false;
+            }
+        }
+        #[cfg(target_os = "windows")]
+        {
+            use crate::inits::ServiceManager;
+            let mgr = crate::inits::winservice::WindowsServiceManager;
+            self.service_installed = mgr.is_installed();
+            self.service_active = mgr.is_active();
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        {
+            self.service_installed = false;
+            self.service_active = false;
+        }
+    }
+
+    pub fn get_service_menu_count(&self) -> usize {
+        if !self.service_installed {
+            2
+        } else if self.service_active {
+            4
+        } else {
+            3
+        }
     }
 
     pub fn next_menu(&mut self) {
@@ -326,6 +376,12 @@ impl AppState {
             ActiveScreen::StrategyTagSelect => {
                 if !self.available_strat_tags.is_empty() {
                     self.strat_tag_index = (self.strat_tag_index + 1) % (self.available_strat_tags.len() + 1);
+                }
+            }
+            ActiveScreen::ServiceSubmenu => {
+                let count = self.get_service_menu_count();
+                if count > 0 {
+                    self.service_menu_index = (self.service_menu_index + 1) % count;
                 }
             }
         }
@@ -356,6 +412,12 @@ impl AppState {
                 if !self.available_strat_tags.is_empty() {
                     let max = self.available_strat_tags.len() + 1;
                     self.strat_tag_index = (self.strat_tag_index + max - 1) % max;
+                }
+            }
+            ActiveScreen::ServiceSubmenu => {
+                let count = self.get_service_menu_count();
+                if count > 0 {
+                    self.service_menu_index = (self.service_menu_index + count - 1) % count;
                 }
             }
         }
@@ -390,15 +452,21 @@ impl AppState {
                         self.gamefilter_menu = GamefilterMenuState::Tcp;
                         self.status_message = None;
                     }
+                    MainMenuState::ServiceSettings => {
+                        self.active_screen = ActiveScreen::ServiceSubmenu;
+                        self.service_menu_index = 0;
+                        self.refresh_service_status();
+                        self.status_message = None;
+                    }
                     MainMenuState::Run => {
                         self.refresh_dep_status();
                         if !self.nfqws_installed || !self.strategies_installed {
                             let msg = if !self.nfqws_installed && !self.strategies_installed {
-                                "Ошибка: Отсутствуют оба компонента (nfqws и стратегии)"
+                                "Error: Both components (nfqws and strategies) are missing"
                             } else if !self.nfqws_installed {
-                                "Ошибка: Отсутствует nfqws (ядро)"
+                                "Error: nfqws (core) is missing"
                             } else {
-                                "Ошибка: Отсутствуют стратегии"
+                                "Error: strategies are missing"
                             };
                             self.dependency_error = Some((msg.to_string(), std::time::Instant::now()));
                         } else {
@@ -552,6 +620,90 @@ impl AppState {
                         self.active_screen = ActiveScreen::Main;
                         self.status_message = None;
                     }
+                }
+            }
+            ActiveScreen::ServiceSubmenu => {
+                #[cfg(target_os = "linux")]
+                let mgr_opt = crate::inits::get_detected_manager();
+                #[cfg(target_os = "windows")]
+                let mgr_opt: Option<Box<dyn crate::inits::ServiceManager>> = Some(Box::new(crate::inits::winservice::WindowsServiceManager));
+                #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+                let mgr_opt: Option<Box<dyn crate::inits::ServiceManager>> = None;
+
+                if let Some(mgr) = mgr_opt {
+                    let mut action_taken = true;
+                    let res = if !self.service_installed {
+                        match self.service_menu_index {
+                            0 => {
+                                let exe_path = std::env::current_exe().map_err(|e| e.to_string());
+                                match exe_path {
+                                    Ok(p) => {
+                                        let config_path = crate::config::config_path();
+                                        let cache_dir = crate::config::get_cache_dir();
+                                        mgr.install(&p, &config_path, &cache_dir)
+                                            .and_then(|_| mgr.start())
+                                    }
+                                    Err(e) => Err(e),
+                                }
+                            }
+                            1 => {
+                                self.active_screen = ActiveScreen::Main;
+                                self.status_message = None;
+                                action_taken = false;
+                                Ok(())
+                            }
+                            _ => {
+                                action_taken = false;
+                                Ok(())
+                            }
+                        }
+                    } else if self.service_active {
+                        match self.service_menu_index {
+                            0 => mgr.stop(),
+                            1 => mgr.restart(),
+                            2 => mgr.uninstall(),
+                            3 => {
+                                self.active_screen = ActiveScreen::Main;
+                                self.status_message = None;
+                                action_taken = false;
+                                Ok(())
+                            }
+                            _ => {
+                                action_taken = false;
+                                Ok(())
+                            }
+                        }
+                    } else {
+                        match self.service_menu_index {
+                            0 => mgr.start(),
+                            1 => mgr.uninstall(),
+                            2 => {
+                                self.active_screen = ActiveScreen::Main;
+                                self.status_message = None;
+                                action_taken = false;
+                                Ok(())
+                            }
+                            _ => {
+                                action_taken = false;
+                                Ok(())
+                            }
+                        }
+                    };
+
+                    if action_taken {
+                        match res {
+                            Ok(_) => {
+                                self.refresh_service_status();
+                                self.service_menu_index = 0;
+                                self.status_message = Some("✅ Operation completed successfully.".to_string());
+                            }
+                            Err(e) => {
+                                self.status_message = Some(format!("❌ Error: {}", e));
+                            }
+                        }
+                    }
+                } else {
+                    self.status_message = Some("❌ Error: Init system not supported.".to_string());
                 }
             }
         }
