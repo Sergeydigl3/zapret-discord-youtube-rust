@@ -6,17 +6,17 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     let mut menu_items = vec![];
     
     if !app.service_installed {
-        menu_items.push(" ▶️ Start Service".to_string());
-        menu_items.push(" 🔙 Back".to_string());
+        menu_items.push(" \u{F04B} Start Service".to_string());
+        menu_items.push(" \u{F04A} Back".to_string());
     } else if app.service_active {
-        menu_items.push(" ⏹️ Stop Service".to_string());
-        menu_items.push(" 🔄 Restart Service".to_string());
-        menu_items.push(" 🗑️ Uninstall Service".to_string());
-        menu_items.push(" 🔙 Back".to_string());
+        menu_items.push(" \u{F04D} Stop Service".to_string());
+        menu_items.push(" \u{F021} Restart Service".to_string());
+        menu_items.push(" \u{F1F8} Uninstall Service".to_string());
+        menu_items.push(" \u{F04A} Back".to_string());
     } else {
-        menu_items.push(" ▶️ Start Service".to_string());
-        menu_items.push(" 🗑️ Uninstall Service".to_string());
-        menu_items.push(" 🔙 Back".to_string());
+        menu_items.push(" \u{F04B} Start Service".to_string());
+        menu_items.push(" \u{F1F8} Uninstall Service".to_string());
+        menu_items.push(" \u{F04A} Back".to_string());
     }
 
     let selected_index = app.service_menu_index;

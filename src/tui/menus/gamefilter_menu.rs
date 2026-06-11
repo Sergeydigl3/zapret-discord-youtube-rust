@@ -20,7 +20,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
         let label_style = if is_sel { Theme::selected_item() } else { Theme::normal_item() };
 
         let mut spans = vec![
-            Span::styled(" 🎮 TCP Gamefilter:      ", label_style),
+            Span::styled(" \u{F11B} TCP Gamefilter:      ", label_style),
         ];
 
         if app.tcp_gamefilter {
@@ -45,7 +45,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
         let label_style = if is_sel { Theme::selected_item() } else { Theme::normal_item() };
 
         let mut spans = vec![
-            Span::styled(" 🕹️  UDP Gamefilter:      ", label_style),
+            Span::styled(" \u{F11B} UDP Gamefilter:      ", label_style),
         ];
 
         if app.udp_gamefilter {
@@ -68,7 +68,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
         }
 
         let style = if is_sel { Theme::selected_item() } else { Theme::normal_item() };
-        items.push(ListItem::new(" 🔙 Back to Main Menu").style(style));
+        items.push(ListItem::new(" \u{F04A} Back to Main Menu").style(style));
     }
 
     (items, " Game Filter Settings ", selected_index)

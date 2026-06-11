@@ -11,7 +11,7 @@ pub fn render(
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            let prefix = if i == selected_tag_index { "👉 " } else { "   " };
+            let prefix = if i == selected_tag_index { "\u{F061} " } else { "   " };
             let m = format!(" {}{}", prefix, t);
             if i == selected_tag_index {
                 selected_index = i;
@@ -28,9 +28,9 @@ pub fn render(
     }
     
     let back_item = if back_selected {
-        ListItem::new(" 🔙 Back to Download Menu").style(Theme::selected_item())
+        ListItem::new(" \u{F04A} Back to Download Menu").style(Theme::selected_item())
     } else {
-        ListItem::new(" 🔙 Back to Download Menu").style(Theme::normal_item())
+        ListItem::new(" \u{F04A} Back to Download Menu").style(Theme::normal_item())
     };
     
     items.push(back_item);

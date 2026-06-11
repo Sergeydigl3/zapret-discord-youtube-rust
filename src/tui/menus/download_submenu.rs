@@ -23,9 +23,9 @@ pub fn render(
     };
 
     let version_title = if is_zapret {
-        " ⚙️ Zapret Version:  "
+        " \u{F013} Zapret Version:  "
     } else {
-        " ⚙️ Strategies Version: "
+        " \u{F013} Strategies Version: "
     };
 
     let mut version_spans = vec![
@@ -84,15 +84,15 @@ pub fn render(
 
     let other_items = if is_zapret {
         vec![
-            (DownloadSubmenuState::SelectTag, "   🏷️ Select Zapret Tag...".to_string()),
-            (DownloadSubmenuState::Start, " ▶️ Download and Install Zapret".to_string()),
-            (DownloadSubmenuState::Back, " 🔙 Back to Categories".to_string()),
+            (DownloadSubmenuState::SelectTag, "   \u{F02B} Select Zapret Tag...".to_string()),
+            (DownloadSubmenuState::Start, " \u{F04B} Download and Install Zapret".to_string()),
+            (DownloadSubmenuState::Back, " \u{F04A} Back to Categories".to_string()),
         ]
     } else {
         vec![
-            (DownloadSubmenuState::SelectTag, "   🏷️ Select Strategies Tag...".to_string()),
-            (DownloadSubmenuState::Start, " ▶️ Download and Install Strategies".to_string()),
-            (DownloadSubmenuState::Back, " 🔙 Back to Categories".to_string()),
+            (DownloadSubmenuState::SelectTag, "   \u{F02B} Select Strategies Tag...".to_string()),
+            (DownloadSubmenuState::Start, " \u{F04B} Download and Install Strategies".to_string()),
+            (DownloadSubmenuState::Back, " \u{F04A} Back to Categories".to_string()),
         ]
     };
 
