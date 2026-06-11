@@ -7,6 +7,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     let menu_items = vec![
         " ⚙️ Zapret (nfqws/winws) Downloader...".to_string(),
         " 📜 Strategies Downloader...".to_string(),
+        " 📥 Download Defaults".to_string(),
         " 🔙 Back to Main Menu".to_string(),
     ];
     
@@ -17,7 +18,8 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
             let is_selected = match app.download_deps_menu {
                 DownloadDepsMenuState::ZapretDownloader if i == 0 => true,
                 DownloadDepsMenuState::StrategiesDownloader if i == 1 => true,
-                DownloadDepsMenuState::Back if i == 2 => true,
+                DownloadDepsMenuState::DownloadDefaults if i == 2 => true,
+                DownloadDepsMenuState::Back if i == 3 => true,
                 _ => false,
             };
             
