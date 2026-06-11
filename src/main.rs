@@ -189,6 +189,15 @@ fn main() {
         use_strategy = app.strategies.get(app.selected_strategy).cloned();
         use_gamefilter_tcp = app.tcp_gamefilter;
         use_gamefilter_udp = app.udp_gamefilter;
+
+        if let Some(ref strat) = use_strategy {
+            let _ = config::save_tui_state(
+                &use_interface,
+                strat,
+                use_gamefilter_tcp,
+                use_gamefilter_udp,
+            );
+        }
     }
 
     let strategy_file = match use_strategy {

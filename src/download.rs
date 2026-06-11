@@ -234,6 +234,47 @@ pub fn install_dependencies(nfqws_ver: &str, strat_ver: &str) -> Result<(), Stri
 }
 
 
+pub fn check_nfqws_installed() -> bool {
+    let bin_dir = crate::config::get_cache_dir().join("bin");
+    let bin_name = if env::consts::OS == "windows" {
+        "winws.exe"
+    } else {
+        "nfqws"
+    };
+    bin_dir.join(bin_name).exists()
+}
+
+pub fn check_strategies_installed() -> bool {
+    let repo_dir = crate::config::get_cache_dir().join("zapret-discord-youtube-linux");
+    if !repo_dir.exists() {
+        return false;
+    }
+    let mut has_bat = false;
+    if let Ok(entries) = std::fs::read_dir(&repo_dir) {
+        for entry in entries.flatten() {
+            if let Ok(name) = entry.file_name().into_string() {
+                if name.ends_with(".bat") {
+                    has_bat = true;
+                    break;
+                }
+            }
+        }
+    }
+    if !has_bat {
+        if let Ok(entries) = std::fs::read_dir(repo_dir.join("custom-strategies")) {
+            for entry in entries.flatten() {
+                if let Ok(name) = entry.file_name().into_string() {
+                    if name.ends_with(".bat") {
+                        has_bat = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    has_bat
+}
+
 pub fn fetch_repo_tags(repo: &str) -> Result<Vec<String>, String> {
     let url = format!("https://api.github.com/repos/{}/tags", repo);
     let req = ureq::get(&url)

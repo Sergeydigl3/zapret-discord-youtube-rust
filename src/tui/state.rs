@@ -224,18 +224,34 @@ pub struct AppState {
     pub should_download_zapret: bool,
     pub should_download_strategies: bool,
     pub status_message: Option<String>,
+
+    pub nfqws_installed: bool,
+    pub strategies_installed: bool,
 }
 
 impl AppState {
     pub fn new(interfaces: Vec<String>, strategies: Vec<String>) -> Self {
+        let saved_cfg = crate::config::load_config(
+            &crate::config::config_path().to_string_lossy()
+        ).ok();
+
+        let selected_interface = saved_cfg.as_ref().map_or(0, |cfg| {
+            interfaces.iter().position(|i| i == &cfg.interface).unwrap_or(0)
+        });
+        let selected_strategy = saved_cfg.as_ref().map_or(0, |cfg| {
+            strategies.iter().position(|s| s == &cfg.strategy).unwrap_or(0)
+        });
+        let tcp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_tcp);
+        let udp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_udp);
+
         Self {
             interfaces,
-            selected_interface: 0,
+            selected_interface,
             strategies,
-            selected_strategy: 0,
-            strategy_menu_index: 0,
-            tcp_gamefilter: false,
-            udp_gamefilter: false,
+            selected_strategy,
+            strategy_menu_index: selected_strategy,
+            tcp_gamefilter,
+            udp_gamefilter,
             active_screen: ActiveScreen::Main,
             
             #[cfg(target_os = "windows")]
@@ -265,7 +281,15 @@ impl AppState {
             should_download_zapret: false,
             should_download_strategies: false,
             status_message: None,
+
+            nfqws_installed: crate::download::check_nfqws_installed(),
+            strategies_installed: crate::download::check_strategies_installed(),
         }
+    }
+
+    pub fn refresh_dep_status(&mut self) {
+        self.nfqws_installed = crate::download::check_nfqws_installed();
+        self.strategies_installed = crate::download::check_strategies_installed();
     }
 
     #[cfg(target_os = "windows")]

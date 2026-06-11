@@ -228,6 +228,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             } else {
                 app.status_message = Some("Zapret successfully downloaded and installed.".to_string());
                 app.active_screen = ActiveScreen::DownloadZapretSubmenu;
+                app.refresh_dep_status();
             }
         }
 
@@ -277,6 +278,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 app.status_message = Some("Strategies successfully downloaded and installed.".to_string());
                 app.strategies = crate::strategy::get_strategies();
                 app.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
+                app.refresh_dep_status();
             }
         }
 

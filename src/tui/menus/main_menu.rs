@@ -24,7 +24,9 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     {
         let is_sel = app.main_menu == MainMenuState::DownloadDeps;
         if is_sel { selected_index = index; }
-        items.push(ListItem::new(" 📥 Download Dependencies (nfqws / strategies)").style(
+        let nfqws_status = if app.nfqws_installed { "✅" } else { "❌" };
+        let strat_status = if app.strategies_installed { "✅" } else { "❌" };
+        items.push(ListItem::new(format!(" 📥 Dependencies: nfqws {} | strategies {} ", nfqws_status, strat_status)).style(
             if is_sel { Theme::selected_item() } else { Theme::normal_item() }
         ));
         index += 1;
