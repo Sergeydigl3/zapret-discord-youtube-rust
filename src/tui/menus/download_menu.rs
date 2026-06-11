@@ -2,13 +2,13 @@ use ratatui::widgets::ListItem;
 use crate::tui::state::{AppState, DownloadDepsMenuState};
 use crate::tui::theme::Theme;
 
-pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
+pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
     let menu_items = vec![
-        " \u{F013} Zapret (nfqws/winws) Downloader...".to_string(),
-        " \u{F15C} Strategies Downloader...".to_string(),
-        " \u{F01A} Download Defaults".to_string(),
-        " \u{F04A} Back to Main Menu".to_string(),
+        format!(" {}", rust_i18n::t!("menu_dl_zapret")),
+        format!(" {}", rust_i18n::t!("menu_dl_strat")),
+        format!(" {}", rust_i18n::t!("menu_dl_defaults")),
+        format!(" {}", rust_i18n::t!("menu_dl_back")),
     ];
     
     let items: Vec<ListItem> = menu_items
@@ -32,5 +32,5 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
         })
         .collect();
 
-    (items, " Downloader Categories ", selected_index)
+    (items, rust_i18n::t!("menu_dl_title").into_owned(), selected_index)
 }

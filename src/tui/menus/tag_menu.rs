@@ -4,8 +4,8 @@ use crate::tui::theme::Theme;
 pub fn render(
     tags: &[String],
     selected_tag_index: usize,
-    title: &'static str,
-) -> (Vec<ListItem<'static>>, &'static str, usize) {
+    title: &str,
+) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
     let mut items: Vec<ListItem> = tags
         .iter()
@@ -28,11 +28,11 @@ pub fn render(
     }
     
     let back_item = if back_selected {
-        ListItem::new(" \u{F04A} Back to Download Menu").style(Theme::selected_item())
+        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::selected_item())
     } else {
-        ListItem::new(" \u{F04A} Back to Download Menu").style(Theme::normal_item())
+        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::normal_item())
     };
     
     items.push(back_item);
-    (items, title, selected_index)
+    (items, title.to_string(), selected_index)
 }

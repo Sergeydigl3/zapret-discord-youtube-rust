@@ -8,7 +8,7 @@ use crate::tui::theme::Theme;
 pub fn render(
     app: &AppState,
     is_zapret: bool,
-) -> (Vec<ListItem<'static>>, &'static str, usize) {
+) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
     
     let menu_state = if is_zapret { app.download_zapret_menu } else { app.download_strategies_menu };
@@ -23,13 +23,13 @@ pub fn render(
     };
 
     let version_title = if is_zapret {
-        " \u{F013} Zapret Version:  "
+        rust_i18n::t!("menu_subdl_title_zapret")
     } else {
-        " \u{F013} Strategies Version: "
+        rust_i18n::t!("menu_subdl_title_strat")
     };
 
     let mut version_spans = vec![
-        Span::styled(version_title, label_style),
+        Span::styled(version_title.into_owned(), label_style),
     ];
 
     let rec_ver_str = if is_zapret {
@@ -38,11 +38,11 @@ pub fn render(
         crate::download::STRAT_REC_VER[..7].to_string()
     };
 
-    let latest_label = if is_zapret { "Latest" } else { "Latest (main)" };
+    let latest_label = rust_i18n::t!("val_latest");
 
     let options = vec![
-        (VersionTarget::Recommended, format!("Recommended ({})", rec_ver_str)),
-        (VersionTarget::Latest, latest_label.to_string()),
+        (VersionTarget::Recommended, format!("{} ({})", rust_i18n::t!("val_rec"), rec_ver_str)),
+        (VersionTarget::Latest, latest_label.into_owned()),
         (VersionTarget::Tag("".to_string()), match target_ver {
             VersionTarget::Tag(t) => format!("Tag ({})", t),
             _ => "Tag".to_string(),
@@ -82,19 +82,11 @@ pub fn render(
         ListItem::new(Line::from(version_spans)),
     ];
 
-    let other_items = if is_zapret {
-        vec![
-            (DownloadSubmenuState::SelectTag, "   \u{F02B} Select Zapret Tag...".to_string()),
-            (DownloadSubmenuState::Start, " \u{F04B} Download and Install Zapret".to_string()),
-            (DownloadSubmenuState::Back, " \u{F04A} Back to Categories".to_string()),
-        ]
-    } else {
-        vec![
-            (DownloadSubmenuState::SelectTag, "   \u{F02B} Select Strategies Tag...".to_string()),
-            (DownloadSubmenuState::Start, " \u{F04B} Download and Install Strategies".to_string()),
-            (DownloadSubmenuState::Back, " \u{F04A} Back to Categories".to_string()),
-        ]
-    };
+    let other_items = vec![
+        (DownloadSubmenuState::SelectTag, format!("   {}", rust_i18n::t!("menu_subdl_tag"))),
+        (DownloadSubmenuState::Start, format!(" {}", rust_i18n::t!("menu_subdl_start"))),
+        (DownloadSubmenuState::Back, format!(" {}", rust_i18n::t!("menu_subdl_back"))),
+    ];
 
     for (state, m) in other_items {
         let is_selected = menu_state == state;
@@ -113,6 +105,6 @@ pub fn render(
         }
     }
 
-    let block_title = if is_zapret { " Zapret Downloader " } else { " Strategies Downloader " };
+    let block_title = if is_zapret { rust_i18n::t!("tui_title_download_zapret").into_owned() } else { rust_i18n::t!("tui_title_download_strat").into_owned() };
     (items, block_title, selected_index)
 }

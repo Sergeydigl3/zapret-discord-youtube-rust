@@ -2,7 +2,7 @@ use ratatui::widgets::ListItem;
 use crate::tui::state::AppState;
 use crate::tui::theme::Theme;
 
-pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
+pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
     let mut items: Vec<ListItem> = app.strategies
         .iter()
@@ -25,11 +25,11 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     }
     
     let back_item = if back_selected {
-        ListItem::new(" \u{F04A} Back to Main Menu").style(Theme::selected_item())
+        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::selected_item())
     } else {
-        ListItem::new(" \u{F04A} Back to Main Menu").style(Theme::normal_item())
+        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::normal_item())
     };
     
     items.push(back_item);
-    (items, " Select Strategy ", selected_index)
+    (items, rust_i18n::t!("tui_title_strategy").into_owned(), selected_index)
 }
