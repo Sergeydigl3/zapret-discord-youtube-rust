@@ -354,6 +354,23 @@ impl AppState {
         }
     }
 
+    pub fn check_dependencies(&mut self) -> bool {
+        self.refresh_dep_status();
+        if !self.nfqws_installed || !self.strategies_installed {
+            let msg = if !self.nfqws_installed && !self.strategies_installed {
+                rust_i18n::t!("msg_err_both_missing").into_owned()
+            } else if !self.nfqws_installed {
+                rust_i18n::t!("msg_err_nfqws_missing").into_owned()
+            } else {
+                rust_i18n::t!("msg_err_strat_missing").into_owned()
+            };
+            self.dependency_error = Some((msg, std::time::Instant::now()));
+            false
+        } else {
+            true
+        }
+    }
+
     pub fn next_menu(&mut self) {
         match self.active_screen {
             ActiveScreen::Main => self.main_menu = self.main_menu.next(),
@@ -459,17 +476,7 @@ impl AppState {
                         self.status_message = None;
                     }
                     MainMenuState::Run => {
-                        self.refresh_dep_status();
-                        if !self.nfqws_installed || !self.strategies_installed {
-                            let msg = if !self.nfqws_installed && !self.strategies_installed {
-                                "Error: Both components (nfqws and strategies) are missing"
-                            } else if !self.nfqws_installed {
-                                "Error: nfqws (core) is missing"
-                            } else {
-                                "Error: strategies are missing"
-                            };
-                            self.dependency_error = Some((msg.to_string(), std::time::Instant::now()));
-                        } else {
+                        if self.check_dependencies() {
                             self.should_run = true;
                         }
                     }
@@ -635,15 +642,20 @@ impl AppState {
                     let res = if !self.service_installed {
                         match self.service_menu_index {
                             0 => {
-                                let exe_path = std::env::current_exe().map_err(|e| e.to_string());
-                                match exe_path {
-                                    Ok(p) => {
-                                        let config_path = crate::config::config_path();
-                                        let cache_dir = crate::config::get_cache_dir();
-                                        mgr.install(&p, &config_path, &cache_dir)
-                                            .and_then(|_| mgr.start())
+                                if !self.check_dependencies() {
+                                    action_taken = false;
+                                    Ok(())
+                                } else {
+                                    let exe_path = std::env::current_exe().map_err(|e| e.to_string());
+                                    match exe_path {
+                                        Ok(p) => {
+                                            let config_path = crate::config::config_path();
+                                            let cache_dir = crate::config::get_cache_dir();
+                                            mgr.install(&p, &config_path, &cache_dir)
+                                                .and_then(|_| mgr.start())
+                                        }
+                                        Err(e) => Err(e),
                                     }
-                                    Err(e) => Err(e),
                                 }
                             }
                             1 => {
@@ -660,7 +672,14 @@ impl AppState {
                     } else if self.service_active {
                         match self.service_menu_index {
                             0 => mgr.stop(),
-                            1 => mgr.restart(),
+                            1 => {
+                                if !self.check_dependencies() {
+                                    action_taken = false;
+                                    Ok(())
+                                } else {
+                                    mgr.restart()
+                                }
+                            }
                             2 => mgr.uninstall(),
                             3 => {
                                 self.active_screen = ActiveScreen::Main;
