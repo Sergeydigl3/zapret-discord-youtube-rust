@@ -477,24 +477,24 @@ impl AppState {
                 }
             }
             #[cfg(target_os = "windows")]
-            ActiveScreen::DefenderSubmenu => {
+             ActiveScreen::DefenderSubmenu => {
                 match self.defender_menu {
                     DefenderMenuState::Add => {
                         match crate::defender::add_defender_exclusion() {
                             Ok(_) => {
-                                self.status_message = Some("✅ Added to Windows Defender Exclusions.".to_string());
+                                self.status_message = Some("\u{F00C} Added to Windows Defender Exclusions.".to_string());
                                 self.refresh_defender_status();
                             }
-                            Err(e) => self.status_message = Some(format!("❌ {}", e)),
+                            Err(e) => self.status_message = Some(format!("\u{F00D} {}", e)),
                         }
                     }
                     DefenderMenuState::Remove => {
                         match crate::defender::remove_defender_exclusion() {
                             Ok(_) => {
-                                self.status_message = Some("✅ Removed from Windows Defender Exclusions.".to_string());
+                                self.status_message = Some("\u{F00C} Removed from Windows Defender Exclusions.".to_string());
                                 self.refresh_defender_status();
                             }
-                            Err(e) => self.status_message = Some(format!("❌ {}", e)),
+                            Err(e) => self.status_message = Some(format!("\u{F00D} {}", e)),
                         }
                     }
                     DefenderMenuState::Back => {
@@ -507,7 +507,7 @@ impl AppState {
                 if self.strategy_menu_index < self.strategies.len() {
                     self.selected_strategy = self.strategy_menu_index;
                     self.active_screen = ActiveScreen::Main;
-                    self.status_message = Some(format!("✅ Selected strategy: {}", self.strategies[self.selected_strategy]));
+                    self.status_message = Some(format!("\u{F00C} Selected strategy: {}", self.strategies[self.selected_strategy]));
                 } else {
                     self.active_screen = ActiveScreen::Main;
                     self.status_message = None;
@@ -695,15 +695,15 @@ impl AppState {
                             Ok(_) => {
                                 self.refresh_service_status();
                                 self.service_menu_index = 0;
-                                self.status_message = Some("✅ Operation completed successfully.".to_string());
+                                self.status_message = Some("\u{F00C} Operation completed successfully.".to_string());
                             }
                             Err(e) => {
-                                self.status_message = Some(format!("❌ Error: {}", e));
+                                self.status_message = Some(format!("\u{F00D} Error: {}", e));
                             }
                         }
                     }
                 } else {
-                    self.status_message = Some("❌ Error: Init system not supported.".to_string());
+                    self.status_message = Some("\u{F00D} Error: Init system not supported.".to_string());
                 }
             }
         }

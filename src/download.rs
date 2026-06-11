@@ -211,7 +211,7 @@ pub fn download_strategies(version: &str) -> Result<(), String> {
 
 pub fn install_dependencies(nfqws_ver: &str, strat_ver: &str) -> Result<(), String> {
     println!("=======================================================");
-    println!("📥 Installing dependencies...");
+    println!("\u{F01A} Installing dependencies...");
     println!("=======================================================");
     
     let mut errors = Vec::new();

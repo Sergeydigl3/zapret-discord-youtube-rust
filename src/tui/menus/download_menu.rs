@@ -5,10 +5,10 @@ use crate::tui::theme::Theme;
 pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     let mut selected_index = 0;
     let menu_items = vec![
-        " ⚙️ Zapret (nfqws/winws) Downloader...".to_string(),
-        " 📜 Strategies Downloader...".to_string(),
-        " 📥 Download Defaults".to_string(),
-        " 🔙 Back to Main Menu".to_string(),
+        " \u{F013} Zapret (nfqws/winws) Downloader...".to_string(),
+        " \u{F15C} Strategies Downloader...".to_string(),
+        " \u{F01A} Download Defaults".to_string(),
+        " \u{F04A} Back to Main Menu".to_string(),
     ];
     
     let items: Vec<ListItem> = menu_items

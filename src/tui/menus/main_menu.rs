@@ -14,7 +14,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     {
         let is_sel = app.main_menu == MainMenuState::DefenderSettings;
         if is_sel { selected_index = index; }
-        items.push(ListItem::new(" 🛡️ Windows Defender Settings").style(
+        items.push(ListItem::new(" \u{F132} Windows Defender Settings").style(
             if is_sel { Theme::selected_item() } else { Theme::normal_item() }
         ));
         index += 1;
@@ -24,7 +24,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     {
         let is_sel = app.main_menu == MainMenuState::DownloadDeps;
         if is_sel { selected_index = index; }
-        items.push(ListItem::new(" 📥 Dependencies Installer").style(
+        items.push(ListItem::new(" \u{F01A} Dependencies Installer").style(
             if is_sel { Theme::selected_item() } else { Theme::normal_item() }
         ));
         index += 1;
@@ -36,7 +36,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
         if is_sel { selected_index = index; }
         let val = app.interfaces.get(app.selected_interface).unwrap_or(&"None".to_string()).clone();
         let spans = vec![
-            Span::styled(" 🌐 Network Interface:   ", if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
+            Span::styled(" \u{F484} Network Interface:   ", if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
             Span::styled(format!(" < {} >", val), if is_sel { Theme::selected_value() } else { Theme::normal_value() }),
         ];
         items.push(ListItem::new(Line::from(spans)));
@@ -49,7 +49,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
         if is_sel { selected_index = index; }
         let val = app.strategies.get(app.selected_strategy).unwrap_or(&"None".to_string()).clone();
         let spans = vec![
-            Span::styled(" 📜 Strategy:            ", if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
+            Span::styled(" \u{F15C} Strategy:            ", if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
             Span::styled(format!(" < {} >", val), if is_sel { Theme::selected_value() } else { Theme::normal_value() }),
         ];
         items.push(ListItem::new(Line::from(spans)));
@@ -62,7 +62,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
         if is_sel { selected_index = index; }
         
         let mut spans = vec![
-            Span::styled(" 🎮 Game Filter Settings: ", if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
+            Span::styled(" \u{F11B} Game Filter Settings: ", if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
         ];
 
         let mut status_parts = vec![];
@@ -91,7 +91,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     {
         let is_sel = app.main_menu == MainMenuState::ServiceSettings;
         if is_sel { selected_index = index; }
-        items.push(ListItem::new(" ⚙️ Service Settings").style(
+        items.push(ListItem::new(" \u{F013} Service Settings").style(
             if is_sel { Theme::selected_item() } else { Theme::normal_item() }
         ));
         index += 1;
@@ -101,7 +101,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     {
         let is_sel = app.main_menu == MainMenuState::Run;
         if is_sel { selected_index = index; }
-        items.push(ListItem::new(" ▶️ Run Zapret").style(
+        items.push(ListItem::new(" \u{F04B} Run Zapret").style(
             if is_sel { Theme::selected_item() } else { Theme::normal_item() }
         ));
         index += 1;
@@ -111,7 +111,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
     {
         let is_sel = app.main_menu == MainMenuState::Quit;
         if is_sel { selected_index = index; }
-        items.push(ListItem::new(" 🚪 Quit").style(
+        items.push(ListItem::new(" \u{F011} Quit").style(
             if is_sel { Theme::selected_item() } else { Theme::normal_item() }
         ));
     }

@@ -49,17 +49,17 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 .border_style(Style::default().fg(Color::Cyan));
                 
             let title_text = match app.active_screen {
-                ActiveScreen::Main => " 🚀 Zapret-Rust TUI ",
+                ActiveScreen::Main => "\u{E0A0} Zapret-Rust TUI ",
                 #[cfg(target_os = "windows")]
-                ActiveScreen::DefenderSubmenu => " 🛡️ Windows Defender Settings ",
-                ActiveScreen::StrategySubmenu => " 📜 Select Strategy ",
-                ActiveScreen::DownloadDepsSubmenu => " 📥 Downloader Categories ",
-                ActiveScreen::DownloadZapretSubmenu => " ⚙️ Zapret Downloader ",
-                ActiveScreen::DownloadStrategiesSubmenu => " 📜 Strategies Downloader ",
-                ActiveScreen::GamefilterSubmenu => " 🎮 Game Filter Settings ",
-                ActiveScreen::ZapretTagSelect => " 🏷️ Select Zapret Tag ",
-                ActiveScreen::StrategyTagSelect => " 🏷️ Select Strategies Tag ",
-                ActiveScreen::ServiceSubmenu => " ⚙️ Service Management ",
+                ActiveScreen::DefenderSubmenu => " \u{F132} Windows Defender Settings ",
+                ActiveScreen::StrategySubmenu => " \u{F15C} Select Strategy ",
+                ActiveScreen::DownloadDepsSubmenu => " \u{F01A} Downloader Categories ",
+                ActiveScreen::DownloadZapretSubmenu => " \u{F013} Zapret Downloader ",
+                ActiveScreen::DownloadStrategiesSubmenu => " \u{F15C} Strategies Downloader ",
+                ActiveScreen::GamefilterSubmenu => " \u{F11B} Game Filter Settings ",
+                ActiveScreen::ZapretTagSelect => " \u{F02B} Select Zapret Tag ",
+                ActiveScreen::StrategyTagSelect => " \u{F02B} Select Strategies Tag ",
+                ActiveScreen::ServiceSubmenu => " \u{F013} Service Management ",
             };
 
             let title = Paragraph::new(Line::from(vec![
@@ -114,11 +114,11 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
 
                 // Service Status line
                 let (status_icon, status_color, status_desc) = if !app.service_installed {
-                    ("❌", Color::Red, "Not Installed")
+                    ("\u{F00D}", Color::Red, "Not Installed")
                 } else if app.service_active {
-                    ("✅", Color::Green, "Active (Running)")
+                    ("\u{F00C}", Color::Green, "Active (Running)")
                 } else {
-                    ("⏸️", Color::Yellow, "Stopped")
+                    ("\u{F04C}", Color::Yellow, "Stopped")
                 };
 
                 let service_type_str = {
@@ -135,7 +135,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 };
 
                 let service_status_text = Line::from(vec![
-                    Span::styled("⚙️ Service Status (", Style::default().fg(Color::Gray)),
+                    Span::styled("\u{F013} Service Status (", Style::default().fg(Color::Gray)),
                     Span::styled(service_type_str, Style::default().fg(Color::White)),
                     Span::styled("): ", Style::default().fg(Color::Gray)),
                     Span::styled(status_desc, Style::default().fg(status_color).add_modifier(ratatui::style::Modifier::BOLD)),
@@ -161,10 +161,10 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                         Span::styled(error_msg, Style::default().fg(Color::Red).add_modifier(ratatui::style::Modifier::BOLD)),
                     ])
                 } else {
-                    let nfqws_status = if app.nfqws_installed { "✅" } else { "❌" };
-                    let strat_status = if app.strategies_installed { "✅" } else { "❌" };
+                    let nfqws_status = if app.nfqws_installed { "\u{F00C}" } else { "\u{F00D}" };
+                    let strat_status = if app.strategies_installed { "\u{F00C}" } else { "\u{F00D}" };
                     Line::from(vec![
-                        Span::styled("📥 Dependencies Status: ", Style::default().fg(Color::Gray)),
+                        Span::styled("\u{F01A} Dependencies Status: ", Style::default().fg(Color::Gray)),
                         Span::styled("nfqws ", Style::default().fg(Color::White)),
                         Span::raw(nfqws_status),
                         Span::styled(" | strategies ", Style::default().fg(Color::White)),
@@ -189,44 +189,44 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let dynamic_help = match app.active_screen {
                 ActiveScreen::Main => match app.main_menu {
                     #[cfg(target_os = "windows")]
-                    MainMenuState::DefenderSettings => "💡 Windows Defender: Add or remove this folder from antivirus exclusions.",
-                    MainMenuState::DownloadDeps => "💡 Downloader: Select and download/update Zapret components or strategies.",
-                    MainMenuState::Interface => "💡 Toggle: Choose network interface. Press SPACE/ENTER to cycle.",
-                    MainMenuState::Strategy => "💡 Select: Choose strategy folder or script to use.",
-                    MainMenuState::GamefilterSettings => "💡 Submenu: Open TCP/UDP Game Filter ports configuration.",
-                    MainMenuState::ServiceSettings => "💡 Submenu: Open background service status and control configuration.",
-                    MainMenuState::Run => "💡 Action: Run Zapret with selected configuration.",
-                    MainMenuState::Quit => "💡 Action: Exit the TUI application.",
+                    MainMenuState::DefenderSettings => "\u{F0EB} Windows Defender: Add or remove this folder from antivirus exclusions.",
+                    MainMenuState::DownloadDeps => "\u{F0EB} Downloader: Select and download/update Zapret components or strategies.",
+                    MainMenuState::Interface => "\u{F0EB} Toggle: Choose network interface. Press SPACE/ENTER to cycle.",
+                    MainMenuState::Strategy => "\u{F0EB} Select: Choose strategy folder or script to use.",
+                    MainMenuState::GamefilterSettings => "\u{F0EB} Submenu: Open TCP/UDP Game Filter ports configuration.",
+                    MainMenuState::ServiceSettings => "\u{F0EB} Submenu: Open background service status and control configuration.",
+                    MainMenuState::Run => "\u{F0EB} Action: Run Zapret with selected configuration.",
+                    MainMenuState::Quit => "\u{F0EB} Action: Exit the TUI application.",
                 },
                 ActiveScreen::DownloadDepsSubmenu => match app.download_deps_menu {
-                    DownloadDepsMenuState::ZapretDownloader => "💡 Select: Go to Zapret (nfqws) downloader settings.",
-                    DownloadDepsMenuState::StrategiesDownloader => "💡 Select: Go to Strategies downloader settings.",
-                    DownloadDepsMenuState::DownloadDefaults => "💡 Action: Download and install default versions of Zapret and strategies.",
-                    DownloadDepsMenuState::Back => "💡 Action: Return to the configuration menu.",
+                    DownloadDepsMenuState::ZapretDownloader => "\u{F0EB} Select: Go to Zapret (nfqws) downloader settings.",
+                    DownloadDepsMenuState::StrategiesDownloader => "\u{F0EB} Select: Go to Strategies downloader settings.",
+                    DownloadDepsMenuState::DownloadDefaults => "\u{F0EB} Action: Download and install default versions of Zapret and strategies.",
+                    DownloadDepsMenuState::Back => "\u{F0EB} Action: Return to the configuration menu.",
                 },
                 ActiveScreen::DownloadZapretSubmenu => match app.download_zapret_menu {
-                    DownloadSubmenuState::Version => "💡 Toggle: Choose Zapret version. Press SPACE/ENTER to cycle (Recommended ➔ Latest).",
-                    DownloadSubmenuState::SelectTag => "💡 Select: Fetch and choose a specific Git tag/release of Zapret.",
-                    DownloadSubmenuState::Start => "💡 Action: Download and install the selected Zapret version.",
-                    DownloadSubmenuState::Back => "💡 Action: Go back to Downloader categories.",
+                    DownloadSubmenuState::Version => "\u{F0EB} Toggle: Choose Zapret version. Press SPACE/ENTER to cycle (Recommended ➔ Latest).",
+                    DownloadSubmenuState::SelectTag => "\u{F0EB} Select: Fetch and choose a specific Git tag/release of Zapret.",
+                    DownloadSubmenuState::Start => "\u{F0EB} Action: Download and install the selected Zapret version.",
+                    DownloadSubmenuState::Back => "\u{F0EB} Action: Go back to Downloader categories.",
                 },
                 ActiveScreen::DownloadStrategiesSubmenu => match app.download_strategies_menu {
-                    DownloadSubmenuState::Version => "💡 Toggle: Choose Strategies version. Press SPACE/ENTER to cycle (Recommended ➔ Latest).",
-                    DownloadSubmenuState::SelectTag => "💡 Select: Fetch and choose a specific Git tag/release of strategies.",
-                    DownloadSubmenuState::Start => "💡 Action: Download and install the selected strategies.",
-                    DownloadSubmenuState::Back => "💡 Action: Go back to Downloader categories.",
+                    DownloadSubmenuState::Version => "\u{F0EB} Toggle: Choose Strategies version. Press SPACE/ENTER to cycle (Recommended ➔ Latest).",
+                    DownloadSubmenuState::SelectTag => "\u{F0EB} Select: Fetch and choose a specific Git tag/release of strategies.",
+                    DownloadSubmenuState::Start => "\u{F0EB} Action: Download and install the selected strategies.",
+                    DownloadSubmenuState::Back => "\u{F0EB} Action: Go back to Downloader categories.",
                 },
                 ActiveScreen::GamefilterSubmenu => match app.gamefilter_menu {
-                    GamefilterMenuState::Tcp => "💡 Toggle: Intercept TCP ports for game traffic. Press SPACE/ENTER or Left/Right.",
-                    GamefilterMenuState::Udp => "💡 Toggle: Intercept UDP ports for game traffic. Press SPACE/ENTER or Left/Right.",
-                    GamefilterMenuState::Back => "💡 Action: Return to the main configuration menu.",
+                    GamefilterMenuState::Tcp => "\u{F0EB} Toggle: Intercept TCP ports for game traffic. Press SPACE/ENTER or Left/Right.",
+                    GamefilterMenuState::Udp => "\u{F0EB} Toggle: Intercept UDP ports for game traffic. Press SPACE/ENTER or Left/Right.",
+                    GamefilterMenuState::Back => "\u{F0EB} Action: Return to the main configuration menu.",
                 },
                 #[cfg(target_os = "windows")]
-                ActiveScreen::DefenderSubmenu => "💡 Defender: Select add/remove exclusion or back.",
-                ActiveScreen::StrategySubmenu => "💡 Strategy Select: Choose a strategy from the downloaded strategies list.",
-                ActiveScreen::ZapretTagSelect => "💡 Select: Use UP/DOWN to navigate, ENTER to select a specific Zapret tag.",
-                ActiveScreen::StrategyTagSelect => "💡 Select: Use UP/DOWN to navigate, ENTER to select a specific Strategies tag.",
-                ActiveScreen::ServiceSubmenu => "💡 Service Control: Select action for the service (start, stop, etc.) or back.",
+                ActiveScreen::DefenderSubmenu => "\u{F0EB} Defender: Select add/remove exclusion or back.",
+                ActiveScreen::StrategySubmenu => "\u{F0EB} Strategy Select: Choose a strategy from the downloaded strategies list.",
+                ActiveScreen::ZapretTagSelect => "\u{F0EB} Select: Use UP/DOWN to navigate, ENTER to select a specific Zapret tag.",
+                ActiveScreen::StrategyTagSelect => "\u{F0EB} Select: Use UP/DOWN to navigate, ENTER to select a specific Strategies tag.",
+                ActiveScreen::ServiceSubmenu => "\u{F0EB} Service Control: Select action for the service (start, stop, etc.) or back.",
             };
 
             let help_text = if let Some(ref msg) = app.status_message {
@@ -292,10 +292,10 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let res = crate::download::install_dependencies(nfqws_ver, "skip");
             
             if res.is_ok() {
-                println!("\n✅ Download completed successfully. Press any key to return to the menu...");
+                println!("\n\u{F00C} Download completed successfully. Press any key to return to the menu...");
             } else {
                 let err_msg = res.as_ref().unwrap_err();
-                println!("\n❌ Download failed: {}", err_msg);
+                println!("\n\u{F00D} Download failed: {}", err_msg);
                 println!("Press any key to return to the menu...");
             }
             
@@ -341,10 +341,10 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let res = crate::download::install_dependencies("skip", strat_ver);
             
             if res.is_ok() {
-                println!("\n✅ Download completed successfully. Press any key to return to the menu...");
+                println!("\n\u{F00C} Download completed successfully. Press any key to return to the menu...");
             } else {
                 let err_msg = res.as_ref().unwrap_err();
-                println!("\n❌ Download failed: {}", err_msg);
+                println!("\n\u{F00D} Download failed: {}", err_msg);
                 println!("Press any key to return to the menu...");
             }
             
@@ -381,10 +381,10 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let res = crate::download::install_dependencies(crate::download::ZAPRET_REC_VER, "recommended");
             
             if res.is_ok() {
-                println!("\n✅ Download completed successfully. Press any key to return to the menu...");
+                println!("\n\u{F00C} Download completed successfully. Press any key to return to the menu...");
             } else {
                 let err_msg = res.as_ref().unwrap_err();
-                println!("\n❌ Download failed: {}", err_msg);
+                println!("\n\u{F00D} Download failed: {}", err_msg);
                 println!("Press any key to return to the menu...");
             }
             
