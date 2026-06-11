@@ -162,6 +162,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::DownloadDepsSubmenu => match app.download_deps_menu {
                     DownloadDepsMenuState::ZapretDownloader => "💡 Select: Go to Zapret (nfqws) downloader settings.",
                     DownloadDepsMenuState::StrategiesDownloader => "💡 Select: Go to Strategies downloader settings.",
+                    DownloadDepsMenuState::DownloadDefaults => "💡 Action: Download and install default versions of Zapret and strategies.",
                     DownloadDepsMenuState::Back => "💡 Action: Return to the configuration menu.",
                 },
                 ActiveScreen::DownloadZapretSubmenu => match app.download_zapret_menu {
@@ -327,6 +328,45 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 app.strategies = crate::strategy::get_strategies();
                 app.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
                 app.refresh_dep_status();
+            }
+        }
+
+        if app.should_download_defaults {
+            app.should_download_defaults = false;
+            
+            disable_raw_mode()?;
+            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+            terminal.show_cursor()?;
+            
+            let res = crate::download::install_dependencies(crate::download::ZAPRET_REC_VER, "recommended");
+            
+            if res.is_ok() {
+                println!("\n✅ Download completed successfully. Press any key to return to the menu...");
+            } else {
+                let err_msg = res.as_ref().unwrap_err();
+                println!("\n❌ Download failed: {}", err_msg);
+                println!("Press any key to return to the menu...");
+            }
+            
+            // Wait for keypress
+            loop {
+                if let Ok(Event::Key(key)) = event::read() {
+                    if key.kind == KeyEventKind::Press {
+                        break;
+                    }
+                }
+            }
+            
+            enable_raw_mode()?;
+            execute!(terminal.backend_mut(), EnterAlternateScreen)?;
+            terminal.clear()?;
+            
+            if let Err(e) = res {
+                app.status_message = Some(format!("Error: {}", e));
+            } else {
+                app.status_message = Some("Zapret and Strategies successfully downloaded and installed.".to_string());
+                app.strategies = crate::strategy::get_strategies();
+                app.active_screen = ActiveScreen::DownloadDepsSubmenu;
             }
         }
 

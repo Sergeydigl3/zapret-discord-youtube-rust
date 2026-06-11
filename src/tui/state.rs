@@ -114,6 +114,7 @@ impl DefenderMenuState {
 pub enum DownloadDepsMenuState {
     ZapretDownloader,
     StrategiesDownloader,
+    DownloadDefaults,
     Back,
 }
 
@@ -121,7 +122,8 @@ impl DownloadDepsMenuState {
     pub fn next(self) -> Self {
         match self {
             Self::ZapretDownloader => Self::StrategiesDownloader,
-            Self::StrategiesDownloader => Self::Back,
+            Self::StrategiesDownloader => Self::DownloadDefaults,
+            Self::DownloadDefaults => Self::Back,
             Self::Back => Self::ZapretDownloader,
         }
     }
@@ -130,7 +132,8 @@ impl DownloadDepsMenuState {
         match self {
             Self::ZapretDownloader => Self::Back,
             Self::StrategiesDownloader => Self::ZapretDownloader,
-            Self::Back => Self::StrategiesDownloader,
+            Self::DownloadDefaults => Self::StrategiesDownloader,
+            Self::Back => Self::DownloadDefaults,
         }
     }
 }
@@ -223,6 +226,7 @@ pub struct AppState {
     pub should_quit: bool,
     pub should_download_zapret: bool,
     pub should_download_strategies: bool,
+    pub should_download_defaults: bool,
     pub status_message: Option<String>,
 
     pub nfqws_installed: bool,
@@ -281,6 +285,7 @@ impl AppState {
             should_quit: false,
             should_download_zapret: false,
             should_download_strategies: false,
+            should_download_defaults: false,
             status_message: None,
 
             nfqws_installed: crate::download::check_nfqws_installed(),
@@ -451,6 +456,9 @@ impl AppState {
                         self.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
                         self.download_strategies_menu = DownloadSubmenuState::Version;
                         self.status_message = None;
+                    }
+                    DownloadDepsMenuState::DownloadDefaults => {
+                        self.should_download_defaults = true;
                     }
                     DownloadDepsMenuState::Back => {
                         self.active_screen = ActiveScreen::Main;
