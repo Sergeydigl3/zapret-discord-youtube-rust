@@ -130,95 +130,111 @@ fn main() {
         is_interactive = false;
     }
 
-    if is_interactive {
-        let interfaces = config::get_interfaces();
-        let strategies = strategy::get_strategies();
-        let mut app = tui::AppState::new(interfaces, strategies);
-
-        let res = tui::run_tui(&mut app);
-        if let Err(e) = res {
-            println!("TUI Error: {}", e);
-            exit(1);
-        }
-
-        use_interface = app
-            .interfaces
-            .get(app.selected_interface)
-            .unwrap_or(&"any".to_string())
-            .to_string();
-        use_strategy = app.strategies.get(app.selected_strategy).cloned();
-        use_gamefilter_tcp = app.tcp_gamefilter;
-        use_gamefilter_udp = app.udp_gamefilter;
-
-        if let Some(ref strat) = use_strategy {
-            let _ = config::save_tui_state(
-                &use_interface,
-                strat,
-                use_gamefilter_tcp,
-                use_gamefilter_udp,
-            );
-        }
-
-        if app.should_quit {
-            println!("Exited by user.");
-            return;
-        }
-    }
-
-    let strategy_file = match use_strategy {
-        Some(s) => s,
-        None => {
-            println!("No strategy selected.");
-            exit(1);
-        }
-    };
-
-    let nfqws_ok = download::check_nfqws_installed();
-    let strat_ok = download::check_strategies_installed();
-    if !nfqws_ok || !strat_ok {
-        if !nfqws_ok && !strat_ok {
-            eprintln!("Ошибка: Отсутствуют оба компонента (nfqws и стратегии). Запуск отклонен.");
-        } else if !nfqws_ok {
-            eprintln!("Ошибка: Отсутствует nfqws (ядро). Запуск отклонен.");
-        } else {
-            eprintln!("Ошибка: Отсутствуют стратегии. Запуск отклонен.");
-        }
-        exit(1);
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    let backend = NftablesBackend;
-
-    #[cfg(target_os = "windows")]
-    let backend = WinDivertBackend;
-
-    println!(
-        "Запуск с параметрами: strategy={}, interface={}, gamefiltertcp={}, gamefilterudp={}",
-        strategy_file, use_interface, use_gamefilter_tcp, use_gamefilter_udp
-    );
-
-    runner::run_zapret(
-        &strategy_file,
-        &use_interface,
-        use_gamefilter_tcp,
-        use_gamefilter_udp,
-        &backend,
-    );
-
-    println!("\nzapret запущен. Нажмите Ctrl+C для завершения...");
-
-    let running = Arc::new(AtomicBool::new(true));
+    let running = Arc::new(AtomicBool::new(false));
     let r = running.clone();
-
     ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
     })
-    .expect("Error setting Ctrl-C handler");
+    .unwrap_or_else(|e| eprintln!("Error setting Ctrl-C handler: {}", e));
 
-    while running.load(Ordering::SeqCst) {
+    loop {
+        if is_interactive {
+            let interfaces = config::get_interfaces();
+            let strategies = strategy::get_strategies();
+            let mut app = tui::AppState::new(interfaces, strategies);
+
+            let res = tui::run_tui(&mut app);
+            if let Err(e) = res {
+                println!("TUI Error: {}", e);
+                exit(1);
+            }
+
+            use_interface = app
+                .interfaces
+                .get(app.selected_interface)
+                .unwrap_or(&"any".to_string())
+                .to_string();
+            use_strategy = app.strategies.get(app.selected_strategy).cloned();
+            use_gamefilter_tcp = app.tcp_gamefilter;
+            use_gamefilter_udp = app.udp_gamefilter;
+
+            if let Some(ref strat) = use_strategy {
+                let _ = config::save_tui_state(
+                    &use_interface,
+                    strat,
+                    use_gamefilter_tcp,
+                    use_gamefilter_udp,
+                );
+            }
+
+            if app.should_quit {
+                println!("Exited by user.");
+                return;
+            }
+        }
+
+        let strategy_file = match use_strategy {
+            Some(ref s) => s.clone(),
+            None => {
+                println!("No strategy selected.");
+                if is_interactive {
+                    continue;
+                } else {
+                    exit(1);
+                }
+            }
+        };
+
+        let nfqws_ok = download::check_nfqws_installed();
+        let strat_ok = download::check_strategies_installed();
+        if !nfqws_ok || !strat_ok {
+            if !nfqws_ok && !strat_ok {
+                eprintln!("Ошибка: Отсутствуют оба компонента (nfqws и стратегии). Запуск отклонен.");
+            } else if !nfqws_ok {
+                eprintln!("Ошибка: Отсутствует nfqws (ядро). Запуск отклонен.");
+            } else {
+                eprintln!("Ошибка: Отсутствуют стратегии. Запуск отклонен.");
+            }
+            if is_interactive {
+                thread::sleep(Duration::from_secs(2));
+                continue;
+            } else {
+                exit(1);
+            }
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        let backend = NftablesBackend;
+
+        #[cfg(target_os = "windows")]
+        let backend = WinDivertBackend;
+
+        println!(
+            "Запуск с параметрами: strategy={}, interface={}, gamefiltertcp={}, gamefilterudp={}",
+            strategy_file, use_interface, use_gamefilter_tcp, use_gamefilter_udp
+        );
+
+        runner::run_zapret(
+            &strategy_file,
+            &use_interface,
+            use_gamefilter_tcp,
+            use_gamefilter_udp,
+            &backend,
+        );
+
         thread::sleep(Duration::from_millis(100));
-    }
+        println!("\nzapret запущен. Нажмите Ctrl+C для завершения...");
 
-    runner::stop_zapret(&backend);
-    exit(0);
+        running.store(true, Ordering::SeqCst);
+
+        while running.load(Ordering::SeqCst) {
+            thread::sleep(Duration::from_millis(100));
+        }
+
+        runner::stop_zapret(&backend);
+
+        if !is_interactive {
+            break;
+        }
+    }
 }

@@ -1,5 +1,7 @@
 #![cfg(target_os = "linux")]
 
+use std::os::unix::process::CommandExt;
+
 /// Ensures that the current process is running with root privileges.
 /// If not, it attempts to escalate privileges using pkexec or sudo.
 pub fn ensure_admin() {
@@ -12,38 +14,22 @@ pub fn ensure_admin() {
         .unwrap_or(true);
 
     if not_root {
-        println!("Для работы требуются права root. Попытка инициализации pkexec...");
-        let mut status = std::process::Command::new("pkexec")
+        println!("Для работы требуются права root. Перезапуск с повышенными привилегиями...");
+
+        // Try pkexec first via exec(). 
+        // exec() replaces the current process. It only returns if it fails to start the binary.
+        let _err1 = std::process::Command::new("pkexec")
             .arg(std::env::current_exe().unwrap_or_default())
             .args(std::env::args().skip(1))
-            .status();
+            .exec();
 
-        let pkexec_failed = match &status {
-            Ok(st) => !st.success(),
-            Err(_) => true,
-        };
+        // If we reach here, pkexec is not installed or failed to execute. Fall back to sudo.
+        let err2 = std::process::Command::new("sudo")
+            .arg(std::env::current_exe().unwrap_or_default())
+            .args(std::env::args().skip(1))
+            .exec();
 
-        if pkexec_failed {
-            if let Ok(ref st) = status {
-                eprintln!("pkexec завершился с ошибкой (код: {})", st);
-            } else if let Err(ref e) = status {
-                eprintln!("Не удалось запустить pkexec: {}", e);
-            }
-            println!("Попытка инициализации sudo...");
-            status = std::process::Command::new("sudo")
-                .arg(std::env::current_exe().unwrap_or_default())
-                .args(std::env::args().skip(1))
-                .status();
-        }
-
-        match status {
-            Ok(st) => {
-                std::process::exit(st.code().unwrap_or(1));
-            }
-            Err(e) => {
-                eprintln!("Ошибка запуска sudo/pkexec: {}. Попробуйте запустить вручную с правами root.", e);
-                std::process::exit(1);
-            }
-        }
+        eprintln!("Ошибка повышения привилегий: sudo не удалось запустить ({})", err2);
+        std::process::exit(1);
     }
 }
