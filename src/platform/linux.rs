@@ -14,7 +14,7 @@ pub fn ensure_admin() {
         .unwrap_or(true);
 
     if not_root {
-        println!("Для работы требуются права root. Перезапуск с повышенными привилегиями...");
+        println!("{}", rust_i18n::t!("root_req"));
 
         // Try pkexec first via exec(). 
         // exec() replaces the current process. It only returns if it fails to start the binary.
@@ -29,7 +29,7 @@ pub fn ensure_admin() {
             .args(std::env::args().skip(1))
             .exec();
 
-        eprintln!("Ошибка повышения привилегий: sudo не удалось запустить ({})", err2);
+        eprintln!("{} ({})", rust_i18n::t!("root_err_sudo"), err2);
         std::process::exit(1);
     }
 }
