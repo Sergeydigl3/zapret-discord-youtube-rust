@@ -83,6 +83,22 @@ fn main() {
     #[cfg(target_os = "windows")]
     platform::ensure_admin();
 
+    #[cfg(target_os = "linux")]
+    {
+        let not_root = std::process::Command::new("id")
+            .arg("-u")
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim() != "0")
+            .unwrap_or(true);
+        if not_root {
+            eprintln!("Ошибка: для настройки nftables и nfqueue нужны права root.");
+            eprintln!("Запустите с sudo: sudo {} ...", std::env::current_exe().unwrap_or_default().display());
+            std::process::exit(1);
+        }
+    }
+
     let args = Cli::parse();
 
     if let Some(ref d) = args.cache_dir {

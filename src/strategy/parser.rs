@@ -37,6 +37,7 @@ pub fn parse_bat_file(
 
     let raw = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
     let mut content = raw.replace('\r', "");
+    content = regex::Regex::new(r"\^\s*\n").unwrap().replace_all(&content, "\n").to_string();
 
     // Replace static path placeholders.
     content = content.replace("%BIN%", "bin/");
@@ -96,7 +97,7 @@ pub fn parse_bat_file(
     let nfqws_params = filter_re
         .captures_iter(&content)
         .map(|caps| {
-            let args = caps[3]
+            let args = caps[0]
                 .split_whitespace()
                 .collect::<Vec<_>>()
                 .join(" ")

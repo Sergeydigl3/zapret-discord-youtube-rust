@@ -205,7 +205,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             if res.is_ok() {
                 println!("\n✅ Download completed successfully. Press any key to return to the menu...");
             } else {
-                println!("\n❌ Download failed. Press any key to return to the menu...");
+                let err_msg = res.as_ref().unwrap_err();
+                println!("\n❌ Download failed: {}", err_msg);
+                println!("Press any key to return to the menu...");
             }
             
             // Wait for keypress
@@ -251,7 +253,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             if res.is_ok() {
                 println!("\n✅ Download completed successfully. Press any key to return to the menu...");
             } else {
-                println!("\n❌ Download failed. Press any key to return to the menu...");
+                let err_msg = res.as_ref().unwrap_err();
+                println!("\n❌ Download failed: {}", err_msg);
+                println!("Press any key to return to the menu...");
             }
             
             // Wait for keypress
