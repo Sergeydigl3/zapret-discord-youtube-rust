@@ -176,11 +176,6 @@ fn main() {
             exit(1);
         }
 
-        if app.should_quit {
-            println!("Exited by user.");
-            return;
-        }
-
         use_interface = app
             .interfaces
             .get(app.selected_interface)
@@ -197,6 +192,11 @@ fn main() {
                 use_gamefilter_tcp,
                 use_gamefilter_udp,
             );
+        }
+
+        if app.should_quit {
+            println!("Exited by user.");
+            return;
         }
     }
 
