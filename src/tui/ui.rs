@@ -49,17 +49,17 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 .border_style(Style::default().fg(Color::Cyan));
                 
             let title_text = match app.active_screen {
-                ActiveScreen::Main => "\u{E0A0} Zapret-Rust TUI ",
+                ActiveScreen::Main => rust_i18n::t!("tui_title_main"),
                 #[cfg(target_os = "windows")]
-                ActiveScreen::DefenderSubmenu => " \u{F132} Windows Defender Settings ",
-                ActiveScreen::StrategySubmenu => " \u{F15C} Select Strategy ",
-                ActiveScreen::DownloadDepsSubmenu => " \u{F01A} Downloader Categories ",
-                ActiveScreen::DownloadZapretSubmenu => " \u{F013} Zapret Downloader ",
-                ActiveScreen::DownloadStrategiesSubmenu => " \u{F15C} Strategies Downloader ",
-                ActiveScreen::GamefilterSubmenu => " \u{F11B} Game Filter Settings ",
-                ActiveScreen::ZapretTagSelect => " \u{F02B} Select Zapret Tag ",
-                ActiveScreen::StrategyTagSelect => " \u{F02B} Select Strategies Tag ",
-                ActiveScreen::ServiceSubmenu => " \u{F013} Service Management ",
+                ActiveScreen::DefenderSubmenu => rust_i18n::t!("tui_title_defender"),
+                ActiveScreen::StrategySubmenu => rust_i18n::t!("tui_title_strategy"),
+                ActiveScreen::DownloadDepsSubmenu => rust_i18n::t!("tui_title_download_cat"),
+                ActiveScreen::DownloadZapretSubmenu => rust_i18n::t!("tui_title_download_zapret"),
+                ActiveScreen::DownloadStrategiesSubmenu => rust_i18n::t!("tui_title_download_strat"),
+                ActiveScreen::GamefilterSubmenu => rust_i18n::t!("tui_title_gamefilter"),
+                ActiveScreen::ZapretTagSelect => rust_i18n::t!("tui_title_tag_zapret"),
+                ActiveScreen::StrategyTagSelect => rust_i18n::t!("tui_title_tag_strat"),
+                ActiveScreen::ServiceSubmenu => rust_i18n::t!("tui_title_service"),
             };
 
             let title = Paragraph::new(Line::from(vec![
@@ -82,8 +82,8 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::DownloadZapretSubmenu => menus::download_submenu::render(app, true),
                 ActiveScreen::DownloadStrategiesSubmenu => menus::download_submenu::render(app, false),
                 ActiveScreen::GamefilterSubmenu => menus::gamefilter_menu::render(app),
-                ActiveScreen::ZapretTagSelect => menus::tag_menu::render(&app.available_nfqws_tags, app.nfqws_tag_index, " Select Zapret Tag "),
-                ActiveScreen::StrategyTagSelect => menus::tag_menu::render(&app.available_strat_tags, app.strat_tag_index, " Select Strategy Tag "),
+                ActiveScreen::ZapretTagSelect => menus::tag_menu::render(&app.available_nfqws_tags, app.nfqws_tag_index, &rust_i18n::t!("menu_tag_title_zapret")),
+                ActiveScreen::StrategyTagSelect => menus::tag_menu::render(&app.available_strat_tags, app.strat_tag_index, &rust_i18n::t!("menu_tag_title_strat")),
                 ActiveScreen::ServiceSubmenu => menus::service_menu::render(app),
             };
 
@@ -114,28 +114,28 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
 
                 // Service Status line
                 let (status_icon, status_color, status_desc) = if !app.service_installed {
-                    ("\u{F00D}", Color::Red, "Not Installed")
+                    ("\u{F00D}", Color::Red, rust_i18n::t!("status_srv_not_inst"))
                 } else if app.service_active {
-                    ("\u{F00C}", Color::Green, "Active (Running)")
+                    ("\u{F00C}", Color::Green, rust_i18n::t!("status_srv_active"))
                 } else {
-                    ("\u{F04C}", Color::Yellow, "Stopped")
+                    ("\u{F04C}", Color::Yellow, rust_i18n::t!("status_srv_stopped"))
                 };
 
                 let service_type_str = {
                     #[cfg(target_os = "windows")]
-                    { "Windows Service" }
+                    { rust_i18n::t!("status_srv_win") }
                     #[cfg(target_os = "linux")]
                     {
                         crate::inits::detect_init_system()
-                            .map(|t| t.as_str())
-                            .unwrap_or("Unknown Init")
+                            .map(|t| t.as_str().to_string())
+                            .unwrap_or_else(|| rust_i18n::t!("status_srv_unknown").into_owned())
                     }
                     #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-                    { "Unknown Platform" }
+                    { rust_i18n::t!("status_srv_unknown").into_owned() }
                 };
 
                 let service_status_text = Line::from(vec![
-                    Span::styled("\u{F013} Service Status (", Style::default().fg(Color::Gray)),
+                    Span::styled(rust_i18n::t!("status_srv_title"), Style::default().fg(Color::Gray)),
                     Span::styled(service_type_str, Style::default().fg(Color::White)),
                     Span::styled("): ", Style::default().fg(Color::Gray)),
                     Span::styled(status_desc, Style::default().fg(status_color).add_modifier(ratatui::style::Modifier::BOLD)),
@@ -164,10 +164,10 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     let nfqws_status = if app.nfqws_installed { "\u{F00C}" } else { "\u{F00D}" };
                     let strat_status = if app.strategies_installed { "\u{F00C}" } else { "\u{F00D}" };
                     Line::from(vec![
-                        Span::styled("\u{F01A} Dependencies Status: ", Style::default().fg(Color::Gray)),
+                        Span::styled(rust_i18n::t!("status_deps_title"), Style::default().fg(Color::Gray)),
                         Span::styled("nfqws ", Style::default().fg(Color::White)),
                         Span::raw(nfqws_status),
-                        Span::styled(" | strategies ", Style::default().fg(Color::White)),
+                        Span::styled(format!(" | {} ", rust_i18n::t!("status_deps_strat")), Style::default().fg(Color::White)),
                         Span::raw(strat_status),
                     ])
                 };
@@ -189,44 +189,44 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let dynamic_help = match app.active_screen {
                 ActiveScreen::Main => match app.main_menu {
                     #[cfg(target_os = "windows")]
-                    MainMenuState::DefenderSettings => "\u{F0EB} Windows Defender: Add or remove this folder from antivirus exclusions.",
-                    MainMenuState::DownloadDeps => "\u{F0EB} Downloader: Select and download/update Zapret components or strategies.",
-                    MainMenuState::Interface => "\u{F0EB} Toggle: Choose network interface. Press SPACE/ENTER to cycle.",
-                    MainMenuState::Strategy => "\u{F0EB} Select: Choose strategy folder or script to use.",
-                    MainMenuState::GamefilterSettings => "\u{F0EB} Submenu: Open TCP/UDP Game Filter ports configuration.",
-                    MainMenuState::ServiceSettings => "\u{F0EB} Submenu: Open background service status and control configuration.",
-                    MainMenuState::Run => "\u{F0EB} Action: Run Zapret with selected configuration.",
-                    MainMenuState::Quit => "\u{F0EB} Action: Exit the TUI application.",
+                    MainMenuState::DefenderSettings => rust_i18n::t!("help_def"),
+                    MainMenuState::DownloadDeps => rust_i18n::t!("help_dl"),
+                    MainMenuState::Interface => rust_i18n::t!("help_iface"),
+                    MainMenuState::Strategy => rust_i18n::t!("help_strat"),
+                    MainMenuState::GamefilterSettings => rust_i18n::t!("help_gf"),
+                    MainMenuState::ServiceSettings => rust_i18n::t!("help_srv"),
+                    MainMenuState::Run => rust_i18n::t!("help_run"),
+                    MainMenuState::Quit => rust_i18n::t!("help_quit"),
                 },
                 ActiveScreen::DownloadDepsSubmenu => match app.download_deps_menu {
-                    DownloadDepsMenuState::ZapretDownloader => "\u{F0EB} Select: Go to Zapret (nfqws) downloader settings.",
-                    DownloadDepsMenuState::StrategiesDownloader => "\u{F0EB} Select: Go to Strategies downloader settings.",
-                    DownloadDepsMenuState::DownloadDefaults => "\u{F0EB} Action: Download and install default versions of Zapret and strategies.",
-                    DownloadDepsMenuState::Back => "\u{F0EB} Action: Return to the configuration menu.",
+                    DownloadDepsMenuState::ZapretDownloader => rust_i18n::t!("help_dl_zap"),
+                    DownloadDepsMenuState::StrategiesDownloader => rust_i18n::t!("help_dl_str"),
+                    DownloadDepsMenuState::DownloadDefaults => rust_i18n::t!("help_dl_def"),
+                    DownloadDepsMenuState::Back => rust_i18n::t!("help_back"),
                 },
                 ActiveScreen::DownloadZapretSubmenu => match app.download_zapret_menu {
-                    DownloadSubmenuState::Version => "\u{F0EB} Toggle: Choose Zapret version. Press SPACE/ENTER to cycle (Recommended ➔ Latest).",
-                    DownloadSubmenuState::SelectTag => "\u{F0EB} Select: Fetch and choose a specific Git tag/release of Zapret.",
-                    DownloadSubmenuState::Start => "\u{F0EB} Action: Download and install the selected Zapret version.",
-                    DownloadSubmenuState::Back => "\u{F0EB} Action: Go back to Downloader categories.",
+                    DownloadSubmenuState::Version => rust_i18n::t!("help_dl_ver"),
+                    DownloadSubmenuState::SelectTag => rust_i18n::t!("help_dl_tag"),
+                    DownloadSubmenuState::Start => rust_i18n::t!("help_dl_start"),
+                    DownloadSubmenuState::Back => rust_i18n::t!("help_back"),
                 },
                 ActiveScreen::DownloadStrategiesSubmenu => match app.download_strategies_menu {
-                    DownloadSubmenuState::Version => "\u{F0EB} Toggle: Choose Strategies version. Press SPACE/ENTER to cycle (Recommended ➔ Latest).",
-                    DownloadSubmenuState::SelectTag => "\u{F0EB} Select: Fetch and choose a specific Git tag/release of strategies.",
-                    DownloadSubmenuState::Start => "\u{F0EB} Action: Download and install the selected strategies.",
-                    DownloadSubmenuState::Back => "\u{F0EB} Action: Go back to Downloader categories.",
+                    DownloadSubmenuState::Version => rust_i18n::t!("help_dl_ver"),
+                    DownloadSubmenuState::SelectTag => rust_i18n::t!("help_dl_tag"),
+                    DownloadSubmenuState::Start => rust_i18n::t!("help_dl_start"),
+                    DownloadSubmenuState::Back => rust_i18n::t!("help_back"),
                 },
                 ActiveScreen::GamefilterSubmenu => match app.gamefilter_menu {
-                    GamefilterMenuState::Tcp => "\u{F0EB} Toggle: Intercept TCP ports for game traffic. Press SPACE/ENTER or Left/Right.",
-                    GamefilterMenuState::Udp => "\u{F0EB} Toggle: Intercept UDP ports for game traffic. Press SPACE/ENTER or Left/Right.",
-                    GamefilterMenuState::Back => "\u{F0EB} Action: Return to the main configuration menu.",
+                    GamefilterMenuState::Tcp => rust_i18n::t!("help_gf_tcp"),
+                    GamefilterMenuState::Udp => rust_i18n::t!("help_gf_udp"),
+                    GamefilterMenuState::Back => rust_i18n::t!("help_back"),
                 },
                 #[cfg(target_os = "windows")]
-                ActiveScreen::DefenderSubmenu => "\u{F0EB} Defender: Select add/remove exclusion or back.",
-                ActiveScreen::StrategySubmenu => "\u{F0EB} Strategy Select: Choose a strategy from the downloaded strategies list.",
-                ActiveScreen::ZapretTagSelect => "\u{F0EB} Select: Use UP/DOWN to navigate, ENTER to select a specific Zapret tag.",
-                ActiveScreen::StrategyTagSelect => "\u{F0EB} Select: Use UP/DOWN to navigate, ENTER to select a specific Strategies tag.",
-                ActiveScreen::ServiceSubmenu => "\u{F0EB} Service Control: Select action for the service (start, stop, etc.) or back.",
+                ActiveScreen::DefenderSubmenu => rust_i18n::t!("help_def_sel"),
+                ActiveScreen::StrategySubmenu => rust_i18n::t!("help_strat_sel"),
+                ActiveScreen::ZapretTagSelect => rust_i18n::t!("help_tag_sel"),
+                ActiveScreen::StrategyTagSelect => rust_i18n::t!("help_tag_sel"),
+                ActiveScreen::ServiceSubmenu => rust_i18n::t!("help_srv_sel"),
             };
 
             let help_text = if let Some(ref msg) = app.status_message {
@@ -292,11 +292,11 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let res = crate::download::install_dependencies(nfqws_ver, "skip");
             
             if res.is_ok() {
-                println!("\n\u{F00C} Download completed successfully. Press any key to return to the menu...");
+                println!("{}", rust_i18n::t!("msg_dl_ok"));
             } else {
                 let err_msg = res.as_ref().unwrap_err();
-                println!("\n\u{F00D} Download failed: {}", err_msg);
-                println!("Press any key to return to the menu...");
+                println!("{}{}", rust_i18n::t!("msg_dl_fail"), err_msg);
+                println!("{}", rust_i18n::t!("msg_dl_key"));
             }
             
             // Wait for keypress
@@ -315,7 +315,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             if let Err(e) = res {
                 app.status_message = Some(format!("Error: {}", e));
             } else {
-                app.status_message = Some("Zapret successfully downloaded and installed.".to_string());
+                app.status_message = Some(rust_i18n::t!("msg_dl_zapret_ok").into_owned());
                 app.active_screen = ActiveScreen::DownloadZapretSubmenu;
                 app.refresh_dep_status();
             }
@@ -341,11 +341,11 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let res = crate::download::install_dependencies("skip", strat_ver);
             
             if res.is_ok() {
-                println!("\n\u{F00C} Download completed successfully. Press any key to return to the menu...");
+                println!("{}", rust_i18n::t!("msg_dl_ok"));
             } else {
                 let err_msg = res.as_ref().unwrap_err();
-                println!("\n\u{F00D} Download failed: {}", err_msg);
-                println!("Press any key to return to the menu...");
+                println!("{}{}", rust_i18n::t!("msg_dl_fail"), err_msg);
+                println!("{}", rust_i18n::t!("msg_dl_key"));
             }
             
             // Wait for keypress
@@ -364,7 +364,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             if let Err(e) = res {
                 app.status_message = Some(format!("Error: {}", e));
             } else {
-                app.status_message = Some("Strategies successfully downloaded and installed.".to_string());
+                app.status_message = Some(rust_i18n::t!("msg_dl_strat_ok").into_owned());
                 app.strategies = crate::strategy::get_strategies();
                 app.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
                 app.refresh_dep_status();
@@ -381,11 +381,11 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let res = crate::download::install_dependencies(crate::download::ZAPRET_REC_VER, "recommended");
             
             if res.is_ok() {
-                println!("\n\u{F00C} Download completed successfully. Press any key to return to the menu...");
+                println!("{}", rust_i18n::t!("msg_dl_ok"));
             } else {
                 let err_msg = res.as_ref().unwrap_err();
-                println!("\n\u{F00D} Download failed: {}", err_msg);
-                println!("Press any key to return to the menu...");
+                println!("{}{}", rust_i18n::t!("msg_dl_fail"), err_msg);
+                println!("{}", rust_i18n::t!("msg_dl_key"));
             }
             
             // Wait for keypress
@@ -404,7 +404,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             if let Err(e) = res {
                 app.status_message = Some(format!("Error: {}", e));
             } else {
-                app.status_message = Some("Zapret and Strategies successfully downloaded and installed.".to_string());
+                app.status_message = Some(rust_i18n::t!("msg_dl_all_ok").into_owned());
                 app.strategies = crate::strategy::get_strategies();
                 app.active_screen = ActiveScreen::DownloadDepsSubmenu;
             }

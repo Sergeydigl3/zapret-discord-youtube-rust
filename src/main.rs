@@ -3,9 +3,12 @@ mod download;
 mod firewalls;
 pub mod inits;
 mod platform;
+// Removed i18n module, using rust_i18n directly
 mod runner;
 mod strategy;
 mod tui;
+
+rust_i18n::i18n!("locales", fallback = "en");
 
 use clap::Parser;
 use std::process::exit;
@@ -58,29 +61,30 @@ struct Cli {
 }
 
 fn show_help() {
-    println!("Usage: run [options]");
-    println!("\nRun zapret in foreground (useful for testing).");
-    println!("\nOptions:");
-    println!("    -c, --config FILE       Load configuration from file");
-    println!("    -s, --strategy NAME     Use specific strategy");
-    println!("    -i, --interface NAME    Network interface (default: any)");
-    println!("    -t, --gamefiltertcp     Enable gamefiltertcp");
-    println!("    -u, --gamefilterudp     Enable gamefilterudp");
-    println!("    -d, --cache-dir PATH    Cache directory for downloads (default: binary directory)");
-    println!("    -h, --help              Show this help");
-    println!("\nModes:");
-    println!("    1. Interactive mode (no options):");
-    println!("       run");
-    println!("       Prompts for all parameters");
-    println!("\n    2. Load from config file:");
-    println!("       run --config conf.env");
-    println!("       Uses existing configuration file");
-    println!("\n    3. Direct parameters:");
-    println!("       run -s discord -i eth0 -t");
-    println!("       Specify all parameters directly");
+    println!("{}", rust_i18n::t!("cli_usage"));
+    println!("{}", rust_i18n::t!("cli_desc"));
+    println!("{}", rust_i18n::t!("cli_opts"));
+    println!("{}", rust_i18n::t!("cli_opt_c"));
+    println!("{}", rust_i18n::t!("cli_opt_s"));
+    println!("{}", rust_i18n::t!("cli_opt_i"));
+    println!("{}", rust_i18n::t!("cli_opt_t"));
+    println!("{}", rust_i18n::t!("cli_opt_u"));
+    println!("{}", rust_i18n::t!("cli_opt_d"));
+    println!("{}", rust_i18n::t!("cli_opt_h"));
+    println!("{}", rust_i18n::t!("cli_modes"));
+    println!("{}", rust_i18n::t!("cli_mode1"));
+    println!("{}", rust_i18n::t!("cli_mode2"));
+    println!("{}", rust_i18n::t!("cli_mode3"));
 }
 
 fn main() {
+    let loc = sys_locale::get_locale().unwrap_or_else(|| "en".to_string());
+    if loc.to_lowercase().starts_with("ru") {
+        rust_i18n::set_locale("ru");
+    } else {
+        rust_i18n::set_locale("en");
+    }
+
     #[cfg(target_os = "windows")]
     {
         if std::env::args().any(|arg| arg == "--service") {
@@ -112,7 +116,7 @@ fn main() {
     let mut is_interactive = true;
 
     if let Some(config_file) = &args.config {
-        println!("Загрузка конфигурации из: {}", config_file);
+        println!("{}{}", rust_i18n::t!("msg_load_cfg"), config_file);
         match config::load_config(config_file) {
             Ok(cfg) => {
                 use_interface = cfg.interface;
@@ -168,7 +172,7 @@ fn main() {
             }
 
             if app.should_quit {
-                println!("Exited by user.");
+                println!("{}", rust_i18n::t!("msg_exited"));
                 return;
             }
         }
@@ -176,7 +180,7 @@ fn main() {
         let strategy_file = match use_strategy {
             Some(ref s) => s.clone(),
             None => {
-                println!("No strategy selected.");
+                println!("{}", rust_i18n::t!("msg_no_strat"));
                 if is_interactive {
                     continue;
                 } else {
@@ -189,11 +193,11 @@ fn main() {
         let strat_ok = download::check_strategies_installed();
         if !nfqws_ok || !strat_ok {
             if !nfqws_ok && !strat_ok {
-                eprintln!("Ошибка: Отсутствуют оба компонента (nfqws и стратегии). Запуск отклонен.");
+                eprintln!("{}", rust_i18n::t!("msg_err_both_missing"));
             } else if !nfqws_ok {
-                eprintln!("Ошибка: Отсутствует nfqws (ядро). Запуск отклонен.");
+                eprintln!("{}", rust_i18n::t!("msg_err_nfqws_missing"));
             } else {
-                eprintln!("Ошибка: Отсутствуют стратегии. Запуск отклонен.");
+                eprintln!("{}", rust_i18n::t!("msg_err_strat_missing"));
             }
             if is_interactive {
                 thread::sleep(Duration::from_secs(2));
@@ -210,8 +214,8 @@ fn main() {
         let backend = WinDivertBackend;
 
         println!(
-            "Запуск с параметрами: strategy={}, interface={}, gamefiltertcp={}, gamefilterudp={}",
-            strategy_file, use_interface, use_gamefilter_tcp, use_gamefilter_udp
+            "{}{}, interface={}, gamefiltertcp={}, gamefilterudp={}",
+            rust_i18n::t!("msg_run_params"), strategy_file, use_interface, use_gamefilter_tcp, use_gamefilter_udp
         );
 
         runner::run_zapret(
@@ -223,7 +227,7 @@ fn main() {
         );
 
         thread::sleep(Duration::from_millis(100));
-        println!("\nzapret запущен. Нажмите Ctrl+C для завершения...");
+        println!("{}", rust_i18n::t!("msg_zapret_started"));
 
         running.store(true, Ordering::SeqCst);
 

@@ -2,21 +2,21 @@ use ratatui::widgets::ListItem;
 use crate::tui::state::{AppState, DefenderMenuState};
 use crate::tui::theme::Theme;
 
-pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
+pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
     
     let status_str = match app.defender_status_cache {
-        Some(true) => "\u{F00C} Active (Whitelisted)",
-        Some(false) => "\u{F00D} Inactive (Not Whitelisted)",
-        None => "\u{F071} Unknown / Error",
+        Some(true) => rust_i18n::t!("status_def_active"),
+        Some(false) => rust_i18n::t!("status_def_inactive"),
+        None => rust_i18n::t!("status_def_unknown"),
     };
 
     let menu_items = vec![
-        format!(" Current Status: {}", status_str),
+        format!("{}{}", rust_i18n::t!("status_def_curr"), status_str),
         " ------------------------------------".to_string(),
-        " \u{F067} Add Current Folder to Exclusions".to_string(),
-        " \u{F1F8} Remove Current Folder from Exclusions".to_string(),
-        " \u{F04A} Back to Main Menu".to_string(),
+        format!(" {}", rust_i18n::t!("menu_def_add")),
+        format!(" {}", rust_i18n::t!("menu_def_remove")),
+        format!(" {}", rust_i18n::t!("menu_def_back")),
     ];
 
     let items: Vec<ListItem> = menu_items
@@ -39,5 +39,5 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
         })
         .collect();
 
-    (items, " Defender Options ", selected_index)
+    (items, rust_i18n::t!("menu_def_title").into_owned(), selected_index)
 }
