@@ -76,3 +76,28 @@ pub fn get_cache_dir() -> std::path::PathBuf {
         std::path::PathBuf::from(".")
     }
 }
+
+const CONFIG_FILENAME: &str = "conf.env";
+
+pub fn config_path() -> std::path::PathBuf {
+    get_cache_dir().join(CONFIG_FILENAME)
+}
+
+pub fn save_config(cfg: &RunConfig) -> Result<(), String> {
+    let path = config_path();
+    let content = format!(
+        "interface={}\nstrategy={}\ngamefiltertcp={}\ngamefilterudp={}\n",
+        cfg.interface, cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp
+    );
+    fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
+    Ok(())
+}
+
+pub fn save_tui_state(interface: &str, strategy: &str, tcp: bool, udp: bool) -> Result<(), String> {
+    save_config(&RunConfig {
+        interface: interface.to_string(),
+        strategy: strategy.to_string(),
+        gamefilter_tcp: tcp,
+        gamefilter_udp: udp,
+    })
+}
