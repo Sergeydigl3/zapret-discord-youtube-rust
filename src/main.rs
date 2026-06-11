@@ -1,6 +1,7 @@
 mod config;
 mod download;
 mod firewalls;
+pub mod inits;
 mod platform;
 mod runner;
 mod strategy;
@@ -80,6 +81,17 @@ fn show_help() {
 }
 
 fn main() {
+    #[cfg(target_os = "windows")]
+    {
+        if std::env::args().any(|arg| arg == "--service") {
+            if let Err(e) = inits::winservice::run_service() {
+                eprintln!("Service error: {}", e);
+                std::process::exit(1);
+            }
+            return;
+        }
+    }
+
     platform::ensure_admin();
 
     let args = Cli::parse();

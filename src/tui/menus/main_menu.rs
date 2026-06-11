@@ -87,11 +87,21 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, &'static str, usize) {
         index += 1;
     }
 
+    // ServiceSettings
+    {
+        let is_sel = app.main_menu == MainMenuState::ServiceSettings;
+        if is_sel { selected_index = index; }
+        items.push(ListItem::new(" ⚙️ Service Settings").style(
+            if is_sel { Theme::selected_item() } else { Theme::normal_item() }
+        ));
+        index += 1;
+    }
+
     // Run
     {
         let is_sel = app.main_menu == MainMenuState::Run;
         if is_sel { selected_index = index; }
-        items.push(ListItem::new(" ▶️  Run Zapret").style(
+        items.push(ListItem::new(" ▶️ Run Zapret").style(
             if is_sel { Theme::selected_item() } else { Theme::normal_item() }
         ));
         index += 1;

@@ -59,6 +59,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::GamefilterSubmenu => " 🎮 Game Filter Settings ",
                 ActiveScreen::ZapretTagSelect => " 🏷️ Select Zapret Tag ",
                 ActiveScreen::StrategyTagSelect => " 🏷️ Select Strategies Tag ",
+                ActiveScreen::ServiceSubmenu => " ⚙️ Service Management ",
             };
 
             let title = Paragraph::new(Line::from(vec![
@@ -83,6 +84,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::GamefilterSubmenu => menus::gamefilter_menu::render(app),
                 ActiveScreen::ZapretTagSelect => menus::tag_menu::render(&app.available_nfqws_tags, app.nfqws_tag_index, " Select Zapret Tag "),
                 ActiveScreen::StrategyTagSelect => menus::tag_menu::render(&app.available_strat_tags, app.strat_tag_index, " Select Strategy Tag "),
+                ActiveScreen::ServiceSubmenu => menus::service_menu::render(app),
             };
 
             let list_block = Block::default()
@@ -91,12 +93,13 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 .border_type(BorderType::Rounded)
                 .border_style(Theme::dim_item());
 
-            if app.active_screen == ActiveScreen::Main {
+            if app.active_screen == ActiveScreen::Main || app.active_screen == ActiveScreen::ServiceSubmenu {
                 let inner_area = list_block.inner(chunks[1]);
                 let main_chunks = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([
                         Constraint::Min(1),
+                        Constraint::Length(1),
                         Constraint::Length(1),
                     ])
                     .split(inner_area);
@@ -109,6 +112,41 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 list_state.select(Some(selected_index));
                 f.render_stateful_widget(list, main_chunks[0], &mut list_state);
 
+                // Service Status line
+                let (status_icon, status_color, status_desc) = if !app.service_installed {
+                    ("❌", Color::Red, "Not Installed")
+                } else if app.service_active {
+                    ("✅", Color::Green, "Active (Running)")
+                } else {
+                    ("⏸️", Color::Yellow, "Stopped")
+                };
+
+                let service_type_str = {
+                    #[cfg(target_os = "windows")]
+                    { "Windows Service" }
+                    #[cfg(target_os = "linux")]
+                    {
+                        crate::inits::detect_init_system()
+                            .map(|t| t.as_str())
+                            .unwrap_or("Unknown Init")
+                    }
+                    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+                    { "Unknown Platform" }
+                };
+
+                let service_status_text = Line::from(vec![
+                    Span::styled("⚙️ Service Status (", Style::default().fg(Color::Gray)),
+                    Span::styled(service_type_str, Style::default().fg(Color::White)),
+                    Span::styled("): ", Style::default().fg(Color::Gray)),
+                    Span::styled(status_desc, Style::default().fg(status_color).add_modifier(ratatui::style::Modifier::BOLD)),
+                    Span::raw(" "),
+                    Span::raw(status_icon),
+                ]);
+                let service_status_paragraph = Paragraph::new(service_status_text)
+                    .alignment(ratatui::layout::Alignment::Center);
+                f.render_widget(service_status_paragraph, main_chunks[1]);
+
+                // Dependencies status line
                 let mut show_error = false;
                 let mut error_msg = String::new();
                 if let Some((ref msg, instant)) = app.dependency_error {
@@ -136,7 +174,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 let status_paragraph = Paragraph::new(status_text)
                     .alignment(ratatui::layout::Alignment::Center);
                 
-                f.render_widget(status_paragraph, main_chunks[1]);
+                f.render_widget(status_paragraph, main_chunks[2]);
             } else {
                 let list = List::new(items)
                     .block(list_block)
@@ -156,6 +194,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     MainMenuState::Interface => "💡 Toggle: Choose network interface. Press SPACE/ENTER to cycle.",
                     MainMenuState::Strategy => "💡 Select: Choose strategy folder or script to use.",
                     MainMenuState::GamefilterSettings => "💡 Submenu: Open TCP/UDP Game Filter ports configuration.",
+                    MainMenuState::ServiceSettings => "💡 Submenu: Open background service status and control configuration.",
                     MainMenuState::Run => "💡 Action: Run Zapret with selected configuration.",
                     MainMenuState::Quit => "💡 Action: Exit the TUI application.",
                 },
@@ -187,6 +226,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::StrategySubmenu => "💡 Strategy Select: Choose a strategy from the downloaded strategies list.",
                 ActiveScreen::ZapretTagSelect => "💡 Select: Use UP/DOWN to navigate, ENTER to select a specific Zapret tag.",
                 ActiveScreen::StrategyTagSelect => "💡 Select: Use UP/DOWN to navigate, ENTER to select a specific Strategies tag.",
+                ActiveScreen::ServiceSubmenu => "💡 Service Control: Select action for the service (start, stop, etc.) or back.",
             };
 
             let help_text = if let Some(ref msg) = app.status_message {
