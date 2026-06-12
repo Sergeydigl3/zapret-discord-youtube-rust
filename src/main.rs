@@ -162,15 +162,6 @@ fn main() {
             use_gamefilter_tcp = app.tcp_gamefilter;
             use_gamefilter_udp = app.udp_gamefilter;
 
-            if let Some(ref strat) = use_strategy {
-                let _ = config::save_tui_state(
-                    &use_interface,
-                    strat,
-                    use_gamefilter_tcp,
-                    use_gamefilter_udp,
-                );
-            }
-
             if app.should_quit {
                 println!("{}", rust_i18n::t!("msg_exited"));
                 return;

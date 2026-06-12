@@ -245,6 +245,8 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(interfaces: Vec<String>, strategies: Vec<String>) -> Self {
+        let _ = crate::config::ensure_default_config();
+
         let saved_cfg = crate::config::load_config(
             &crate::config::config_path().to_string_lossy()
         ).ok();
@@ -347,6 +349,21 @@ impl AppState {
         if count > 0 && self.service_menu_index >= count {
             self.service_menu_index = count - 1;
         }
+    }
+
+    fn save_current_config(&self) {
+        let interface = self.interfaces.get(self.selected_interface)
+            .map(|s| s.as_str())
+            .unwrap_or("any");
+        let strategy = self.strategies.get(self.selected_strategy)
+            .map(|s| s.as_str())
+            .unwrap_or("");
+        let _ = crate::config::save_tui_state(
+            interface,
+            strategy,
+            self.tcp_gamefilter,
+            self.udp_gamefilter,
+        );
     }
 
     pub fn get_service_menu_count(&self) -> usize {
@@ -462,6 +479,7 @@ impl AppState {
                     MainMenuState::Interface => {
                         if !self.interfaces.is_empty() {
                             self.selected_interface = (self.selected_interface + 1) % self.interfaces.len();
+                            self.save_current_config();
                         }
                     }
                     MainMenuState::Strategy => {
@@ -518,6 +536,7 @@ impl AppState {
             ActiveScreen::StrategySubmenu => {
                 if self.strategy_menu_index < self.strategies.len() {
                     self.selected_strategy = self.strategy_menu_index;
+                    self.save_current_config();
                     self.active_screen = ActiveScreen::Main;
                     self.status_message = Some(format!("\u{F00C} Selected strategy: {}", self.strategies[self.selected_strategy]));
                 } else {
@@ -626,8 +645,14 @@ impl AppState {
             }
             ActiveScreen::GamefilterSubmenu => {
                 match self.gamefilter_menu {
-                    GamefilterMenuState::Tcp => self.tcp_gamefilter = !self.tcp_gamefilter,
-                    GamefilterMenuState::Udp => self.udp_gamefilter = !self.udp_gamefilter,
+                    GamefilterMenuState::Tcp => {
+                        self.tcp_gamefilter = !self.tcp_gamefilter;
+                        self.save_current_config();
+                    }
+                    GamefilterMenuState::Udp => {
+                        self.udp_gamefilter = !self.udp_gamefilter;
+                        self.save_current_config();
+                    }
                     GamefilterMenuState::Back => {
                         self.active_screen = ActiveScreen::Main;
                         self.status_message = None;
@@ -746,6 +771,7 @@ impl AppState {
                             } else {
                                 self.selected_interface = (self.selected_interface + len - 1) % len;
                             }
+                            self.save_current_config();
                         }
                     }
                     _ => {
@@ -781,8 +807,14 @@ impl AppState {
             }
             ActiveScreen::GamefilterSubmenu => {
                 match self.gamefilter_menu {
-                    GamefilterMenuState::Tcp => self.tcp_gamefilter = !self.tcp_gamefilter,
-                    GamefilterMenuState::Udp => self.udp_gamefilter = !self.udp_gamefilter,
+                    GamefilterMenuState::Tcp => {
+                        self.tcp_gamefilter = !self.tcp_gamefilter;
+                        self.save_current_config();
+                    }
+                    GamefilterMenuState::Udp => {
+                        self.udp_gamefilter = !self.udp_gamefilter;
+                        self.save_current_config();
+                    }
                     _ => {
                         if forward {
                             self.toggle_current();
