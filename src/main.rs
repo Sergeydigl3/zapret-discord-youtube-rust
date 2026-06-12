@@ -15,13 +15,10 @@ use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
+#[cfg(not(target_os = "windows"))]
 use nix::sys::signal::{self, SigAction, SigHandler, Signal, SaFlags};
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
-
-extern "C" fn handle_signal(_: i32) {
-    RUNNING.store(false, Ordering::SeqCst);
-}
 
 #[cfg(not(target_os = "windows"))]
 use firewalls::nftables::NftablesBackend;
@@ -140,11 +137,24 @@ fn main() {
         is_interactive = false;
     }
 
-    let handler = SigHandler::Handler(handle_signal);
-    let sig_action = SigAction::new(handler, SaFlags::empty(), signal::SigSet::empty());
-    unsafe {
-        let _ = signal::sigaction(Signal::SIGTERM, &sig_action);
-        let _ = signal::sigaction(Signal::SIGINT, &sig_action);
+    #[cfg(not(target_os = "windows"))]
+    {
+        extern "C" fn handle_signal(_: i32) {
+            RUNNING.store(false, Ordering::SeqCst);
+        }
+        let handler = SigHandler::Handler(handle_signal);
+        let sig_action = SigAction::new(handler, SaFlags::empty(), signal::SigSet::empty());
+        unsafe {
+            let _ = signal::sigaction(Signal::SIGTERM, &sig_action);
+            let _ = signal::sigaction(Signal::SIGINT, &sig_action);
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        ctrlc::set_handler(move || {
+            RUNNING.store(false, Ordering::SeqCst);
+        })
+        .unwrap_or_else(|e| eprintln!("Error setting Ctrl-C handler: {}", e));
     }
 
     loop {
