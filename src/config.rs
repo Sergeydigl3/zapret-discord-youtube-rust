@@ -101,3 +101,14 @@ pub fn save_tui_state(interface: &str, strategy: &str, tcp: bool, udp: bool) -> 
         gamefilter_udp: udp,
     })
 }
+
+pub fn ensure_default_config() -> Result<(), String> {
+    let path = config_path();
+    if !path.exists() {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("Cannot create config directory: {}", e))?;
+        }
+        save_config(&RunConfig::default())?;
+    }
+    Ok(())
+}
