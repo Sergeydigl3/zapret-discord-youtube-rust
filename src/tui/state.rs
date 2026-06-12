@@ -342,6 +342,11 @@ impl AppState {
             self.service_installed = false;
             self.service_active = false;
         }
+
+        let count = self.get_service_menu_count();
+        if count > 0 && self.service_menu_index >= count {
+            self.service_menu_index = count - 1;
+        }
     }
 
     pub fn get_service_menu_count(&self) -> usize {
@@ -717,6 +722,7 @@ impl AppState {
                                 self.status_message = Some("\u{F00C} Operation completed successfully.".to_string());
                             }
                             Err(e) => {
+                                self.refresh_service_status();
                                 self.status_message = Some(format!("\u{F00D} Error: {}", e));
                             }
                         }

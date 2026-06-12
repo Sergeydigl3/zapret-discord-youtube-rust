@@ -93,7 +93,14 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 .border_type(BorderType::Rounded)
                 .border_style(Theme::dim_item());
 
-            if app.active_screen == ActiveScreen::Main || app.active_screen == ActiveScreen::ServiceSubmenu {
+            if app.active_screen == ActiveScreen::Main
+                || app.active_screen == ActiveScreen::ServiceSubmenu
+                || app.active_screen == ActiveScreen::DownloadDepsSubmenu
+                || app.active_screen == ActiveScreen::DownloadZapretSubmenu
+                || app.active_screen == ActiveScreen::DownloadStrategiesSubmenu
+                || app.active_screen == ActiveScreen::ZapretTagSelect
+                || app.active_screen == ActiveScreen::StrategyTagSelect
+            {
                 let inner_area = list_block.inner(chunks[1]);
                 let main_chunks = Layout::default()
                     .direction(Direction::Vertical)
@@ -265,6 +272,20 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                             } else {
                                 app.should_quit = true;
                             }
+                        }
+                        _ => {}
+                    }
+
+                    match app.active_screen {
+                        ActiveScreen::DownloadDepsSubmenu
+                        | ActiveScreen::DownloadZapretSubmenu
+                        | ActiveScreen::DownloadStrategiesSubmenu
+                        | ActiveScreen::ZapretTagSelect
+                        | ActiveScreen::StrategyTagSelect => {
+                            app.refresh_dep_status();
+                        }
+                        ActiveScreen::ServiceSubmenu => {
+                            app.refresh_service_status();
                         }
                         _ => {}
                     }
