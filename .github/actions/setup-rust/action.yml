@@ -1,0 +1,26 @@
+name: 'Setup Rust'
+description: 'Installs Rust toolchain and caches dependencies'
+
+inputs:
+  targets:
+    description: 'Additional rustup targets to install'
+    required: false
+  components:
+    description: 'Additional rustup components to install (e.g. clippy, rustfmt)'
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        targets: ${{ inputs.targets }}
+        components: ${{ inputs.components }}
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: "zapret-rust-${{ runner.os }}"
+        cache-targets: "true"
