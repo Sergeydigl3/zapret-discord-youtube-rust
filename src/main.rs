@@ -13,9 +13,15 @@ rust_i18n::i18n!("locales", fallback = "en");
 use clap::Parser;
 use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use nix::sys::signal::{self, SigAction, SigHandler, Signal, SaFlags};
+
+static RUNNING: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn handle_signal(_: i32) {
+    RUNNING.store(false, Ordering::SeqCst);
+}
 
 #[cfg(not(target_os = "windows"))]
 use firewalls::nftables::NftablesBackend;
@@ -134,12 +140,12 @@ fn main() {
         is_interactive = false;
     }
 
-    let running = Arc::new(AtomicBool::new(false));
-    let r = running.clone();
-    ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
-    })
-    .unwrap_or_else(|e| eprintln!("Error setting Ctrl-C handler: {}", e));
+    let handler = SigHandler::Handler(handle_signal);
+    let sig_action = SigAction::new(handler, SaFlags::empty(), signal::SigSet::empty());
+    unsafe {
+        let _ = signal::sigaction(Signal::SIGTERM, &sig_action);
+        let _ = signal::sigaction(Signal::SIGINT, &sig_action);
+    }
 
     loop {
         if is_interactive {
@@ -220,9 +226,9 @@ fn main() {
         thread::sleep(Duration::from_millis(100));
         println!("{}", rust_i18n::t!("msg_zapret_started"));
 
-        running.store(true, Ordering::SeqCst);
+        RUNNING.store(true, Ordering::SeqCst);
 
-        while running.load(Ordering::SeqCst) {
+        while RUNNING.load(Ordering::SeqCst) {
             thread::sleep(Duration::from_millis(100));
         }
 
