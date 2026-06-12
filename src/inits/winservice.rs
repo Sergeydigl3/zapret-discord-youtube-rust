@@ -23,7 +23,7 @@ pub struct WindowsServiceManager;
 impl WindowsServiceManager {
     const SERVICE_NAME: &'static str = "zapret-rust";
 
-    fn run_sc(&self, args: &[&str]) -> Result<(), String> {
+    fn run_sc<S: AsRef<std::ffi::OsStr>>(&self, args: &[S]) -> Result<(), String> {
         let output = Command::new("sc")
             .args(args)
             .output()
@@ -33,9 +33,13 @@ impl WindowsServiceManager {
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let cmd_str = args.iter()
+                .map(|a| a.as_ref().to_string_lossy().into_owned())
+                .collect::<Vec<String>>()
+                .join(" ");
             Err(format!(
                 "sc {} failed: {}",
-                args.join(" "),
+                cmd_str,
                 if stderr.is_empty() { stdout } else { stderr }
             ))
         }
@@ -86,8 +90,10 @@ impl ServiceManager for WindowsServiceManager {
         self.run_sc(&[
             "create",
             Self::SERVICE_NAME,
-            &format!("binPath= {}", bin_path_arg),
-            "start= auto",
+            "binPath=",
+            &bin_path_arg,
+            "start=",
+            "auto",
         ])?;
 
         Ok(())
