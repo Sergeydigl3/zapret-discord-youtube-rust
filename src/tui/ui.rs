@@ -161,8 +161,8 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                         Span::styled(error_msg, Style::default().fg(Color::Red).add_modifier(ratatui::style::Modifier::BOLD)),
                     ])
                 } else {
-                    let nfqws_status = if app.nfqws_installed { "\u{F00C}" } else { "\u{F00D}" };
-                    let strat_status = if app.strategies_installed { "\u{F00C}" } else { "\u{F00D}" };
+                    let nfqws_status = if app.nfqws_installed { "✅" } else { "❌" };
+                    let strat_status = if app.strategies_installed { "✅" } else { "❌" };
                     Line::from(vec![
                         Span::styled(rust_i18n::t!("status_deps_title"), Style::default().fg(Color::Gray)),
                         Span::styled("nfqws ", Style::default().fg(Color::White)),
