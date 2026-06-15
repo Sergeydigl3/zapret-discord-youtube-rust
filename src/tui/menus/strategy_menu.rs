@@ -8,7 +8,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         .iter()
         .enumerate()
         .map(|(i, s)| {
-            let prefix = if i == app.selected_strategy { "\u{F00C} " } else { "   " };
+            let prefix = if i == app.selected_strategy { "✅ " } else { "   " };
             let m = format!(" {}{}", prefix, s);
             if i == app.strategy_menu_index {
                 selected_index = i;

@@ -44,8 +44,8 @@ pub fn render(
         (VersionTarget::Recommended, format!("{} ({})", rust_i18n::t!("val_rec"), rec_ver_str)),
         (VersionTarget::Latest, latest_label.into_owned()),
         (VersionTarget::Tag("".to_string()), match target_ver {
-            VersionTarget::Tag(t) => format!("Tag ({})", t),
-            _ => "Tag".to_string(),
+            VersionTarget::Tag(t) => rust_i18n::t!("val_tag_fmt").replace("{}", &t),
+            _ => rust_i18n::t!("val_tag").into_owned(),
         }),
     ];
 

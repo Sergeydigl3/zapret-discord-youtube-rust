@@ -94,7 +94,7 @@ fn main() {
     {
         if std::env::args().any(|arg| arg == "--service") {
             if let Err(e) = inits::winservice::run_service() {
-                eprintln!("Service error: {}", e);
+                eprintln!("{}{}", rust_i18n::t!("err_srv"), e);
                 std::process::exit(1);
             }
             return;
@@ -131,7 +131,7 @@ fn main() {
                 is_interactive = false;
             }
             Err(e) => {
-                println!("Error loading config: {}", e);
+                println!("{}{}", rust_i18n::t!("err_load_cfg"), e);
                 exit(1);
             }
         }
@@ -156,7 +156,7 @@ fn main() {
         ctrlc::set_handler(move || {
             RUNNING.store(false, Ordering::SeqCst);
         })
-        .unwrap_or_else(|e| eprintln!("Error setting Ctrl-C handler: {}", e));
+        .unwrap_or_else(|e| eprintln!("{}{}", rust_i18n::t!("err_ctrl_c"), e));
     }
 
     loop {
@@ -167,7 +167,7 @@ fn main() {
 
             let res = tui::run_tui(&mut app);
             if let Err(e) = res {
-                println!("TUI Error: {}", e);
+                println!("{}{}", rust_i18n::t!("err_tui"), e);
                 exit(1);
             }
 

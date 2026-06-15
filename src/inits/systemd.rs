@@ -13,7 +13,7 @@ impl SystemdManager {
         let output = Command::new("systemctl")
             .args(args)
             .output()
-            .map_err(|e| format!("Failed to execute systemctl: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_systemctl"), e))?;
         if output.status.success() {
             Ok(())
         } else {
@@ -44,9 +44,9 @@ impl ServiceManager for SystemdManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or("Invalid executable path")?;
-        let config_str = config_path.to_str().ok_or("Invalid config path")?;
-        let cache_str = cache_dir.to_str().ok_or("Invalid cache directory path")?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         let service_content = format!(
             r#"[Unit]
@@ -67,7 +67,7 @@ WantedBy=multi-user.target
         );
 
         fs::write(Self::SERVICE_PATH, service_content)
-            .map_err(|e| format!("Failed to write service file: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_write_svc"), e))?;
 
         self.run_command(&["daemon-reload"])?;
         self.run_command(&["enable", Self::SERVICE_NAME])?;
@@ -82,7 +82,7 @@ WantedBy=multi-user.target
 
         if Path::new(Self::SERVICE_PATH).exists() {
             fs::remove_file(Self::SERVICE_PATH)
-                .map_err(|e| format!("Failed to remove service file: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_svc"), e))?;
         }
 
         self.run_command(&["daemon-reload"])?;

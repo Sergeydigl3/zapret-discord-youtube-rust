@@ -13,7 +13,7 @@ impl InitManager {
         let output = Command::new(Self::SCRIPT_PATH)
             .arg(action)
             .output()
-            .map_err(|e| format!("Failed to execute init script: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_init"), e))?;
         if output.status.success() {
             Ok(())
         } else {
@@ -34,7 +34,7 @@ impl InitManager {
                 .arg(Self::SERVICE_NAME)
                 .arg("defaults")
                 .output()
-                .map_err(|e| format!("Failed to execute update-rc.d: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_update_rc"), e))?;
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
                 return Err(format!("update-rc.d failed: {}", stderr));
@@ -46,7 +46,7 @@ impl InitManager {
                 .arg("--add")
                 .arg(Self::SERVICE_NAME)
                 .output()
-                .map_err(|e| format!("Failed to execute chkconfig: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_chkconfig"), e))?;
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
                 return Err(format!("chkconfig --add failed: {}", stderr));
@@ -89,9 +89,9 @@ impl ServiceManager for InitManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or("Invalid executable path")?;
-        let config_str = config_path.to_str().ok_or("Invalid config path")?;
-        let cache_str = cache_dir.to_str().ok_or("Invalid cache directory path")?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         let script_content = format!(
             r#"#!/bin/sh
@@ -142,13 +142,13 @@ esac
         );
 
         fs::write(Self::SCRIPT_PATH, script_content)
-            .map_err(|e| format!("Failed to write SysV init script: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_write_sysv"), e))?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(Self::SCRIPT_PATH, fs::Permissions::from_mode(0o755))
-                .map_err(|e| format!("Failed to set executable permissions on SysV init script: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_chmod_sysv"), e))?;
         }
 
         self.register_service()?;
@@ -163,7 +163,7 @@ esac
 
         if Path::new(Self::SCRIPT_PATH).exists() {
             fs::remove_file(Self::SCRIPT_PATH)
-                .map_err(|e| format!("Failed to remove SysV init script: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_sysv"), e))?;
         }
 
         Ok(())

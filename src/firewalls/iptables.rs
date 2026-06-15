@@ -7,7 +7,7 @@ const CHAIN_NAME: &str = "zapret_chain";
 
 impl FirewallBackend for IptablesBackend {
     fn clear(&self) -> Result<(), String> {
-        println!("Очистка правил iptables...");
+        println!("{}", rust_i18n::t!("msg_clear_iptables"));
 
         // Remove from OUTPUT chain
         let _ = Command::new("iptables")
@@ -29,13 +29,13 @@ impl FirewallBackend for IptablesBackend {
     fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str) -> Result<(), String> {
         let _ = self.clear();
 
-        println!("Настройка iptables...");
+        println!("{}", rust_i18n::t!("msg_setup_iptables"));
 
         // Create chain
         let status = Command::new("iptables")
             .args(["-t", "filter", "-N", CHAIN_NAME])
             .status()
-            .map_err(|e| format!("Failed to create iptables chain: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_iptables_chain"), e))?;
 
         if !status.success() {
             // Ignore if chain already exists, but continue
@@ -45,7 +45,7 @@ impl FirewallBackend for IptablesBackend {
         Command::new("iptables")
             .args(["-t", "filter", "-I", "OUTPUT", "-j", CHAIN_NAME])
             .status()
-            .map_err(|e| format!("Failed to link iptables chain: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_iptables_link"), e))?;
 
         if !tcp_ports.is_empty() {
             let ports = tcp_ports.replace(" ", "");

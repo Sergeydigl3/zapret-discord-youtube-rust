@@ -123,11 +123,11 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
 
                 // Service Status line
                 let (status_icon, status_color, status_desc) = if !app.service_installed {
-                    ("\u{F00D}", Color::Red, rust_i18n::t!("status_srv_not_inst"))
+                    ("❌", Color::Red, rust_i18n::t!("status_srv_not_inst"))
                 } else if app.service_active {
-                    ("\u{F00C}", Color::Green, rust_i18n::t!("status_srv_active"))
+                    ("✅", Color::Green, rust_i18n::t!("status_srv_active"))
                 } else {
-                    ("\u{F04C}", Color::Yellow, rust_i18n::t!("status_srv_stopped"))
+                    ("⏸️", Color::Yellow, rust_i18n::t!("status_srv_stopped"))
                 };
 
                 let service_type_str = {
@@ -156,30 +156,15 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 f.render_widget(service_status_paragraph, main_chunks[1]);
 
                 // Dependencies status line
-                let mut show_error = false;
-                let mut error_msg = String::new();
-                if let Some((ref msg, instant)) = app.dependency_error {
-                    if instant.elapsed() < std::time::Duration::from_secs(3) {
-                        show_error = true;
-                        error_msg = msg.clone();
-                    }
-                }
-
-                let status_text = if show_error {
-                    Line::from(vec![
-                        Span::styled(error_msg, Style::default().fg(Color::Red).add_modifier(ratatui::style::Modifier::BOLD)),
-                    ])
-                } else {
-                    let nfqws_status = if app.nfqws_installed { "✅" } else { "❌" };
-                    let strat_status = if app.strategies_installed { "✅" } else { "❌" };
-                    Line::from(vec![
-                        Span::styled(rust_i18n::t!("status_deps_title"), Style::default().fg(Color::Gray)),
-                        Span::styled("nfqws ", Style::default().fg(Color::White)),
-                        Span::raw(nfqws_status),
-                        Span::styled(format!(" | {} ", rust_i18n::t!("status_deps_strat")), Style::default().fg(Color::White)),
-                        Span::raw(strat_status),
-                    ])
-                };
+                let nfqws_status = if app.nfqws_installed { "✅" } else { "❌" };
+                let strat_status = if app.strategies_installed { "✅" } else { "❌" };
+                let status_text = Line::from(vec![
+                    Span::styled(rust_i18n::t!("status_deps_title"), Style::default().fg(Color::Gray)),
+                    Span::styled("nfqws ", Style::default().fg(Color::White)),
+                    Span::raw(nfqws_status),
+                    Span::styled(format!(" | {} ", rust_i18n::t!("status_deps_strat")), Style::default().fg(Color::White)),
+                    Span::raw(strat_status),
+                ]);
                 let status_paragraph = Paragraph::new(status_text)
                     .alignment(ratatui::layout::Alignment::Center);
                 
@@ -242,7 +227,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             };
 
             let help_text = if let Some(ref msg) = app.status_message {
-                format!("INFO: {} | {}", msg, dynamic_help)
+                msg.clone()
             } else {
                 dynamic_help.to_string()
             };
@@ -339,7 +324,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             terminal.clear()?;
             
             if let Err(e) = res {
-                app.status_message = Some(format!("Error: {}", e));
+                app.show_error(e.to_string());
             } else {
                 app.status_message = Some(rust_i18n::t!("msg_dl_zapret_ok").into_owned());
                 app.active_screen = ActiveScreen::DownloadZapretSubmenu;
@@ -388,7 +373,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             terminal.clear()?;
             
             if let Err(e) = res {
-                app.status_message = Some(format!("Error: {}", e));
+                app.show_error(e.to_string());
             } else {
                 app.status_message = Some(rust_i18n::t!("msg_dl_strat_ok").into_owned());
                 app.strategies = crate::strategy::get_strategies();
@@ -428,7 +413,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             terminal.clear()?;
             
             if let Err(e) = res {
-                app.status_message = Some(format!("Error: {}", e));
+                app.show_error(e.to_string());
             } else {
                 app.status_message = Some(rust_i18n::t!("msg_dl_all_ok").into_owned());
                 app.strategies = crate::strategy::get_strategies();
@@ -447,7 +432,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             execute!(terminal.backend_mut(), EnterAlternateScreen)?;
             terminal.clear()?;
             
-            app.status_message = Some(format!("Closed editor for {}", std::path::Path::new(&file_path).file_name().unwrap_or_default().to_string_lossy()));
+            app.status_message = Some(format!("{}{}", rust_i18n::t!("msg_closed_editor"), std::path::Path::new(&file_path).file_name().unwrap_or_default().to_string_lossy()));
             app.active_screen = ActiveScreen::ListsEditorSubmenu;
             app.refresh_ipset_status();
         }
