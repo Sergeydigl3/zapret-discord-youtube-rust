@@ -8,6 +8,7 @@ mod runner;
 mod strategy;
 mod tui;
 mod utils;
+mod ipset;
 
 rust_i18n::i18n!("locales", fallback = "en");
 

@@ -20,6 +20,7 @@ pub enum MainMenuState {
     DefenderSettings,
     DownloadDeps,
     Interface,
+    IpsetMode,
     Strategy,
     GamefilterSettings,
     ServiceSettings,
@@ -34,7 +35,8 @@ impl MainMenuState {
             #[cfg(target_os = "windows")]
             Self::DefenderSettings => Self::DownloadDeps,
             Self::DownloadDeps => Self::Interface,
-            Self::Interface => Self::Strategy,
+            Self::Interface => Self::IpsetMode,
+            Self::IpsetMode => Self::Strategy,
             Self::Strategy => Self::GamefilterSettings,
             Self::GamefilterSettings => Self::ServiceSettings,
             Self::ServiceSettings => Self::ListsEditor,
@@ -56,7 +58,8 @@ impl MainMenuState {
             #[cfg(not(target_os = "windows"))]
             Self::DownloadDeps => Self::Quit,
             Self::Interface => Self::DownloadDeps,
-            Self::Strategy => Self::Interface,
+            Self::IpsetMode => Self::Interface,
+            Self::Strategy => Self::IpsetMode,
             Self::GamefilterSettings => Self::Strategy,
             Self::ServiceSettings => Self::GamefilterSettings,
             Self::ListsEditor => Self::ServiceSettings,
@@ -204,6 +207,9 @@ pub struct AppState {
     pub interfaces: Vec<String>,
     pub selected_interface: usize,
 
+    pub available_ipset_modes: Vec<crate::ipset::IpsetMode>,
+    pub selected_ipset_mode: usize,
+
     pub strategies: Vec<String>,
     pub selected_strategy: usize,
     pub strategy_menu_index: usize,
@@ -268,9 +274,15 @@ impl AppState {
         let tcp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_tcp);
         let udp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_udp);
 
+        let available_ipset_modes = crate::ipset::get_available_modes();
+        let current_ipset_mode = crate::ipset::determine_current_mode();
+        let selected_ipset_mode = available_ipset_modes.iter().position(|m| m == &current_ipset_mode).unwrap_or(0);
+
         let mut app = Self {
             interfaces,
             selected_interface,
+            available_ipset_modes,
+            selected_ipset_mode,
             strategies,
             selected_strategy,
             strategy_menu_index: selected_strategy,
@@ -361,6 +373,12 @@ impl AppState {
         if count > 0 && self.service_menu_index >= count {
             self.service_menu_index = count - 1;
         }
+    }
+
+    pub fn refresh_ipset_status(&mut self) {
+        self.available_ipset_modes = crate::ipset::get_available_modes();
+        let current_ipset_mode = crate::ipset::determine_current_mode();
+        self.selected_ipset_mode = self.available_ipset_modes.iter().position(|m| m == &current_ipset_mode).unwrap_or(0);
     }
 
     fn save_current_config(&self) {
@@ -500,6 +518,16 @@ impl AppState {
                         if !self.interfaces.is_empty() {
                             self.selected_interface = (self.selected_interface + 1) % self.interfaces.len();
                             self.save_current_config();
+                        }
+                    }
+                    MainMenuState::IpsetMode => {
+                        if !self.available_ipset_modes.is_empty() {
+                            let old_mode = self.available_ipset_modes[self.selected_ipset_mode];
+                            self.selected_ipset_mode = (self.selected_ipset_mode + 1) % self.available_ipset_modes.len();
+                            let new_mode = self.available_ipset_modes[self.selected_ipset_mode];
+                            crate::ipset::apply_ipset_mode(old_mode, new_mode);
+                            self.available_ipset_modes = crate::ipset::get_available_modes();
+                            self.selected_ipset_mode = self.available_ipset_modes.iter().position(|m| m == &new_mode).unwrap_or(0);
                         }
                     }
                     MainMenuState::Strategy => {
@@ -807,6 +835,21 @@ impl AppState {
                                 self.selected_interface = (self.selected_interface + len - 1) % len;
                             }
                             self.save_current_config();
+                        }
+                    }
+                    MainMenuState::IpsetMode => {
+                        if !self.available_ipset_modes.is_empty() {
+                            let len = self.available_ipset_modes.len();
+                            let old_mode = self.available_ipset_modes[self.selected_ipset_mode];
+                            if forward {
+                                self.selected_ipset_mode = (self.selected_ipset_mode + 1) % len;
+                            } else {
+                                self.selected_ipset_mode = (self.selected_ipset_mode + len - 1) % len;
+                            }
+                            let new_mode = self.available_ipset_modes[self.selected_ipset_mode];
+                            crate::ipset::apply_ipset_mode(old_mode, new_mode);
+                            self.available_ipset_modes = crate::ipset::get_available_modes();
+                            self.selected_ipset_mode = self.available_ipset_modes.iter().position(|m| m == &new_mode).unwrap_or(0);
                         }
                     }
                     _ => {
