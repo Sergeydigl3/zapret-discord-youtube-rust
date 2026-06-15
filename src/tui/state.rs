@@ -11,6 +11,7 @@ pub enum ActiveScreen {
     ZapretTagSelect,
     StrategyTagSelect,
     ServiceSubmenu,
+    ListsEditorSubmenu,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -22,6 +23,7 @@ pub enum MainMenuState {
     Strategy,
     GamefilterSettings,
     ServiceSettings,
+    ListsEditor,
     Run,
     Quit,
 }
@@ -35,7 +37,8 @@ impl MainMenuState {
             Self::Interface => Self::Strategy,
             Self::Strategy => Self::GamefilterSettings,
             Self::GamefilterSettings => Self::ServiceSettings,
-            Self::ServiceSettings => Self::Run,
+            Self::ServiceSettings => Self::ListsEditor,
+            Self::ListsEditor => Self::Run,
             Self::Run => Self::Quit,
             #[cfg(target_os = "windows")]
             Self::Quit => Self::DefenderSettings,
@@ -56,7 +59,8 @@ impl MainMenuState {
             Self::Strategy => Self::Interface,
             Self::GamefilterSettings => Self::Strategy,
             Self::ServiceSettings => Self::GamefilterSettings,
-            Self::Run => Self::ServiceSettings,
+            Self::ListsEditor => Self::ServiceSettings,
+            Self::Run => Self::ListsEditor,
             Self::Quit => Self::Run,
         }
     }
@@ -241,6 +245,10 @@ pub struct AppState {
     pub service_installed: bool,
     pub service_active: bool,
     pub service_menu_index: usize,
+
+    pub lists_files: Vec<String>,
+    pub lists_menu_index: usize,
+    pub should_open_editor: Option<String>,
 }
 
 impl AppState {
@@ -306,6 +314,10 @@ impl AppState {
             service_installed: false,
             service_active: false,
             service_menu_index: 0,
+
+            lists_files: Vec::new(),
+            lists_menu_index: 0,
+            should_open_editor: None,
         };
         app.refresh_service_status();
         app
@@ -423,6 +435,10 @@ impl AppState {
                     self.service_menu_index = (self.service_menu_index + 1) % count;
                 }
             }
+            ActiveScreen::ListsEditorSubmenu => {
+                let max = self.lists_files.len() + 1; // +1 for Back
+                self.lists_menu_index = (self.lists_menu_index + 1) % max;
+            }
         }
     }
 
@@ -458,6 +474,10 @@ impl AppState {
                 if count > 0 {
                     self.service_menu_index = (self.service_menu_index + count - 1) % count;
                 }
+            }
+            ActiveScreen::ListsEditorSubmenu => {
+                let max = self.lists_files.len() + 1; // +1 for Back
+                self.lists_menu_index = (self.lists_menu_index + max - 1) % max;
             }
         }
     }
@@ -496,6 +516,12 @@ impl AppState {
                         self.active_screen = ActiveScreen::ServiceSubmenu;
                         self.service_menu_index = 0;
                         self.refresh_service_status();
+                        self.status_message = None;
+                    }
+                    MainMenuState::ListsEditor => {
+                        self.lists_files = crate::utils::get_lists_files();
+                        self.lists_menu_index = 0;
+                        self.active_screen = ActiveScreen::ListsEditorSubmenu;
                         self.status_message = None;
                     }
                     MainMenuState::Run => {
@@ -754,6 +780,15 @@ impl AppState {
                     }
                 } else {
                     self.status_message = Some("\u{F00D} Error: Init system not supported.".to_string());
+                }
+            }
+            ActiveScreen::ListsEditorSubmenu => {
+                if self.lists_menu_index < self.lists_files.len() {
+                    let file = self.lists_files[self.lists_menu_index].clone();
+                    self.should_open_editor = Some(file);
+                } else {
+                    self.active_screen = ActiveScreen::Main;
+                    self.status_message = None;
                 }
             }
         }
