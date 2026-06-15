@@ -10,7 +10,7 @@ pub struct NftablesBackend;
 
 impl FirewallBackend for NftablesBackend {
     fn clear(&self) -> Result<(), String> {
-        println!("Очистка правил nftables...");
+        println!("{}", rust_i18n::t!("msg_clear_nftables"));
         
         let current_ruleset = get_current_ruleset().map_err(|e| format!("Failed to get current ruleset: {:?}", e))?;
         let mut has_table = false;
@@ -42,7 +42,7 @@ impl FirewallBackend for NftablesBackend {
     fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str) -> Result<(), String> {
         let _ = self.clear(); // Ignore errors during clear as it might not be fully configured
 
-        println!("Настройка nftables...");
+        println!("{}", rust_i18n::t!("msg_setup_nftables"));
 
         let mut rules = vec![
             json!({ "add": { "table": { "family": "ip", "name": NFT_TABLE } } }),

@@ -27,7 +27,7 @@ impl WindowsServiceManager {
         let output = Command::new("sc")
             .args(args)
             .output()
-            .map_err(|e| format!("Failed to execute sc: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_sc"), e))?;
         if output.status.success() {
             Ok(())
         } else {
@@ -77,9 +77,9 @@ impl ServiceManager for WindowsServiceManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or("Invalid executable path")?;
-        let config_str = config_path.to_str().ok_or("Invalid config path")?;
-        let cache_str = cache_dir.to_str().ok_or("Invalid cache directory path")?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         // Format binPath with correct arguments. SCM expects space after 'binPath=' and 'start='
         let bin_path_arg = format!(
@@ -130,7 +130,7 @@ define_windows_service!(ffi_service_main, my_service_main);
 
 pub fn run_service() -> Result<(), String> {
     service_dispatcher::start(WindowsServiceManager::SERVICE_NAME, ffi_service_main)
-        .map_err(|e| format!("Failed to start service dispatcher: {}", e))
+        .map_err(|e| format!("{}{}", rust_i18n::t!("err_start_dispatcher"), e))
 }
 
 fn my_service_main(_arguments: Vec<std::ffi::OsString>) {

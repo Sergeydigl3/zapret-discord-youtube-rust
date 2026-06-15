@@ -11,7 +11,7 @@ pub fn render(
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            let prefix = if i == selected_tag_index { "\u{F061} " } else { "   " };
+            let prefix = if i == selected_tag_index { "➡️ " } else { "   " };
             let m = format!(" {}{}", prefix, t);
             if i == selected_tag_index {
                 selected_index = i;

@@ -30,11 +30,13 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         index += 1;
     }
 
+
+
     // Interface
     {
         let is_sel = app.main_menu == MainMenuState::Interface;
         if is_sel { selected_index = index; }
-        let val = app.interfaces.get(app.selected_interface).unwrap_or(&rust_i18n::t!("val_none").into_owned()).clone();
+        let val = app.interfaces.get(app.selected_interface).unwrap_or(&String::new()).clone();
         let spans = vec![
             Span::styled(format!(" {}: ", rust_i18n::t!("menu_main_interface")), if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
             Span::styled(format!("< {} >", val), if is_sel { Theme::selected_value() } else { Theme::normal_value() }),
@@ -43,28 +45,12 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         index += 1;
     }
 
-    // Ipset Mode
-    {
-        let is_sel = app.main_menu == MainMenuState::IpsetMode;
-        if is_sel { selected_index = index; }
-        let val = if let Some(mode) = app.available_ipset_modes.get(app.selected_ipset_mode) {
-            mode.to_string()
-        } else {
-            rust_i18n::t!("val_none").into_owned()
-        };
-        let spans = vec![
-            Span::styled(format!(" {}: ", rust_i18n::t!("menu_main_ipset")), if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
-            Span::styled(format!("< {} >", val), if is_sel { Theme::selected_value() } else { Theme::normal_value() }),
-        ];
-        items.push(ListItem::new(Line::from(spans)));
-        index += 1;
-    }
 
     // Strategy
     {
         let is_sel = app.main_menu == MainMenuState::Strategy;
         if is_sel { selected_index = index; }
-        let val = app.strategies.get(app.selected_strategy).unwrap_or(&rust_i18n::t!("val_none").into_owned()).clone();
+        let val = app.strategies.get(app.selected_strategy).unwrap_or(&String::new()).clone();
         let spans = vec![
             Span::styled(format!(" {}: ", rust_i18n::t!("menu_main_strategy")), if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
             Span::styled(format!("< {} >", val), if is_sel { Theme::selected_value() } else { Theme::normal_value() }),
@@ -72,6 +58,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         items.push(ListItem::new(Line::from(spans)));
         index += 1;
     }
+
 
     // GamefilterSettings
     {
@@ -104,15 +91,24 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         index += 1;
     }
 
-    // ServiceSettings
+
+    // Ipset Mode
     {
-        let is_sel = app.main_menu == MainMenuState::ServiceSettings;
+        let is_sel = app.main_menu == MainMenuState::IpsetMode;
         if is_sel { selected_index = index; }
-        items.push(ListItem::new(format!(" {}", rust_i18n::t!("menu_main_service"))).style(
-            if is_sel { Theme::selected_item() } else { Theme::normal_item() }
-        ));
+        let val = if let Some(mode) = app.available_ipset_modes.get(app.selected_ipset_mode) {
+            mode.to_string()
+        } else {
+            rust_i18n::t!("val_none").into_owned()
+        };
+        let spans = vec![
+            Span::styled(format!(" {}: ", rust_i18n::t!("menu_main_ipset")), if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
+            Span::styled(format!("< {} >", val), if is_sel { Theme::selected_value() } else { Theme::normal_value() }),
+        ];
+        items.push(ListItem::new(Line::from(spans)));
         index += 1;
     }
+
 
     // ListsEditor
     {
@@ -124,6 +120,16 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         index += 1;
     }
 
+
+    // ServiceSettings
+    {
+        let is_sel = app.main_menu == MainMenuState::ServiceSettings;
+        if is_sel { selected_index = index; }
+        items.push(ListItem::new(format!(" {}", rust_i18n::t!("menu_main_service"))).style(
+            if is_sel { Theme::selected_item() } else { Theme::normal_item() }
+        ));
+        index += 1;
+    }
     // Run
     {
         let is_sel = app.main_menu == MainMenuState::Run;

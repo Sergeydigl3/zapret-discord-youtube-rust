@@ -22,7 +22,7 @@ impl RunitManager {
             .arg(action)
             .arg(Self::SERVICE_NAME)
             .output()
-            .map_err(|e| format!("Failed to execute sv: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_sv"), e))?;
         if output.status.success() {
             Ok(())
         } else {
@@ -57,13 +57,13 @@ impl ServiceManager for RunitManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or("Invalid executable path")?;
-        let config_str = config_path.to_str().ok_or("Invalid config path")?;
-        let cache_str = cache_dir.to_str().ok_or("Invalid cache directory path")?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         // 1. Create SV dir
         fs::create_dir_all(Self::SV_DIR)
-            .map_err(|e| format!("Failed to create runit service directory: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_mkdir_runit"), e))?;
 
         // 2. Write run file
         let run_path = Path::new(Self::SV_DIR).join("run");
@@ -75,14 +75,14 @@ exec {} --config {} --cache-dir {}
             exe_str, config_str, cache_str
         );
         fs::write(&run_path, run_content)
-            .map_err(|e| format!("Failed to write run script: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_write_run"), e))?;
 
         // 3. Make run script executable
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&run_path, fs::Permissions::from_mode(0o755))
-                .map_err(|e| format!("Failed to set run script as executable: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_chmod_run"), e))?;
         }
 
         // 4. Link service
@@ -94,7 +94,7 @@ exec {} --config {} --cache-dir {}
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink(Self::SV_DIR, link_path)
-                .map_err(|e| format!("Failed to create symlink at {}: {}", link_path, e))?;
+                .map_err(|e| format!("{}{}: {}", rust_i18n::t!("err_symlink"), link_path, e))?;
         }
 
         Ok(())
@@ -108,13 +108,13 @@ exec {} --config {} --cache-dir {}
         let link_path = self.get_link_path();
         if Path::new(link_path).exists() || fs::symlink_metadata(link_path).is_ok() {
             fs::remove_file(link_path)
-                .map_err(|e| format!("Failed to remove symlink {}: {}", link_path, e))?;
+                .map_err(|e| format!("{}{}: {}", rust_i18n::t!("err_rm_symlink"), link_path, e))?;
         }
 
         // Remove sv directory
         if Path::new(Self::SV_DIR).exists() {
             fs::remove_dir_all(Self::SV_DIR)
-                .map_err(|e| format!("Failed to remove runit service directory: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_runit"), e))?;
         }
 
         Ok(())

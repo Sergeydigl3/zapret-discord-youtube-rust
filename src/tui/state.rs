@@ -20,11 +20,11 @@ pub enum MainMenuState {
     DefenderSettings,
     DownloadDeps,
     Interface,
-    IpsetMode,
     Strategy,
     GamefilterSettings,
-    ServiceSettings,
+    IpsetMode,
     ListsEditor,
+    ServiceSettings,
     Run,
     Quit,
 }
@@ -35,12 +35,12 @@ impl MainMenuState {
             #[cfg(target_os = "windows")]
             Self::DefenderSettings => Self::DownloadDeps,
             Self::DownloadDeps => Self::Interface,
-            Self::Interface => Self::IpsetMode,
-            Self::IpsetMode => Self::Strategy,
+            Self::Interface => Self::Strategy,
             Self::Strategy => Self::GamefilterSettings,
-            Self::GamefilterSettings => Self::ServiceSettings,
-            Self::ServiceSettings => Self::ListsEditor,
-            Self::ListsEditor => Self::Run,
+            Self::GamefilterSettings => Self::IpsetMode,
+            Self::IpsetMode => Self::ListsEditor,
+            Self::ListsEditor => Self::ServiceSettings,
+            Self::ServiceSettings => Self::Run,
             Self::Run => Self::Quit,
             #[cfg(target_os = "windows")]
             Self::Quit => Self::DefenderSettings,
@@ -58,12 +58,12 @@ impl MainMenuState {
             #[cfg(not(target_os = "windows"))]
             Self::DownloadDeps => Self::Quit,
             Self::Interface => Self::DownloadDeps,
-            Self::IpsetMode => Self::Interface,
-            Self::Strategy => Self::IpsetMode,
+            Self::Strategy => Self::Interface,
             Self::GamefilterSettings => Self::Strategy,
-            Self::ServiceSettings => Self::GamefilterSettings,
-            Self::ListsEditor => Self::ServiceSettings,
-            Self::Run => Self::ListsEditor,
+            Self::IpsetMode => Self::GamefilterSettings,
+            Self::ListsEditor => Self::IpsetMode,
+            Self::ServiceSettings => Self::ListsEditor,
+            Self::Run => Self::ServiceSettings,
             Self::Quit => Self::Run,
         }
     }
@@ -246,7 +246,6 @@ pub struct AppState {
 
     pub nfqws_installed: bool,
     pub strategies_installed: bool,
-    pub dependency_error: Option<(String, std::time::Instant)>,
 
     pub service_installed: bool,
     pub service_active: bool,
@@ -258,6 +257,10 @@ pub struct AppState {
 }
 
 impl AppState {
+    pub fn show_error(&mut self, msg: String) {
+        self.status_message = Some(format!("{}{}", rust_i18n::t!("msg_err"), msg));
+    }
+
     pub fn new(interfaces: Vec<String>, strategies: Vec<String>) -> Self {
         let _ = crate::config::ensure_default_config();
 
@@ -321,7 +324,6 @@ impl AppState {
 
             nfqws_installed: crate::download::check_nfqws_installed(),
             strategies_installed: crate::download::check_strategies_installed(),
-            dependency_error: None,
 
             service_installed: false,
             service_active: false,
@@ -416,7 +418,7 @@ impl AppState {
             } else {
                 rust_i18n::t!("msg_err_strat_missing").into_owned()
             };
-            self.dependency_error = Some((msg, std::time::Instant::now()));
+            self.show_error(msg);
             false
         } else {
             true
@@ -424,6 +426,7 @@ impl AppState {
     }
 
     pub fn next_menu(&mut self) {
+        self.status_message = None;
         match self.active_screen {
             ActiveScreen::Main => self.main_menu = self.main_menu.next(),
             #[cfg(target_os = "windows")]
@@ -461,6 +464,7 @@ impl AppState {
     }
 
     pub fn prev_menu(&mut self) {
+        self.status_message = None;
         match self.active_screen {
             ActiveScreen::Main => self.main_menu = self.main_menu.prev(),
             #[cfg(target_os = "windows")]
@@ -547,10 +551,14 @@ impl AppState {
                         self.status_message = None;
                     }
                     MainMenuState::ListsEditor => {
-                        self.lists_files = crate::utils::get_lists_files();
-                        self.lists_menu_index = 0;
-                        self.active_screen = ActiveScreen::ListsEditorSubmenu;
-                        self.status_message = None;
+                        if !crate::download::check_strategies_installed() {
+                            self.show_error(rust_i18n::t!("err_no_strats").into_owned());
+                        } else {
+                            self.lists_files = crate::utils::get_lists_files();
+                            self.lists_menu_index = 0;
+                            self.active_screen = ActiveScreen::ListsEditorSubmenu;
+                            self.status_message = None;
+                        }
                     }
                     MainMenuState::Run => {
                         if self.check_dependencies() {
@@ -566,19 +574,19 @@ impl AppState {
                     DefenderMenuState::Add => {
                         match crate::defender::add_defender_exclusion() {
                             Ok(_) => {
-                                self.status_message = Some("\u{F00C} Added to Windows Defender Exclusions.".to_string());
+                                self.status_message = Some(rust_i18n::t!("msg_def_add_ok").into_owned());
                                 self.refresh_defender_status();
                             }
-                            Err(e) => self.status_message = Some(format!("\u{F00D} {}", e)),
+                            Err(e) => self.status_message = Some(format!("{}{}", rust_i18n::t!("msg_err"), e)),
                         }
                     }
                     DefenderMenuState::Remove => {
                         match crate::defender::remove_defender_exclusion() {
                             Ok(_) => {
-                                self.status_message = Some("\u{F00C} Removed from Windows Defender Exclusions.".to_string());
+                                self.status_message = Some(rust_i18n::t!("msg_def_rm_ok").into_owned());
                                 self.refresh_defender_status();
                             }
-                            Err(e) => self.status_message = Some(format!("\u{F00D} {}", e)),
+                            Err(e) => self.status_message = Some(format!("{}{}", rust_i18n::t!("msg_err"), e)),
                         }
                     }
                     DefenderMenuState::Back => {
@@ -592,7 +600,7 @@ impl AppState {
                     self.selected_strategy = self.strategy_menu_index;
                     self.save_current_config();
                     self.active_screen = ActiveScreen::Main;
-                    self.status_message = Some(format!("\u{F00C} Selected strategy: {}", self.strategies[self.selected_strategy]));
+                    self.status_message = Some(format!("{}{}", rust_i18n::t!("msg_strat_sel"), self.strategies[self.selected_strategy]));
                 } else {
                     self.active_screen = ActiveScreen::Main;
                     self.status_message = None;
@@ -625,7 +633,7 @@ impl AppState {
                         self.nfqws_target = self.nfqws_target.cycle(true);
                     }
                     DownloadSubmenuState::SelectTag => {
-                        self.status_message = Some("Fetching Zapret tags from GitHub... Please wait.".to_string());
+                        self.status_message = Some(rust_i18n::t!("msg_fetch_zapret_tags").into_owned());
                         match crate::download::fetch_repo_tags("bol-van/zapret") {
                             Ok(tags) => {
                                 self.available_nfqws_tags = tags;
@@ -634,7 +642,7 @@ impl AppState {
                                 self.status_message = None;
                             }
                             Err(e) => {
-                                self.status_message = Some(format!("Failed to fetch tags: {}", e));
+                                self.show_error(format!("{}{}", rust_i18n::t!("msg_err_fetch_tags"), e));
                             }
                         }
                     }
@@ -653,7 +661,7 @@ impl AppState {
                         self.strat_target = self.strat_target.cycle(true);
                     }
                     DownloadSubmenuState::SelectTag => {
-                        self.status_message = Some("Fetching Strategy tags from GitHub... Please wait.".to_string());
+                        self.status_message = Some(rust_i18n::t!("msg_fetch_strat_tags").into_owned());
                         match crate::download::fetch_repo_tags("Flowseal/zapret-discord-youtube") {
                             Ok(tags) => {
                                 self.available_strat_tags = tags;
@@ -662,7 +670,7 @@ impl AppState {
                                 self.status_message = None;
                             }
                             Err(e) => {
-                                self.status_message = Some(format!("Failed to fetch tags: {}", e));
+                                self.show_error(format!("{}{}", rust_i18n::t!("msg_err_fetch_tags"), e));
                             }
                         }
                     }
@@ -680,7 +688,7 @@ impl AppState {
                     let selected = self.available_nfqws_tags[self.nfqws_tag_index].clone();
                     self.nfqws_target = VersionTarget::Tag(selected);
                     self.active_screen = ActiveScreen::DownloadZapretSubmenu;
-                    self.status_message = Some("Tag selected for Zapret.".to_string());
+                    self.status_message = Some(rust_i18n::t!("msg_zapret_tag_sel").into_owned());
                 } else {
                     self.active_screen = ActiveScreen::DownloadZapretSubmenu;
                     self.status_message = None;
@@ -691,7 +699,7 @@ impl AppState {
                     let selected = self.available_strat_tags[self.strat_tag_index].clone();
                     self.strat_target = VersionTarget::Tag(selected);
                     self.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
-                    self.status_message = Some("Tag selected for Strategies.".to_string());
+                    self.status_message = Some(rust_i18n::t!("msg_strat_tag_sel").into_owned());
                 } else {
                     self.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
                     self.status_message = None;
@@ -798,16 +806,16 @@ impl AppState {
                             Ok(_) => {
                                 self.refresh_service_status();
                                 self.service_menu_index = 0;
-                                self.status_message = Some("\u{F00C} Operation completed successfully.".to_string());
+                                self.status_message = Some(rust_i18n::t!("msg_op_ok").into_owned());
                             }
                             Err(e) => {
                                 self.refresh_service_status();
-                                self.status_message = Some(format!("\u{F00D} Error: {}", e));
+                                self.show_error(e);
                             }
                         }
                     }
                 } else {
-                    self.status_message = Some("\u{F00D} Error: Init system not supported.".to_string());
+                    self.status_message = Some(rust_i18n::t!("msg_err_init").into_owned());
                 }
             }
             ActiveScreen::ListsEditorSubmenu => {

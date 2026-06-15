@@ -86,6 +86,10 @@ pub fn determine_current_mode() -> IpsetMode {
 }
 
 pub fn get_available_modes() -> Vec<IpsetMode> {
+    if !crate::download::check_strategies_installed() {
+        return vec![IpsetMode::None];
+    }
+
     let mut modes = vec![IpsetMode::None, IpsetMode::Any, IpsetMode::Loaded];
     let custom_path = get_ipset_custom_path();
     

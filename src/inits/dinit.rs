@@ -16,7 +16,7 @@ impl DinitManager {
             .arg(action)
             .arg(Self::SERVICE_NAME)
             .output()
-            .map_err(|e| format!("Failed to execute dinitctl: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_dinit"), e))?;
         if output.status.success() {
             Ok(())
         } else {
@@ -51,9 +51,9 @@ impl ServiceManager for DinitManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or("Invalid executable path")?;
-        let config_str = config_path.to_str().ok_or("Invalid config path")?;
-        let cache_str = cache_dir.to_str().ok_or("Invalid cache directory path")?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         let service_content = format!(
             r#"type = simple
@@ -65,7 +65,7 @@ restart-delay = 5
         );
 
         fs::write(Self::SERVICE_PATH, service_content)
-            .map_err(|e| format!("Failed to write dinit service file: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_write_dinit"), e))?;
 
         // Try to enable it by symlinking in boot.d
         if let Err(e) = fs::create_dir_all(Self::BOOT_DIR) {
@@ -95,7 +95,7 @@ restart-delay = 5
         // Remove service file
         if Path::new(Self::SERVICE_PATH).exists() {
             fs::remove_file(Self::SERVICE_PATH)
-                .map_err(|e| format!("Failed to remove dinit service file: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_dinit"), e))?;
         }
 
         Ok(())

@@ -10,7 +10,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         menu_items.push(format!(" {}", rust_i18n::t!("menu_srv_back")));
     } else if app.service_active {
         menu_items.push(format!(" {}", rust_i18n::t!("menu_srv_stop")));
-        menu_items.push(" \u{F021} Restart Service".to_string()); // Restart missing in yml but this is fine, let's add it if we want or just keep it
+        menu_items.push(format!(" {}", rust_i18n::t!("menu_srv_restart")));
         menu_items.push(format!(" {}", rust_i18n::t!("menu_srv_uninstall")));
         menu_items.push(format!(" {}", rust_i18n::t!("menu_srv_back")));
     } else {

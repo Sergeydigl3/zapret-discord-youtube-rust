@@ -43,14 +43,14 @@ pub fn run_zapret(
     let parsed = match strategy::parse_bat_file(path.to_str().unwrap(), game_filter.as_ref()) {
         Ok(p) => p,
         Err(e) => {
-            println!("Error parsing strategy: {}", e);
+            println!("{}{}", rust_i18n::t!("err_parse_strat"), e);
             return;
         }
     };
 
     // 2. Setup firewall
     if let Err(e) = backend.setup(&parsed.tcp_ports, &parsed.udp_ports, interface) {
-        println!("Error configuring firewall: {}", e);
+        println!("{}{}", rust_i18n::t!("msg_err_firewall"), e);
     }
 
     // 3. Kill any leftover nfqws processes from previous runs
@@ -69,7 +69,7 @@ pub fn run_zapret(
     }
 
     // 5. Start nfqws
-    println!("Запуск nfqws...");
+    println!("{}", rust_i18n::t!("msg_start_nfqws"));
 
     let bin_dir = crate::config::get_cache_dir().join("bin");
     let bin_name = if env::consts::OS == "windows" {
@@ -80,7 +80,7 @@ pub fn run_zapret(
     let bin_path = bin_dir.join(bin_name);
 
     if !bin_path.exists() {
-        println!("Бинарник не найден: {:?}. Сначала выполните установку зависимостей.", bin_path);
+        println!("{}", rust_i18n::t!("err_bin_miss").replace("{:?}", &format!("{:?}", bin_path)));
         return;
     }
 
@@ -90,7 +90,7 @@ pub fn run_zapret(
         .output();
     match cap_status {
         Ok(o) if o.status.success() => (),
-        _ => println!("  (не удалось setcap cap_net_admin+ep, может потребоваться root)"),
+        _ => println!("{}", rust_i18n::t!("err_setcap")),
     }
 
     #[cfg(target_os = "linux")]
@@ -114,23 +114,23 @@ pub fn run_zapret(
         }
     }
 
-    println!("  Команда: {:?} {:?}", bin_path, args);
+    println!("{}{:?} {:?}", rust_i18n::t!("msg_cmd"), bin_path, args);
     match Command::new(&bin_path).args(&args).current_dir(&repo_path).spawn() {
         Ok(child) => {
             if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
                 procs.push(child);
             }
-            println!("  nfqws запущен");
+            println!("{}", rust_i18n::t!("msg_nfqws_run"));
         }
         Err(e) => {
-            println!("  Ошибка запуска nfqws: {}", e);
+            println!("{}{}", rust_i18n::t!("err_start_nfqws"), e);
         }
     }
 }
 
 /// Clear the firewall rules and stop any running processes.
 pub fn stop_zapret(backend: &dyn FirewallBackend) {
-    println!("\nОстановка nfqws...");
+    println!("{}", rust_i18n::t!("msg_zapret_stop"));
     if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
         for child in procs.iter_mut() {
             let _ = child.kill();
@@ -139,5 +139,5 @@ pub fn stop_zapret(backend: &dyn FirewallBackend) {
         procs.clear();
     }
     let _ = backend.clear();
-    println!("Очистка завершена.");
+    println!("{}", rust_i18n::t!("msg_zapret_clear"));
 }

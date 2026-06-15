@@ -14,7 +14,7 @@ impl OpenRcManager {
             .arg(Self::SERVICE_NAME)
             .arg(action)
             .output()
-            .map_err(|e| format!("Failed to execute rc-service: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_rc_svc"), e))?;
         if output.status.success() {
             Ok(())
         } else {
@@ -34,7 +34,7 @@ impl OpenRcManager {
             .arg(Self::SERVICE_NAME)
             .arg(runlevel)
             .output()
-            .map_err(|e| format!("Failed to execute rc-update: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_rc_update"), e))?;
         if output.status.success() {
             Ok(())
         } else {
@@ -67,9 +67,9 @@ impl ServiceManager for OpenRcManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or("Invalid executable path")?;
-        let config_str = config_path.to_str().ok_or("Invalid config path")?;
-        let cache_str = cache_dir.to_str().ok_or("Invalid cache directory path")?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         let script_content = format!(
             r#"#!/sbin/openrc-run
@@ -91,13 +91,13 @@ depend() {{
         );
 
         fs::write(Self::SCRIPT_PATH, script_content)
-            .map_err(|e| format!("Failed to write OpenRC init script: {}", e))?;
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_write_openrc"), e))?;
 
         #[cfg(unix)]
         {{
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(Self::SCRIPT_PATH, fs::Permissions::from_mode(0o755))
-                .map_err(|e| format!("Failed to set executable permissions on OpenRC script: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_chmod_openrc"), e))?;
         }}
 
         self.run_rc_update("add", "default")?;
@@ -112,7 +112,7 @@ depend() {{
 
         if Path::new(Self::SCRIPT_PATH).exists() {
             fs::remove_file(Self::SCRIPT_PATH)
-                .map_err(|e| format!("Failed to remove OpenRC init script: {}", e))?;
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_openrc"), e))?;
         }
 
         Ok(())
