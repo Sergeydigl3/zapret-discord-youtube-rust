@@ -7,6 +7,7 @@ mod platform;
 mod runner;
 mod strategy;
 mod tui;
+mod utils;
 
 rust_i18n::i18n!("locales", fallback = "en");
 

@@ -60,6 +60,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::ZapretTagSelect => rust_i18n::t!("tui_title_tag_zapret"),
                 ActiveScreen::StrategyTagSelect => rust_i18n::t!("tui_title_tag_strat"),
                 ActiveScreen::ServiceSubmenu => rust_i18n::t!("tui_title_service"),
+                ActiveScreen::ListsEditorSubmenu => rust_i18n::t!("tui_title_lists"),
             };
 
             let title = Paragraph::new(Line::from(vec![
@@ -85,6 +86,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::ZapretTagSelect => menus::tag_menu::render(&app.available_nfqws_tags, app.nfqws_tag_index, &rust_i18n::t!("menu_tag_title_zapret")),
                 ActiveScreen::StrategyTagSelect => menus::tag_menu::render(&app.available_strat_tags, app.strat_tag_index, &rust_i18n::t!("menu_tag_title_strat")),
                 ActiveScreen::ServiceSubmenu => menus::service_menu::render(app),
+                ActiveScreen::ListsEditorSubmenu => menus::lists_menu::render(&app.lists_files, app.lists_menu_index),
             };
 
             let list_block = Block::default()
@@ -202,6 +204,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     MainMenuState::Strategy => rust_i18n::t!("help_strat"),
                     MainMenuState::GamefilterSettings => rust_i18n::t!("help_gf"),
                     MainMenuState::ServiceSettings => rust_i18n::t!("help_srv"),
+                    MainMenuState::ListsEditor => rust_i18n::t!("help_lists"),
                     MainMenuState::Run => rust_i18n::t!("help_run"),
                     MainMenuState::Quit => rust_i18n::t!("help_quit"),
                 },
@@ -234,6 +237,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::ZapretTagSelect => rust_i18n::t!("help_tag_sel"),
                 ActiveScreen::StrategyTagSelect => rust_i18n::t!("help_tag_sel"),
                 ActiveScreen::ServiceSubmenu => rust_i18n::t!("help_srv_sel"),
+                ActiveScreen::ListsEditorSubmenu => rust_i18n::t!("help_lists"),
             };
 
             let help_text = if let Some(ref msg) = app.status_message {
@@ -429,6 +433,21 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 app.strategies = crate::strategy::get_strategies();
                 app.active_screen = ActiveScreen::DownloadDepsSubmenu;
             }
+        }
+
+        if let Some(file_path) = app.should_open_editor.take() {
+            disable_raw_mode()?;
+            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+            terminal.show_cursor()?;
+            
+            let _ = crate::utils::open_editor(&file_path);
+            
+            enable_raw_mode()?;
+            execute!(terminal.backend_mut(), EnterAlternateScreen)?;
+            terminal.clear()?;
+            
+            app.status_message = Some(format!("Closed editor for {}", std::path::Path::new(&file_path).file_name().unwrap_or_default().to_string_lossy()));
+            app.active_screen = ActiveScreen::ListsEditorSubmenu;
         }
 
         if app.should_run || app.should_quit {
