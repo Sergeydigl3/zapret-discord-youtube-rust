@@ -43,6 +43,23 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         index += 1;
     }
 
+    // Ipset Mode
+    {
+        let is_sel = app.main_menu == MainMenuState::IpsetMode;
+        if is_sel { selected_index = index; }
+        let val = if let Some(mode) = app.available_ipset_modes.get(app.selected_ipset_mode) {
+            mode.to_string()
+        } else {
+            rust_i18n::t!("val_none").into_owned()
+        };
+        let spans = vec![
+            Span::styled(format!(" {}: ", rust_i18n::t!("menu_main_ipset")), if is_sel { Theme::selected_item() } else { Theme::normal_item() }),
+            Span::styled(format!("< {} >", val), if is_sel { Theme::selected_value() } else { Theme::normal_value() }),
+        ];
+        items.push(ListItem::new(Line::from(spans)));
+        index += 1;
+    }
+
     // Strategy
     {
         let is_sel = app.main_menu == MainMenuState::Strategy;

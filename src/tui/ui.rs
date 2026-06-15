@@ -201,6 +201,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     MainMenuState::DefenderSettings => rust_i18n::t!("help_def"),
                     MainMenuState::DownloadDeps => rust_i18n::t!("help_dl"),
                     MainMenuState::Interface => rust_i18n::t!("help_iface"),
+                    MainMenuState::IpsetMode => rust_i18n::t!("help_ipset"),
                     MainMenuState::Strategy => rust_i18n::t!("help_strat"),
                     MainMenuState::GamefilterSettings => rust_i18n::t!("help_gf"),
                     MainMenuState::ServiceSettings => rust_i18n::t!("help_srv"),
@@ -448,6 +449,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             
             app.status_message = Some(format!("Closed editor for {}", std::path::Path::new(&file_path).file_name().unwrap_or_default().to_string_lossy()));
             app.active_screen = ActiveScreen::ListsEditorSubmenu;
+            app.refresh_ipset_status();
         }
 
         if app.should_run || app.should_quit {
