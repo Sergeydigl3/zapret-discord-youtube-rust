@@ -22,8 +22,8 @@ use nix::sys::signal::{self, SigAction, SigHandler, Signal, SaFlags};
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
-#[cfg(not(target_os = "windows"))]
-use firewalls::nftables::NftablesBackend;
+#[cfg(target_os = "linux")]
+use firewalls::LinuxBackend;
 
 #[cfg(target_os = "windows")]
 use firewalls::windivert::WinDivertBackend;
@@ -118,6 +118,8 @@ fn main() {
     let mut use_strategy = args.strategy.clone();
     let mut use_gamefilter_tcp = args.gamefiltertcp;
     let mut use_gamefilter_udp = args.gamefilterudp;
+    #[cfg(target_os = "linux")]
+    let mut use_backend: LinuxBackend = LinuxBackend::Nftables;
     let mut is_interactive = true;
 
     if let Some(config_file) = &args.config {
@@ -128,6 +130,8 @@ fn main() {
                 use_strategy = Some(cfg.strategy);
                 use_gamefilter_tcp = cfg.gamefilter_tcp;
                 use_gamefilter_udp = cfg.gamefilter_udp;
+                #[cfg(target_os = "linux")]
+                { use_backend = LinuxBackend::from_config(&cfg.backend); }
                 is_interactive = false;
             }
             Err(e) => {
@@ -179,6 +183,8 @@ fn main() {
             use_strategy = app.strategies.get(app.selected_strategy).cloned();
             use_gamefilter_tcp = app.tcp_gamefilter;
             use_gamefilter_udp = app.udp_gamefilter;
+            #[cfg(target_os = "linux")]
+            { use_backend = app.selected_backend; }
 
             if app.should_quit {
                 println!("{}", rust_i18n::t!("msg_exited"));
@@ -216,15 +222,20 @@ fn main() {
             }
         }
 
-        #[cfg(not(target_os = "windows"))]
-        let backend = NftablesBackend;
+        #[cfg(target_os = "linux")]
+        let backend = use_backend;
 
         #[cfg(target_os = "windows")]
         let backend = WinDivertBackend;
 
+        #[cfg(target_os = "linux")]
+        let backend_info = format!(", backend={}", use_backend.to_config());
+        #[cfg(not(target_os = "linux"))]
+        let backend_info = String::new();
+
         println!(
-            "{}{}, interface={}, gamefiltertcp={}, gamefilterudp={}",
-            rust_i18n::t!("msg_run_params"), strategy_file, use_interface, use_gamefilter_tcp, use_gamefilter_udp
+            "{}{}, interface={}, gamefiltertcp={}, gamefilterudp={}{}",
+            rust_i18n::t!("msg_run_params"), strategy_file, use_interface, use_gamefilter_tcp, use_gamefilter_udp, backend_info
         );
 
         runner::run_zapret(

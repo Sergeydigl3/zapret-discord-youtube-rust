@@ -1,3 +1,6 @@
+#[cfg(target_os = "linux")]
+use crate::firewalls::LinuxBackend;
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ActiveScreen {
     Main,
@@ -22,6 +25,8 @@ pub enum MainMenuState {
     Interface,
     Strategy,
     GamefilterSettings,
+    #[cfg(target_os = "linux")]
+    BackendSettings,
     IpsetMode,
     ListsEditor,
     ServiceSettings,
@@ -37,6 +42,11 @@ impl MainMenuState {
             Self::DownloadDeps => Self::Interface,
             Self::Interface => Self::Strategy,
             Self::Strategy => Self::GamefilterSettings,
+            #[cfg(target_os = "linux")]
+            Self::GamefilterSettings => Self::BackendSettings,
+            #[cfg(target_os = "linux")]
+            Self::BackendSettings => Self::IpsetMode,
+            #[cfg(not(target_os = "linux"))]
             Self::GamefilterSettings => Self::IpsetMode,
             Self::IpsetMode => Self::ListsEditor,
             Self::ListsEditor => Self::ServiceSettings,
@@ -60,6 +70,11 @@ impl MainMenuState {
             Self::Interface => Self::DownloadDeps,
             Self::Strategy => Self::Interface,
             Self::GamefilterSettings => Self::Strategy,
+            #[cfg(target_os = "linux")]
+            Self::BackendSettings => Self::GamefilterSettings,
+            #[cfg(target_os = "linux")]
+            Self::IpsetMode => Self::BackendSettings,
+            #[cfg(not(target_os = "linux"))]
             Self::IpsetMode => Self::GamefilterSettings,
             Self::ListsEditor => Self::IpsetMode,
             Self::ServiceSettings => Self::ListsEditor,
@@ -207,6 +222,9 @@ pub struct AppState {
     pub interfaces: Vec<String>,
     pub selected_interface: usize,
 
+    #[cfg(target_os = "linux")]
+    pub selected_backend: LinuxBackend,
+
     pub available_ipset_modes: Vec<crate::ipset::IpsetMode>,
     pub selected_ipset_mode: usize,
 
@@ -277,6 +295,13 @@ impl AppState {
         let tcp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_tcp);
         let udp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_udp);
 
+        #[cfg(target_os = "linux")]
+        let selected_backend = saved_cfg.as_ref().map_or_else(|| {
+            LinuxBackend::from_config("nftables")
+        }, |cfg| {
+            LinuxBackend::from_config(&cfg.backend)
+        });
+
         let available_ipset_modes = crate::ipset::get_available_modes();
         let current_ipset_mode = crate::ipset::determine_current_mode();
         let selected_ipset_mode = available_ipset_modes.iter().position(|m| m == &current_ipset_mode).unwrap_or(0);
@@ -284,6 +309,8 @@ impl AppState {
         let mut app = Self {
             interfaces,
             selected_interface,
+            #[cfg(target_os = "linux")]
+            selected_backend,
             available_ipset_modes,
             selected_ipset_mode,
             strategies,
@@ -390,11 +417,16 @@ impl AppState {
         let strategy = self.strategies.get(self.selected_strategy)
             .map(|s| s.as_str())
             .unwrap_or("");
+        #[cfg(target_os = "linux")]
+        let backend = self.selected_backend.to_config();
+        #[cfg(not(target_os = "linux"))]
+        let backend = "nftables";
         let _ = crate::config::save_tui_state(
             interface,
             strategy,
             self.tcp_gamefilter,
             self.udp_gamefilter,
+            backend,
         );
     }
 
@@ -521,6 +553,16 @@ impl AppState {
                     MainMenuState::Interface => {
                         if !self.interfaces.is_empty() {
                             self.selected_interface = (self.selected_interface + 1) % self.interfaces.len();
+                            self.save_current_config();
+                        }
+                    }
+                    #[cfg(target_os = "linux")]
+                    MainMenuState::BackendSettings => {
+                        let backends = LinuxBackend::variants();
+                        if !backends.is_empty() {
+                            let current_idx = backends.iter().position(|b| *b == self.selected_backend).unwrap_or(0);
+                            let new_idx = (current_idx + 1) % backends.len();
+                            self.selected_backend = backends[new_idx];
                             self.save_current_config();
                         }
                     }
@@ -842,6 +884,21 @@ impl AppState {
                             } else {
                                 self.selected_interface = (self.selected_interface + len - 1) % len;
                             }
+                            self.save_current_config();
+                        }
+                    }
+                    #[cfg(target_os = "linux")]
+                    MainMenuState::BackendSettings => {
+                        let backends = LinuxBackend::variants();
+                        if !backends.is_empty() {
+                            let current_idx = backends.iter().position(|b| *b == self.selected_backend).unwrap_or(0);
+                            let len = backends.len();
+                            let new_idx = if forward {
+                                (current_idx + 1) % len
+                            } else {
+                                (current_idx + len - 1) % len
+                            };
+                            self.selected_backend = backends[new_idx];
                             self.save_current_config();
                         }
                     }

@@ -8,6 +8,7 @@ pub struct RunConfig {
     pub strategy: String,
     pub gamefilter_tcp: bool,
     pub gamefilter_udp: bool,
+    pub backend: String,
 }
 
 impl Default for RunConfig {
@@ -17,6 +18,7 @@ impl Default for RunConfig {
             strategy: String::new(),
             gamefilter_tcp: false,
             gamefilter_udp: false,
+            backend: "nftables".to_string(),
         }
     }
 }
@@ -38,6 +40,8 @@ pub fn load_config(file: &str) -> Result<RunConfig, String> {
             cfg.gamefilter_tcp = true;
         } else if line == "gamefilterudp=true" {
             cfg.gamefilter_udp = true;
+        } else if let Some(val) = line.strip_prefix("backend=") {
+            cfg.backend = val.trim().to_string();
         }
     }
 
@@ -86,19 +90,20 @@ pub fn config_path() -> std::path::PathBuf {
 pub fn save_config(cfg: &RunConfig) -> Result<(), String> {
     let path = config_path();
     let content = format!(
-        "interface={}\nstrategy={}\ngamefiltertcp={}\ngamefilterudp={}\n",
-        cfg.interface, cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp
+        "interface={}\nstrategy={}\ngamefiltertcp={}\ngamefilterudp={}\nbackend={}\n",
+        cfg.interface, cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp, cfg.backend
     );
     fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     Ok(())
 }
 
-pub fn save_tui_state(interface: &str, strategy: &str, tcp: bool, udp: bool) -> Result<(), String> {
+pub fn save_tui_state(interface: &str, strategy: &str, tcp: bool, udp: bool, backend: &str) -> Result<(), String> {
     save_config(&RunConfig {
         interface: interface.to_string(),
         strategy: strategy.to_string(),
         gamefilter_tcp: tcp,
         gamefilter_udp: udp,
+        backend: backend.to_string(),
     })
 }
 
