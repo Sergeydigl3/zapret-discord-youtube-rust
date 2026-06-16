@@ -1,12 +1,39 @@
-use super::FirewallBackend;
+use crate::firewalls::FirewallBackend;
 use nftables::helper::{apply_ruleset, get_current_ruleset};
 use nftables::schema::Nftables;
-use serde_json::json;
+use serde_json::{json, Value};
+use std::process::{Command, Stdio};
 
 const NFT_TABLE: &str = "zapret";
 const NFT_CHAIN: &str = "zapret_chain";
 
 pub struct NftablesBackend;
+
+pub fn is_available() -> bool {
+    Command::new("nft")
+        .arg("--version")
+        .stderr(Stdio::null())
+        .stdout(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn parse_ports(ports: &str) -> Vec<Value> {
+    ports.split(',')
+        .map(|p| {
+            let p = p.trim();
+            if let Some((lo, hi)) = p.split_once('-') {
+                let lo: u32 = lo.trim().parse().unwrap_or(0);
+                let hi: u32 = hi.trim().parse().unwrap_or(0);
+                json!({ "range": [lo, hi] })
+            } else {
+                let port: u32 = p.parse().unwrap_or(0);
+                json!(port)
+            }
+        })
+        .collect()
+}
 
 impl FirewallBackend for NftablesBackend {
     fn clear(&self) -> Result<(), String> {
@@ -52,7 +79,7 @@ impl FirewallBackend for NftablesBackend {
         if !tcp_ports.is_empty() {
             let mut exprs = vec![
                 json!({ "match": { "op": "!=", "left": { "meta": { "key": "mark" } }, "right": "0x40000000" } }),
-                json!({ "match": { "op": "==", "left": { "payload": { "protocol": "tcp", "field": "dport" } }, "right": { "set": tcp_ports.split(',').map(|s| s.trim().parse::<u32>().unwrap_or(0)).collect::<Vec<u32>>() } } }),
+                json!({ "match": { "op": "==", "left": { "payload": { "protocol": "tcp", "field": "dport" } }, "right": { "set": parse_ports(tcp_ports) } } }),
                 json!({ "counter": null }),
                 json!({ "queue": { "num": 200, "bypass": true } })
             ];
@@ -77,7 +104,7 @@ impl FirewallBackend for NftablesBackend {
         if !udp_ports.is_empty() {
             let mut exprs = vec![
                 json!({ "match": { "op": "!=", "left": { "meta": { "key": "mark" } }, "right": "0x40000000" } }),
-                json!({ "match": { "op": "==", "left": { "payload": { "protocol": "udp", "field": "dport" } }, "right": { "set": udp_ports.split(',').map(|s| s.trim().parse::<u32>().unwrap_or(0)).collect::<Vec<u32>>() } } }),
+                json!({ "match": { "op": "==", "left": { "payload": { "protocol": "udp", "field": "dport" } }, "right": { "set": parse_ports(udp_ports) } } }),
                 json!({ "counter": null }),
                 json!({ "queue": { "num": 200, "bypass": true } })
             ];

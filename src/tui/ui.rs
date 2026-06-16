@@ -189,6 +189,8 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     MainMenuState::IpsetMode => rust_i18n::t!("help_ipset"),
                     MainMenuState::Strategy => rust_i18n::t!("help_strat"),
                     MainMenuState::GamefilterSettings => rust_i18n::t!("help_gf"),
+                    #[cfg(target_os = "linux")]
+                    MainMenuState::BackendSettings => rust_i18n::t!("help_backend"),
                     MainMenuState::ServiceSettings => rust_i18n::t!("help_srv"),
                     MainMenuState::ListsEditor => rust_i18n::t!("help_lists"),
                     MainMenuState::Run => rust_i18n::t!("help_run"),
