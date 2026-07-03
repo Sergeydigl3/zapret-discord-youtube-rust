@@ -8,4 +8,5 @@ pub mod tag_menu;
 pub mod gamefilter_menu;
 pub mod service_menu;
 pub mod lists_menu;
+pub mod autotune_menu;
 
