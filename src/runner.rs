@@ -128,6 +128,104 @@ pub fn run_zapret(
     }
 }
 
+/// Run zapret silently for autotune (no println, returns Result).
+pub fn run_zapret_silent(
+    strategy_file: &str,
+    interface: &str,
+    use_tcp: bool,
+    use_udp: bool,
+    backend: &dyn FirewallBackend,
+) -> Result<(), String> {
+    let repo_dir = env::var("REPO_DIR").unwrap_or_else(|_| {
+        crate::config::get_cache_dir()
+            .join("zapret-discord-youtube-linux")
+            .to_string_lossy()
+            .into_owned()
+    });
+    let repo_path = Path::new(&repo_dir);
+    let mut path = repo_path.join("custom-strategies").join(strategy_file);
+    if !path.exists() {
+        path = repo_path.join(strategy_file);
+    }
+
+    let game_filter = if use_tcp || use_udp {
+        Some(GameFilterPorts {
+            ports: "50000-50100".to_string(),
+            tcp_ports: "50000-50100".to_string(),
+            udp_ports: "50000-50100".to_string(),
+        })
+    } else {
+        None
+    };
+
+    let parsed = strategy::parse_bat_file(path.to_str().ok_or("invalid strategy path")?, game_filter.as_ref())
+        .map_err(|e| format!("parse error: {}", e))?;
+
+    if let Err(e) = backend.setup(&parsed.tcp_ports, &parsed.udp_ports, interface) {
+        return Err(format!("firewall setup error: {}", e));
+    }
+
+    let _ = Command::new("pkill")
+        .arg("-9")
+        .arg("nfqws")
+        .output();
+
+    let lists_dir = repo_path.join("lists");
+    for name in &["list-general-user.txt", "list-exclude-user.txt", "ipset-exclude-user.txt"] {
+        let lists_path = lists_dir.join(name);
+        if !lists_path.exists() {
+            let _ = fs::write(&lists_path, "");
+        }
+    }
+
+    let bin_dir = crate::config::get_cache_dir().join("bin");
+    let bin_name = if env::consts::OS == "windows" {
+        "winws.exe"
+    } else {
+        "nfqws"
+    };
+    let bin_path = bin_dir.join(bin_name);
+
+    if !bin_path.exists() {
+        return Err(format!("binary not found: {:?}", bin_path));
+    }
+
+    let _ = Command::new("setcap")
+        .args(["cap_net_admin+ep", &bin_path.to_string_lossy()])
+        .output();
+
+    #[cfg(target_os = "linux")]
+    let mut args = vec![
+        "--dpi-desync-fwmark=0x40000000".to_string(),
+        "--qnum=200".to_string(),
+    ];
+
+    #[cfg(target_os = "windows")]
+    let mut args = vec![
+        format!("--wf-tcp={}", parsed.tcp_ports),
+        format!("--wf-udp={}", parsed.udp_ports),
+    ];
+
+    for param in &parsed.nfqws_params {
+        for p in param.split_whitespace() {
+            let p = p.replace('"', "");
+            if !p.is_empty() && p != "^" {
+                args.push(p.to_string());
+            }
+        }
+    }
+
+    match Command::new(&bin_path).args(&args).current_dir(&repo_path).spawn() {
+        Ok(child) => {
+            if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
+                procs.push(child);
+            }
+            Ok(())
+        }
+        Err(e) => Err(format!("failed to start nfqws: {}", e)),
+    }
+}
+
 /// Clear the firewall rules and stop any running processes.
 pub fn stop_zapret(backend: &dyn FirewallBackend) {
     println!("{}", rust_i18n::t!("msg_zapret_stop"));

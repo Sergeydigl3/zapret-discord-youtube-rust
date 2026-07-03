@@ -1,6 +1,8 @@
 #[cfg(target_os = "linux")]
 use crate::firewalls::LinuxBackend;
 
+use crate::autotune::CheckStatus;
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ActiveScreen {
     Main,
@@ -15,6 +17,10 @@ pub enum ActiveScreen {
     StrategyTagSelect,
     ServiceSubmenu,
     ListsEditorSubmenu,
+    AutotuneSubmenu,
+    AutotuneProtocolsSubmenu,
+    AutotuneStrategiesSubmenu,
+    AutotuneResultsSubmenu,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -29,6 +35,7 @@ pub enum MainMenuState {
     BackendSettings,
     IpsetMode,
     ListsEditor,
+    Autotune,
     ServiceSettings,
     Run,
     Quit,
@@ -49,7 +56,8 @@ impl MainMenuState {
             #[cfg(not(target_os = "linux"))]
             Self::GamefilterSettings => Self::IpsetMode,
             Self::IpsetMode => Self::ListsEditor,
-            Self::ListsEditor => Self::ServiceSettings,
+            Self::ListsEditor => Self::Autotune,
+            Self::Autotune => Self::ServiceSettings,
             Self::ServiceSettings => Self::Run,
             Self::Run => Self::Quit,
             #[cfg(target_os = "windows")]
@@ -77,7 +85,8 @@ impl MainMenuState {
             #[cfg(not(target_os = "linux"))]
             Self::IpsetMode => Self::GamefilterSettings,
             Self::ListsEditor => Self::IpsetMode,
-            Self::ServiceSettings => Self::ListsEditor,
+            Self::ServiceSettings => Self::Autotune,
+            Self::Autotune => Self::ListsEditor,
             Self::Run => Self::ServiceSettings,
             Self::Quit => Self::Run,
         }
@@ -135,6 +144,28 @@ impl DefenderMenuState {
             Self::Back => Self::Remove,
         }
     }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum AutotuneMenuState {
+    DomainsSource,
+    NumRequests,
+    Strategies,
+    Protocols,
+    EditCustom,
+    Results,
+    Run,
+    Back,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum AutotuneProtocolsState {
+    Http,
+    Https,
+    Tls12,
+    Tls13,
+    Quic,
+    Back,
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -272,6 +303,18 @@ pub struct AppState {
     pub lists_files: Vec<String>,
     pub lists_menu_index: usize,
     pub should_open_editor: Option<String>,
+
+    pub autotune_config: crate::autotune::AutotuneConfig,
+    pub autotune_results: Option<crate::autotune::AutotuneResults>,
+    pub autotune_menu: AutotuneMenuState,
+    pub autotune_menu_index: usize,
+    pub autotune_protocols_menu: AutotuneProtocolsState,
+    pub autotune_strat_index: usize,
+    pub autotune_results_index: usize,
+    pub should_run_autotune: bool,
+    pub autotune_running: bool,
+    pub autotune_request_editing: bool,
+    pub autotune_request_buf: String,
 }
 
 impl AppState {
@@ -359,6 +402,18 @@ impl AppState {
             lists_files: Vec::new(),
             lists_menu_index: 0,
             should_open_editor: None,
+
+            autotune_config: crate::autotune::AutotuneConfig::default(),
+            autotune_results: None,
+            autotune_menu: AutotuneMenuState::DomainsSource,
+            autotune_menu_index: 0,
+            autotune_protocols_menu: AutotuneProtocolsState::Http,
+            autotune_strat_index: 0,
+            autotune_results_index: 0,
+            should_run_autotune: false,
+            autotune_running: false,
+            autotune_request_editing: false,
+            autotune_request_buf: String::new(),
         };
         app.refresh_service_status();
         app
@@ -492,6 +547,42 @@ impl AppState {
                 let max = self.lists_files.len() + 1; // +1 for Back
                 self.lists_menu_index = (self.lists_menu_index + 1) % max;
             }
+            ActiveScreen::AutotuneSubmenu => {
+                let count = 8;
+                self.autotune_menu_index = (self.autotune_menu_index + 1) % count;
+                self.autotune_menu = match self.autotune_menu_index {
+                    0 => AutotuneMenuState::DomainsSource,
+                    1 => AutotuneMenuState::NumRequests,
+                    2 => AutotuneMenuState::Strategies,
+                    3 => AutotuneMenuState::Protocols,
+                    4 => AutotuneMenuState::EditCustom,
+                    5 => AutotuneMenuState::Results,
+                    6 => AutotuneMenuState::Run,
+                    _ => AutotuneMenuState::Back,
+                };
+            }
+            ActiveScreen::AutotuneProtocolsSubmenu => {
+                self.autotune_protocols_menu = match self.autotune_protocols_menu {
+                    AutotuneProtocolsState::Http => AutotuneProtocolsState::Https,
+                    AutotuneProtocolsState::Https => AutotuneProtocolsState::Tls12,
+                    AutotuneProtocolsState::Tls12 => AutotuneProtocolsState::Tls13,
+                    AutotuneProtocolsState::Tls13 => AutotuneProtocolsState::Quic,
+                    AutotuneProtocolsState::Quic => AutotuneProtocolsState::Back,
+                    AutotuneProtocolsState::Back => AutotuneProtocolsState::Http,
+                };
+            }
+            ActiveScreen::AutotuneStrategiesSubmenu => {
+                let max = self.strategies.len() + 1; // +1 for Back
+                if max > 0 {
+                    self.autotune_strat_index = (self.autotune_strat_index + 1) % max;
+                }
+            }
+            ActiveScreen::AutotuneResultsSubmenu => {
+                let total = self.count_results_items();
+                if total > 0 && self.autotune_results_index + 1 < total {
+                    self.autotune_results_index += 1;
+                }
+            }
         }
     }
 
@@ -532,6 +623,42 @@ impl AppState {
             ActiveScreen::ListsEditorSubmenu => {
                 let max = self.lists_files.len() + 1; // +1 for Back
                 self.lists_menu_index = (self.lists_menu_index + max - 1) % max;
+            }
+            ActiveScreen::AutotuneSubmenu => {
+                let count = 8;
+                self.autotune_menu_index = (self.autotune_menu_index + count - 1) % count;
+                self.autotune_menu = match self.autotune_menu_index {
+                    0 => AutotuneMenuState::DomainsSource,
+                    1 => AutotuneMenuState::NumRequests,
+                    2 => AutotuneMenuState::Strategies,
+                    3 => AutotuneMenuState::Protocols,
+                    4 => AutotuneMenuState::EditCustom,
+                    5 => AutotuneMenuState::Results,
+                    6 => AutotuneMenuState::Run,
+                    _ => AutotuneMenuState::Back,
+                };
+            }
+            ActiveScreen::AutotuneProtocolsSubmenu => {
+                self.autotune_protocols_menu = match self.autotune_protocols_menu {
+                    AutotuneProtocolsState::Http => AutotuneProtocolsState::Back,
+                    AutotuneProtocolsState::Https => AutotuneProtocolsState::Http,
+                    AutotuneProtocolsState::Tls12 => AutotuneProtocolsState::Https,
+                    AutotuneProtocolsState::Tls13 => AutotuneProtocolsState::Tls12,
+                    AutotuneProtocolsState::Quic => AutotuneProtocolsState::Tls13,
+                    AutotuneProtocolsState::Back => AutotuneProtocolsState::Quic,
+                };
+            }
+            ActiveScreen::AutotuneStrategiesSubmenu => {
+                let max = self.strategies.len() + 1;
+                if max > 0 {
+                    self.autotune_strat_index = (self.autotune_strat_index + max - 1) % max;
+                }
+            }
+            ActiveScreen::AutotuneResultsSubmenu => {
+                let total = self.count_results_items();
+                if total > 0 && self.autotune_results_index > 0 {
+                    self.autotune_results_index -= 1;
+                }
             }
         }
     }
@@ -601,6 +728,12 @@ impl AppState {
                             self.active_screen = ActiveScreen::ListsEditorSubmenu;
                             self.status_message = None;
                         }
+                    }
+                    MainMenuState::Autotune => {
+                        self.active_screen = ActiveScreen::AutotuneSubmenu;
+                        self.autotune_menu_index = 0;
+                        self.autotune_menu = AutotuneMenuState::DomainsSource;
+                        self.status_message = None;
                     }
                     MainMenuState::Run => {
                         if self.check_dependencies() {
@@ -869,6 +1002,123 @@ impl AppState {
                     self.status_message = None;
                 }
             }
+            ActiveScreen::AutotuneSubmenu => {
+                match self.autotune_menu {
+                    AutotuneMenuState::DomainsSource => {
+                        let count = crate::autotune::PRESETS.len();
+                        self.autotune_config.preset_index = (self.autotune_config.preset_index + 1) % count;
+                        self.status_message = Some(format!(
+                            "{}: {}",
+                            rust_i18n::t!("autotune_preset_sel"),
+                            crate::autotune::PRESETS[self.autotune_config.preset_index].name
+                        ));
+                    }
+                    AutotuneMenuState::NumRequests => {}
+                    AutotuneMenuState::Strategies => {
+                        if !self.strategies.is_empty() {
+                            self.active_screen = ActiveScreen::AutotuneStrategiesSubmenu;
+                            self.autotune_strat_index = 0;
+                            self.status_message = None;
+                        } else {
+                            self.show_error(rust_i18n::t!("err_no_strats").into_owned());
+                        }
+                    }
+                    AutotuneMenuState::Protocols => {
+                        self.active_screen = ActiveScreen::AutotuneProtocolsSubmenu;
+                        self.autotune_protocols_menu = AutotuneProtocolsState::Http;
+                        self.status_message = None;
+                    }
+                    AutotuneMenuState::EditCustom => {
+                        let file = crate::autotune::custom_domains_file_path().to_string_lossy().into_owned();
+                        self.should_open_editor = Some(file);
+                    }
+                    AutotuneMenuState::Results => {
+                        self.active_screen = ActiveScreen::AutotuneResultsSubmenu;
+                        self.autotune_results_index = 0;
+                        self.status_message = None;
+                    }
+                    AutotuneMenuState::Run => {
+                        self.should_run_autotune = true;
+                    }
+                    AutotuneMenuState::Back => {
+                        self.active_screen = ActiveScreen::Main;
+                        self.status_message = None;
+                    }
+                }
+            }
+            ActiveScreen::AutotuneProtocolsSubmenu => {
+                match self.autotune_protocols_menu {
+                    AutotuneProtocolsState::Http => {
+                        self.autotune_config.check_http = !self.autotune_config.check_http;
+                    }
+                    AutotuneProtocolsState::Https => {
+                        self.autotune_config.check_https = !self.autotune_config.check_https;
+                    }
+                    AutotuneProtocolsState::Tls12 => {
+                        self.autotune_config.check_tls12 = !self.autotune_config.check_tls12;
+                    }
+                    AutotuneProtocolsState::Tls13 => {
+                        self.autotune_config.check_tls13 = !self.autotune_config.check_tls13;
+                    }
+                    AutotuneProtocolsState::Quic => {
+                        self.autotune_config.check_quic = !self.autotune_config.check_quic;
+                    }
+                    AutotuneProtocolsState::Back => {
+                        self.active_screen = ActiveScreen::AutotuneSubmenu;
+                        self.status_message = None;
+                    }
+                }
+            }
+            ActiveScreen::AutotuneStrategiesSubmenu => {
+                let max = self.strategies.len(); // +1 for Back
+                if self.autotune_strat_index < max {
+                    // Toggle strategy selection
+                    let idx = self.autotune_strat_index;
+                    if let Some(pos) = self.autotune_config.strategy_indices.iter().position(|&i| i == idx) {
+                        self.autotune_config.strategy_indices.remove(pos);
+                    } else {
+                        self.autotune_config.strategy_indices.push(idx);
+                    }
+                } else {
+                    // Back
+                    self.active_screen = ActiveScreen::AutotuneSubmenu;
+                    self.status_message = None;
+                }
+            }
+            ActiveScreen::AutotuneResultsSubmenu => {
+                self.active_screen = ActiveScreen::AutotuneSubmenu;
+                self.status_message = None;
+            }
+        }
+    }
+
+    fn count_results_items(&self) -> usize {
+        if let Some(ref results) = self.autotune_results {
+            let mut n = 8; // header + 5 net checks + domain header + back
+            if !results.strategy_results.is_empty() {
+                n += 1; // strategy header
+                for sr in &results.strategy_results {
+                    n += 1; // strategy name line
+                    if !sr.domains_pass.is_empty() { n += 1 + sr.domains_pass.len(); }
+                    if !sr.domains_fail.is_empty() { n += 1 + sr.domains_fail.len(); }
+                }
+                n += 1; // working summary header
+                let working_count = results.strategy_results.iter().filter(|s| s.works).count();
+                n += working_count; // each working strategy
+                // Recommendations
+                n += 1; // recommendation header
+                if results.dns_spoof.status == CheckStatus::Fail { n += 1; }
+                if results.quic_block.status == CheckStatus::Fail { n += 1; }
+                if results.tcp_rst.status == CheckStatus::Fail { n += 1; }
+                if results.sni_block.status == CheckStatus::Fail { n += 1; }
+                n += 1; // generic tip
+            }
+            n += results.domain_checks.len();
+            n
+        } else if let Some(cached) = crate::autotune::load_results_file() {
+            cached.lines().count() + 1 // lines + back
+        } else {
+            2 // "no data" line + back
         }
     }
 
@@ -963,6 +1213,67 @@ impl AppState {
                             self.toggle_current();
                         }
                     }
+                }
+            }
+            ActiveScreen::AutotuneSubmenu => {
+                match self.autotune_menu {
+                    AutotuneMenuState::DomainsSource => {
+                        let count = crate::autotune::PRESETS.len();
+                        if forward {
+                            self.autotune_config.preset_index = (self.autotune_config.preset_index + 1) % count;
+                        } else {
+                            self.autotune_config.preset_index = (self.autotune_config.preset_index + count - 1) % count;
+                        }
+                    }
+                    AutotuneMenuState::NumRequests => {
+                        if forward {
+                            self.autotune_request_buf = self.autotune_config.num_requests.to_string();
+                            self.autotune_request_editing = true;
+                        }
+                    }
+                    _ => {
+                        if forward {
+                            self.toggle_current();
+                        }
+                    }
+                }
+            }
+            ActiveScreen::AutotuneProtocolsSubmenu => {
+                match self.autotune_protocols_menu {
+                    AutotuneProtocolsState::Http => {
+                        self.autotune_config.check_http = !self.autotune_config.check_http;
+                    }
+                    AutotuneProtocolsState::Https => {
+                        self.autotune_config.check_https = !self.autotune_config.check_https;
+                    }
+                    AutotuneProtocolsState::Tls12 => {
+                        self.autotune_config.check_tls12 = !self.autotune_config.check_tls12;
+                    }
+                    AutotuneProtocolsState::Tls13 => {
+                        self.autotune_config.check_tls13 = !self.autotune_config.check_tls13;
+                    }
+                    AutotuneProtocolsState::Quic => {
+                        self.autotune_config.check_quic = !self.autotune_config.check_quic;
+                    }
+                    _ => {
+                        if forward {
+                            self.toggle_current();
+                        }
+                    }
+                }
+            }
+            ActiveScreen::AutotuneStrategiesSubmenu => {
+                if forward {
+                    self.toggle_current();
+                } else {
+                    self.active_screen = ActiveScreen::AutotuneSubmenu;
+                    self.status_message = None;
+                }
+            }
+            ActiveScreen::AutotuneResultsSubmenu => {
+                if !forward {
+                    self.active_screen = ActiveScreen::AutotuneSubmenu;
+                    self.status_message = None;
                 }
             }
             _ => {

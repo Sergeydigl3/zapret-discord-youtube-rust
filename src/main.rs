@@ -1,3 +1,4 @@
+mod autotune;
 mod config;
 mod download;
 mod firewalls;
