@@ -1,3 +1,22 @@
-bin
+# Rust build artifacts
 /target
-**/_backends.rs
+/bin
+
+# Editor/IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.pid
+
+# Locales compiled
+locales/generated/
