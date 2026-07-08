@@ -193,6 +193,7 @@ pub struct AutotuneResults {
     pub dns_spoof: CheckResult,
     pub tcp_rst: CheckResult,
     pub sni_block: CheckResult,
+    pub siberian_block: CheckResult,
     pub quic_block: CheckResult,
     pub cidr_whitelist: CheckResult,
     pub domain_checks: Vec<DomainCheckResult>,
@@ -217,6 +218,7 @@ pub fn save_results_file(results: &AutotuneResults) {
         ("DNS", &results.dns_spoof),
         ("TCP RST", &results.tcp_rst),
         ("SNI", &results.sni_block),
+        ("SIBERIAN", &results.siberian_block),
         ("QUIC", &results.quic_block),
         ("CIDR", &results.cidr_whitelist),
     ];
@@ -512,6 +514,75 @@ pub fn check_sni_block() -> CheckResult {
         CheckResult::pass("No SNI blocking detected")
     } else {
         CheckResult::skip(format!("Inconclusive: {}", details.join("; ")))
+    }
+}
+
+pub fn check_siberian_block() -> CheckResult {
+    const MAX_CONCURRENT: usize = 15;
+    const EXTRA_CONNECTIONS: usize = 10;
+
+    let test_ips: Vec<&str> = KNOWN_IPS[0].1.iter().copied().collect();
+
+    let clean_ok = try_tcp_connect_domain(CLEAN_DOMAIN, 443).is_ok();
+
+    if !clean_ok {
+        return CheckResult::skip("Internet connectivity issue");
+    }
+
+    let mut handles: Vec<std::thread::JoinHandle<Result<TcpStream, io::Error>>> = Vec::new();
+
+    for _ in 0..MAX_CONCURRENT {
+        for &ip in &test_ips {
+            let handle = std::thread::spawn(move || {
+                try_tcp_connect(ip, 443)
+            });
+            handles.push(handle);
+        }
+    }
+
+    let mut alive = 0;
+    let mut failed = 0;
+
+    for handle in handles {
+        match handle.join() {
+            Ok(Ok(_)) => alive += 1,
+            Ok(Err(_)) => failed += 1,
+            Err(_) => failed += 1,
+        }
+    }
+
+    let mut extra_failed = 0;
+
+    for _ in 0..EXTRA_CONNECTIONS {
+        let ok = test_ips.iter().any(|&ip| try_tcp_connect(ip, 443).is_ok());
+        if ok {
+            alive += 1;
+        } else {
+            extra_failed += 1;
+            failed += 1;
+        }
+    }
+
+    let total_attempted = alive + failed;
+    let pass_ratio = if total_attempted > 0 { alive as f64 / total_attempted as f64 } else { 1.0 };
+
+    if extra_failed == 0 && pass_ratio > 0.95 {
+        CheckResult::pass("No Siberian block detected (100% success after 15+ concurrent)")
+    } else if extra_failed > 0 {
+        CheckResult::fail(format!(
+            "Possible Siberian block: {} of {} extra connections failed",
+            extra_failed, EXTRA_CONNECTIONS
+        ))
+    } else if pass_ratio < 0.8 {
+        CheckResult::fail(format!(
+            "High failure rate: {}/{} connections failed",
+            failed, total_attempted
+        ))
+    } else {
+        CheckResult::skip(format!(
+            "Mixed results: {}/{} alive, {}/{} extra failed",
+            alive, total_attempted, extra_failed, EXTRA_CONNECTIONS
+        ))
     }
 }
 
@@ -1014,7 +1085,7 @@ pub fn run_all(
     let strat_count = loaded.len();
 
     let proto_steps = count_protocol_steps(config);
-    let total = 5 // network checks
+    let total = 6 // network checks
         + domains.len() * (1 + proto_steps) // per-domain checks (no strategies)
         + domains.len() // baseline HTTPS pass
         + strat_count * (1 + domains.len()); // start nfqws + test each domain
@@ -1026,6 +1097,8 @@ pub fn run_all(
     let tcp_rst = check_tcp_rst();
     done += 1; progress(done, total);
     let sni_block = check_sni_block();
+    done += 1; progress(done, total);
+    let siberian_block = check_siberian_block();
     done += 1; progress(done, total);
     let quic_block = check_quic_block();
     done += 1; progress(done, total);
@@ -1223,6 +1296,7 @@ pub fn run_all(
         dns_spoof,
         tcp_rst,
         sni_block,
+        siberian_block,
         quic_block,
         cidr_whitelist,
         domain_checks,
