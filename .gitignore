@@ -2,6 +2,9 @@
 /target
 /bin
 
+# Cargo config
+.cargo/
+
 # Editor/IDE
 .idea/
 .vscode/
