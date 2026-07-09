@@ -116,8 +116,76 @@ pub const PRESETS: &[DomainPreset] = &[
     },
 ];
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BlockCheckType {
+    DnsSpoof,
+    TcpRst,
+    SniBlock,
+    SiberianBlock,
+    QuicBlock,
+    CidrWhitelist,
+}
+
+impl BlockCheckType {
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::DnsSpoof,
+            Self::TcpRst,
+            Self::SniBlock,
+            Self::SiberianBlock,
+            Self::QuicBlock,
+            Self::CidrWhitelist,
+        ]
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::DnsSpoof => "DNS",
+            Self::TcpRst => "TCP RST",
+            Self::SniBlock => "SNI",
+            Self::SiberianBlock => "SIBERIAN",
+            Self::QuicBlock => "QUIC",
+            Self::CidrWhitelist => "CIDR",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockChecks {
+    pub enabled: Vec<bool>, // same order as BlockCheckType::all()
+}
+
+#[allow(dead_code)]
+impl BlockChecks {
+    pub fn all_enabled() -> Self {
+        Self { enabled: vec![true; 6] }
+    }
+
+    pub fn all_disabled() -> Self {
+        Self { enabled: vec![false; 6] }
+    }
+
+    pub fn get(&self, idx: usize) -> bool {
+        self.enabled.get(idx).copied().unwrap_or(false)
+    }
+
+    pub fn set(&mut self, idx: usize, val: bool) {
+        if let Some(e) = self.enabled.get_mut(idx) {
+            *e = val;
+        }
+    }
+
+    pub fn any_enabled(&self) -> bool {
+        self.enabled.iter().any(|&e| e)
+    }
+
+    pub fn count_enabled(&self) -> usize {
+        self.enabled.iter().filter(|&&e| e).count()
+    }
+}
+
 pub struct AutotuneConfig {
-    pub preset_index: usize,
+    pub preset_indices: Vec<usize>,
     pub num_requests: usize,
     pub check_http: bool,
     pub check_https: bool,
@@ -125,12 +193,13 @@ pub struct AutotuneConfig {
     pub check_tls13: bool,
     pub check_quic: bool,
     pub strategy_indices: Vec<usize>,
+    pub block_checks: BlockChecks,
 }
 
 impl Default for AutotuneConfig {
     fn default() -> Self {
         Self {
-            preset_index: 0,
+            preset_indices: vec![0],
             num_requests: 3,
             check_http: true,
             check_https: true,
@@ -138,6 +207,7 @@ impl Default for AutotuneConfig {
             check_tls13: true,
             check_quic: true,
             strategy_indices: Vec::new(),
+            block_checks: BlockChecks::all_enabled(),
         }
     }
 }
@@ -189,18 +259,39 @@ impl StrategyCheckResult {
 }
 
 #[derive(Debug, Clone)]
-pub struct AutotuneResults {
-    pub dns_spoof: CheckResult,
-    pub tcp_rst: CheckResult,
-    pub sni_block: CheckResult,
-    pub siberian_block: CheckResult,
-    pub quic_block: CheckResult,
-    pub cidr_whitelist: CheckResult,
+pub struct PresetResult {
+    pub preset_name: String,
     pub domain_checks: Vec<DomainCheckResult>,
     pub strategy_results: Vec<StrategyCheckResult>,
 }
 
+#[derive(Debug, Clone)]
+pub struct AutotuneResults {
+    pub block_results: Vec<CheckResult>, // DNS, TCP RST, SNI, SIBERIAN, QUIC, CIDR
+    pub preset_results: Vec<PresetResult>,
+    pub common_strategies: Vec<String>, // strategies that work across ALL selected presets
+}
+
+#[allow(dead_code)]
+impl AutotuneResults {
+    pub fn dns_spoof(&self) -> &CheckResult { &self.block_results[0] }
+    pub fn tcp_rst(&self) -> &CheckResult { &self.block_results[1] }
+    pub fn sni_block(&self) -> &CheckResult { &self.block_results[2] }
+    pub fn siberian_block(&self) -> &CheckResult { &self.block_results[3] }
+    pub fn quic_block(&self) -> &CheckResult { &self.block_results[4] }
+    pub fn cidr_whitelist(&self) -> &CheckResult { &self.block_results[5] }
+}
+
 const RESULTS_FILE: &str = "autotune_results.txt";
+
+pub fn status_str_file(s: &CheckStatus) -> &'static str {
+    match s {
+        CheckStatus::Pass => "OK",
+        CheckStatus::Fail => "BLOCKED",
+        CheckStatus::Skip => "SKIP",
+        CheckStatus::Error => "ERROR",
+    }
+}
 
 pub fn save_results_file(results: &AutotuneResults) {
     use std::io::Write;
@@ -213,47 +304,66 @@ pub fn save_results_file(results: &AutotuneResults) {
         },
     };
     println!("  {}", rust_i18n::t!("autotune_saving_results").replace("{}", &path.display().to_string()));
+
+    let check_names = ["DNS", "TCP RST", "SNI", "SIBERIAN", "QUIC", "CIDR"];
     let _ = writeln!(file, "--- {} ---", rust_i18n::t!("autotune_net_results"));
-    let checks = [
-        ("DNS", &results.dns_spoof),
-        ("TCP RST", &results.tcp_rst),
-        ("SNI", &results.sni_block),
-        ("SIBERIAN", &results.siberian_block),
-        ("QUIC", &results.quic_block),
-        ("CIDR", &results.cidr_whitelist),
-    ];
-    for (name, check) in &checks {
-        let s = match check.status {
-            CheckStatus::Pass => "OK",
-            CheckStatus::Fail => "BLOCKED",
-            CheckStatus::Skip => "SKIP",
-            CheckStatus::Error => "ERROR",
-        };
-        let _ = writeln!(file, "  {}: {}", name, s);
+    for (name, check) in check_names.iter().zip(&results.block_results) {
+        let _ = writeln!(file, "  {}: {}", name, status_str_file(&check.status));
     }
     let _ = writeln!(file);
-    if !results.strategy_results.is_empty() {
-        let _ = writeln!(file, "--- {} ---", rust_i18n::t!("autotune_strat_results"));
-        for sr in &results.strategy_results {
-            let s = if sr.works { "WORKS" } else { "FAILS" };
-            let protos = if sr.protocols_working.is_empty() {
-                String::new()
-            } else {
-                format!(" [{}]", sr.protocols_working.join(", "))
-            };
-            let _ = writeln!(file, "  {}: {} ({}/{}){}", sr.strategy_name, s, sr.score(), sr.total(), protos);
-            for dc in &sr.domain_checks {
-                let _ = writeln!(file, "    {} HTTP:{} HTTPS:{} T12:{} T13:{} Q:{}",
-                    dc.domain,
-                    if dc.http { "✅" } else { "❌" },
-                    if dc.https { "✅" } else { "❌" },
-                    if dc.tls12 { "✅" } else { "❌" },
-                    if dc.tls13 { "✅" } else { "❌" },
-                    if dc.quic { "✅" } else { "❌" },
-                );
-            }
+
+    for pr in &results.preset_results {
+        let _ = writeln!(file, "--- {} [{}] ---", rust_i18n::t!("autotune_domain_results"), pr.preset_name);
+        for dc in &pr.domain_checks {
+            let _ = writeln!(file, "  {}: alive={} HTTP:{}({}) HTTPS:{}({}) T12:{} T13:{} QUIC:{}({}) baseline={}",
+                dc.domain,
+                status_str_file(&dc.alive),
+                status_str_file(&dc.http), dc.http_count,
+                status_str_file(&dc.https), dc.https_count,
+                status_str_file(&dc.tls12),
+                status_str_file(&dc.tls13),
+                status_str_file(&dc.quic), dc.quic_count,
+                status_str_file(if dc.baseline_pass { &CheckStatus::Pass } else { &CheckStatus::Fail }),
+            );
         }
         let _ = writeln!(file);
+    }
+
+    if !results.preset_results.is_empty() {
+        let _ = writeln!(file, "--- {} ---", rust_i18n::t!("autotune_strat_results"));
+        for pr in &results.preset_results {
+            let _ = writeln!(file, "  [{}]", pr.preset_name);
+            for sr in &pr.strategy_results {
+                let s = if sr.works { "WORKS" } else { "FAILS" };
+                let protos = if sr.protocols_working.is_empty() {
+                    String::new()
+                } else {
+                    format!(" [{}]", sr.protocols_working.join(", "))
+                };
+                let _ = writeln!(file, "    {}: {} ({}/{}){}", sr.strategy_name, s, sr.score(), sr.total(), protos);
+                for dc in &sr.domain_checks {
+                    let _ = writeln!(file, "      {} HTTP:{} HTTPS:{} T12:{} T13:{} Q:{}",
+                        dc.domain,
+                        if dc.http { "✅" } else { "❌" },
+                        if dc.https { "✅" } else { "❌" },
+                        if dc.tls12 { "✅" } else { "❌" },
+                        if dc.tls13 { "✅" } else { "❌" },
+                        if dc.quic { "✅" } else { "❌" },
+                    );
+                }
+            }
+            let _ = writeln!(file);
+        }
+
+        if !results.common_strategies.is_empty() {
+            let _ = writeln!(file, "--- {} ({}) ---",
+                rust_i18n::t!("autotune_common_strats"),
+                results.common_strategies.len());
+            for name in &results.common_strategies {
+                let _ = writeln!(file, "  ✅ {}", name);
+            }
+            let _ = writeln!(file);
+        }
     }
 }
 
@@ -294,6 +404,30 @@ pub fn load_custom_domains() -> Vec<String> {
             .collect(),
         Err(_) => Vec::new(),
     }
+}
+
+pub fn get_domains_for_preset(preset_idx: usize) -> Vec<String> {
+    if preset_idx >= PRESETS.len() {
+        return Vec::new();
+    }
+    let preset = &PRESETS[preset_idx];
+    if preset_idx == PRESETS.len() - 1 {
+        // Custom preset
+        load_custom_domains()
+    } else {
+        preset.domains.iter().map(|s| s.to_string()).collect()
+    }
+}
+
+#[allow(dead_code)]
+pub fn get_preset_names(indices: &[usize]) -> Vec<String> {
+    indices.iter().filter_map(|&i| {
+        if i < PRESETS.len() {
+            Some(PRESETS[i].name.to_string())
+        } else {
+            None
+        }
+    }).collect()
 }
 
 fn resolve_domain(domain: &str) -> Vec<IpAddr> {
@@ -1063,244 +1197,279 @@ fn count_protocol_steps(config: &AutotuneConfig) -> usize {
     n
 }
 
+fn run_network_checks(block_checks: &BlockChecks) -> Vec<CheckResult> {
+    vec![
+        if block_checks.get(0) { check_dns_spoof() } else { CheckResult::skip("Not selected") },
+        if block_checks.get(1) { check_tcp_rst() } else { CheckResult::skip("Not selected") },
+        if block_checks.get(2) { check_sni_block() } else { CheckResult::skip("Not selected") },
+        if block_checks.get(3) { check_siberian_block() } else { CheckResult::skip("Not selected") },
+        if block_checks.get(4) { check_quic_block() } else { CheckResult::skip("Not selected") },
+        if block_checks.get(5) { check_cidr_whitelist() } else { CheckResult::skip("Not selected") },
+    ]
+}
+
 pub fn run_all(
     config: &AutotuneConfig,
     progress: &dyn Fn(usize, usize),
     backend: &dyn FirewallBackend,
     interface: &str,
 ) -> AutotuneResults {
-    let domains: Vec<String> = if config.preset_index < PRESETS.len() - 1 {
-        PRESETS[config.preset_index].domains.iter().map(|s| s.to_string()).collect()
-    } else {
-        let custom = load_custom_domains();
-        if custom.is_empty() {
-            PRESETS[0].domains.iter().map(|s| s.to_string()).collect()
-        } else {
-            custom
-        }
-    };
+    // Run network checks once (shared across all presets)
+    let block_results = run_network_checks(&config.block_checks);
+    let net_check_count = config.block_checks.count_enabled();
 
     let all_strategies = crate::strategy::get_strategies();
     let loaded = load_strategy_files(&config.strategy_indices, &all_strategies);
     let strat_count = loaded.len();
 
     let proto_steps = count_protocol_steps(config);
-    let total = 6 // network checks
-        + domains.len() * (1 + proto_steps) // per-domain checks (no strategies)
-        + domains.len() // baseline HTTPS pass
-        + strat_count * (1 + domains.len()); // start nfqws + test each domain
+
+    // Calculate total steps: network checks + per-preset domain checks + per-preset strategy tests
+    let mut total = net_check_count;
+    let mut preset_domain_counts = Vec::new();
+    let mut preset_blocked_counts = Vec::new();
+
+    for &preset_idx in &config.preset_indices {
+        let domains = get_domains_for_preset(preset_idx);
+        let domain_count = domains.len();
+        let proto_checks = domain_count * (1 + proto_steps) + domain_count; // per-domain checks + baseline
+        total += proto_checks;
+        preset_domain_counts.push(domain_count);
+
+        // Estimate strategy test steps (will be refined after baseline check)
+        if !loaded.is_empty() {
+            // We'll add strategy steps after determining blocked domains
+        }
+    }
+
+    // Strategy testing steps: for each preset with blocked domains, each strategy tests each blocked domain
+    // We don't know blocked_domains yet, but we can estimate
+    let strategy_steps_estimate = config.preset_indices.len() * strat_count * 100; // rough estimate
+    total += strategy_steps_estimate;
+
     let mut done = 0;
 
     // === Network checks ===
-    let dns_spoof = check_dns_spoof();
-    done += 1; progress(done, total);
-    let tcp_rst = check_tcp_rst();
-    done += 1; progress(done, total);
-    let sni_block = check_sni_block();
-    done += 1; progress(done, total);
-    let siberian_block = check_siberian_block();
-    done += 1; progress(done, total);
-    let quic_block = check_quic_block();
-    done += 1; progress(done, total);
-    let cidr_whitelist = check_cidr_whitelist();
-    done += 1; progress(done, total);
-
-    // === Per-domain protocol checks (without any strategy) ===
-    let mut domain_checks = Vec::with_capacity(domains.len());
-    for d in &domains {
-        let dc = check_domain(config, d);
-        done += 1 + proto_steps;
+    for _result in block_results.iter() {
+        done += 1;
         progress(done, total);
-        domain_checks.push(dc);
     }
 
-    // Determine which domains are blocked (baseline HTTPS failed)
-    let blocked_domains: Vec<String> = domain_checks
-        .iter()
-        .filter(|dc| !dc.baseline_pass)
-        .map(|dc| dc.domain.clone())
-        .collect();
+    let mut preset_results: Vec<PresetResult> = Vec::new();
+    let mut all_working_strategy_names: Vec<std::collections::HashSet<String>> = Vec::new();
 
-    // === Strategy testing with real nfqws ===
-    let mut strategy_results: Vec<StrategyCheckResult> = Vec::new();
-
-    // Save ipset and switch to ANY mode (match all IPs, like bash autotune does)
+    // Save ipset once for all presets
     let saved_ipset = save_ipset();
     set_ipset_any();
 
-    if !loaded.is_empty() && !blocked_domains.is_empty() {
-        for (strat_name, strat_path) in &loaded {
-            // Print strategy name so user can see progress
-            println!("  {} {}", rust_i18n::t!("autotune_testing"), strat_name);
+    for &preset_idx in config.preset_indices.iter() {
+        let domains = get_domains_for_preset(preset_idx);
+        let preset_name = if preset_idx < PRESETS.len() {
+            PRESETS[preset_idx].name.to_string()
+        } else {
+            "Custom".to_string()
+        };
 
-            // Start nfqws with this strategy
-            let started = crate::runner::run_zapret_silent(
-                strat_path,
-                interface,
-                false,
-                false,
-                backend,
-            );
-            done += 1;
+        println!("\n--- {} [{}] ---", rust_i18n::t!("autotune_domain_results"), preset_name);
+
+        // === Per-domain protocol checks (without any strategy) ===
+        let mut domain_checks = Vec::with_capacity(domains.len());
+        for d in &domains {
+            let dc = check_domain(config, d);
+            done += 1 + proto_steps;
             progress(done, total);
+            domain_checks.push(dc);
+        }
 
-            if started.is_err() {
-                println!("    {} {}: {}", rust_i18n::t!("status_failed"), strat_name, started.unwrap_err());
-                let strat_res = StrategyCheckResult {
-                    strategy_name: strat_name.clone(),
-                    domains_pass: Vec::new(),
-                    domains_fail: blocked_domains.clone(),
-                    works: false,
-                    protocols_working: Vec::new(),
-                    domain_checks: Vec::new(),
-                };
-                strategy_results.push(strat_res);
-                for _ in &blocked_domains {
-                    done += 1;
-                    progress(done, total);
-                }
-                continue;
-            }
+        // Determine which domains are blocked (baseline HTTPS failed)
+        let blocked_domains: Vec<String> = domain_checks
+            .iter()
+            .filter(|dc| !dc.baseline_pass)
+            .map(|dc| dc.domain.clone())
+            .collect();
+        let blocked_count = blocked_domains.len();
+        preset_blocked_counts.push(blocked_count);
 
-            // Wait for nfqws to initialize (bash version uses 2s, use 3 for reliability)
-            std::thread::sleep(Duration::from_secs(3));
+        // === Strategy testing with real nfqws ===
+        let mut strategy_results: Vec<StrategyCheckResult> = Vec::new();
+        let mut working_names: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-            // Verify nfqws is still running
-            let nfqws_alive = std::process::Command::new("pgrep")
-                .arg("-x")
-                .arg("nfqws")
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false);
+        if !loaded.is_empty() && !blocked_domains.is_empty() {
+            for (strat_name, strat_path) in &loaded {
+                println!("  {} {}", rust_i18n::t!("autotune_testing"), strat_name);
 
-            if !nfqws_alive {
-                println!("    {} {} (nfqws exited early)", rust_i18n::t!("status_failed"), strat_name);
-                let strat_res = StrategyCheckResult {
-                    strategy_name: strat_name.clone(),
-                    domains_pass: Vec::new(),
-                    domains_fail: blocked_domains.clone(),
-                    works: false,
-                    protocols_working: Vec::new(),
-                    domain_checks: Vec::new(),
-                };
-                strategy_results.push(strat_res);
-                crate::runner::stop_zapret(backend);
-                for _ in &blocked_domains {
-                    done += 1;
-                    progress(done, total);
-                }
-                continue;
-            }
-
-            // Test each blocked domain with the strategy active
-            let mut pass = Vec::new();
-            let mut fail = Vec::new();
-            let mut http_works = false;
-            let mut https_works = false;
-            let mut tls12_works = false;
-            let mut tls13_works = false;
-            let mut quic_works = false;
-            let mut domain_checks = Vec::new();
-            for domain in &blocked_domains {
-                let http_ok = test_http(domain);
-                if http_ok { http_works = true; }
-                let https_ok = test_https(domain);
-                if https_ok { https_works = true; }
-                let tls12_ok = test_tls(domain, "--tlsv1.2");
-                if tls12_ok { tls12_works = true; }
-                let tls13_ok = test_tls(domain, "--tlsv1.3");
-                if tls13_ok { tls13_works = true; }
-                let quic_ok = test_quic(domain);
-                if quic_ok { quic_works = true; }
-
-                let ok = https_ok || http_ok || tls12_ok || tls13_ok;
-                if ok {
-                    pass.push(domain.clone());
-                } else {
-                    fail.push(domain.clone());
-                }
-                domain_checks.push(DomainProtocolCheck {
-                    domain: domain.clone(),
-                    http: http_ok,
-                    https: https_ok,
-                    tls12: tls12_ok,
-                    tls13: tls13_ok,
-                    quic: quic_ok,
-                });
-                println!("    {} HTTP:{} HTTPS:{} T12:{} T13:{} Q:{} - {}",
-                    domain,
-                    if http_ok { "OK" } else { "❌" },
-                    if https_ok { "OK" } else { "❌" },
-                    if tls12_ok { "OK" } else { "❌" },
-                    if tls13_ok { "OK" } else { "❌" },
-                    if quic_ok { "OK" } else { "❌" },
-                    strat_name,
+                let started = crate::runner::run_zapret_silent(
+                    strat_path,
+                    interface,
+                    false,
+                    false,
+                    backend,
                 );
                 done += 1;
                 progress(done, total);
+
+                if started.is_err() {
+                    println!("    {} {}: {}", rust_i18n::t!("status_failed"), strat_name, started.unwrap_err());
+                    let strat_res = StrategyCheckResult {
+                        strategy_name: strat_name.clone(),
+                        domains_pass: Vec::new(),
+                        domains_fail: blocked_domains.clone(),
+                        works: false,
+                        protocols_working: Vec::new(),
+                        domain_checks: Vec::new(),
+                    };
+                    strategy_results.push(strat_res);
+                    for _ in &blocked_domains {
+                        done += 1;
+                        progress(done, total);
+                    }
+                    continue;
+                }
+
+                std::thread::sleep(Duration::from_secs(3));
+
+                let nfqws_alive = std::process::Command::new("pgrep")
+                    .arg("-x")
+                    .arg("nfqws")
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false);
+
+                if !nfqws_alive {
+                    println!("    {} {} (nfqws exited early)", rust_i18n::t!("status_failed"), strat_name);
+                    let strat_res = StrategyCheckResult {
+                        strategy_name: strat_name.clone(),
+                        domains_pass: Vec::new(),
+                        domains_fail: blocked_domains.clone(),
+                        works: false,
+                        protocols_working: Vec::new(),
+                        domain_checks: Vec::new(),
+                    };
+                    strategy_results.push(strat_res);
+                    crate::runner::stop_zapret(backend);
+                    for _ in &blocked_domains {
+                        done += 1;
+                        progress(done, total);
+                    }
+                    continue;
+                }
+
+                let mut pass = Vec::new();
+                let mut fail = Vec::new();
+                let mut http_works = false;
+                let mut https_works = false;
+                let mut tls12_works = false;
+                let mut tls13_works = false;
+                let mut quic_works = false;
+                let mut dc_results = Vec::new();
+                for domain in &blocked_domains {
+                    let http_ok = test_http(domain);
+                    if http_ok { http_works = true; }
+                    let https_ok = test_https(domain);
+                    if https_ok { https_works = true; }
+                    let tls12_ok = test_tls(domain, "--tlsv1.2");
+                    if tls12_ok { tls12_works = true; }
+                    let tls13_ok = test_tls(domain, "--tlsv1.3");
+                    if tls13_ok { tls13_works = true; }
+                    let quic_ok = test_quic(domain);
+                    if quic_ok { quic_works = true; }
+
+                    let ok = https_ok || http_ok || tls12_ok || tls13_ok;
+                    if ok { pass.push(domain.clone()); } else { fail.push(domain.clone()); }
+                    dc_results.push(DomainProtocolCheck {
+                        domain: domain.clone(),
+                        http: http_ok, https: https_ok, tls12: tls12_ok,
+                        tls13: tls13_ok, quic: quic_ok,
+                    });
+                    done += 1;
+                    progress(done, total);
+                }
+
+                let mut protocols_working = Vec::new();
+                if http_works { protocols_working.push("HTTP".to_string()); }
+                if https_works { protocols_working.push("HTTPS".to_string()); }
+                if tls12_works { protocols_working.push("TLS12".to_string()); }
+                if tls13_works { protocols_working.push("TLS13".to_string()); }
+                if quic_works { protocols_working.push("QUIC".to_string()); }
+
+                crate::runner::stop_zapret(backend);
+
+                let works = pass.len() >= blocked_domains.len() / 2 + 1;
+                if works {
+                    working_names.insert(strat_name.clone());
+                }
+                strategy_results.push(StrategyCheckResult {
+                    strategy_name: strat_name.clone(),
+                    domains_pass: pass,
+                    domains_fail: fail,
+                    works,
+                    protocols_working,
+                    domain_checks: dc_results,
+                });
             }
-            let mut protocols_working = Vec::new();
-            if http_works { protocols_working.push("HTTP".to_string()); }
-            if https_works { protocols_working.push("HTTPS".to_string()); }
-            if tls12_works { protocols_working.push("TLS12".to_string()); }
-            if tls13_works { protocols_working.push("TLS13".to_string()); }
-            if quic_works { protocols_working.push("QUIC".to_string()); }
-
-            // Stop nfqws
-            crate::runner::stop_zapret(backend);
-
-            let works = pass.len() >= blocked_domains.len() / 2 + 1;
-            strategy_results.push(StrategyCheckResult {
-                strategy_name: strat_name.clone(),
-                domains_pass: pass,
-                domains_fail: fail,
-                works,
-                protocols_working,
-                domain_checks,
-            });
-        }
-    } else if !loaded.is_empty() && blocked_domains.is_empty() {
-        // All domains already work - mark all strategies as "works" trivially
-        for (strat_name, _) in &loaded {
-            done += 1;
-            progress(done, total);
-            for _ in &domains {
+        } else if !loaded.is_empty() && blocked_domains.is_empty() {
+            for (strat_name, _) in &loaded {
                 done += 1;
                 progress(done, total);
+                for _ in &domains {
+                    done += 1;
+                    progress(done, total);
+                }
+                working_names.insert(strat_name.clone());
+                strategy_results.push(StrategyCheckResult {
+                    strategy_name: strat_name.clone(),
+                    domains_pass: domains.clone(),
+                    domains_fail: Vec::new(),
+                    works: true,
+                    protocols_working: vec!["HTTP".to_string(), "HTTPS".to_string(), "TLS12".to_string(), "TLS13".to_string(), "QUIC".to_string()],
+                    domain_checks: domains.iter().map(|d| DomainProtocolCheck {
+                        domain: d.clone(), http: true, https: true, tls12: true, tls13: true, quic: true,
+                    }).collect(),
+                });
             }
-            strategy_results.push(StrategyCheckResult {
-                strategy_name: strat_name.clone(),
-                domains_pass: domains.clone(),
-                domains_fail: Vec::new(),
-                works: true,
-                protocols_working: vec!["HTTP".to_string(), "HTTPS".to_string(), "TLS12".to_string(), "TLS13".to_string(), "QUIC".to_string()],
-                domain_checks: domains.iter().map(|d| DomainProtocolCheck {
-                    domain: d.clone(),
-                    http: true,
-                    https: true,
-                    tls12: true,
-                    tls13: true,
-                    quic: true,
-                }).collect(),
-            });
         }
+
+        preset_results.push(PresetResult {
+            preset_name,
+            domain_checks,
+            strategy_results,
+        });
+        all_working_strategy_names.push(working_names);
     }
 
-    // Restore original ipset content
+    // Find common strategies (work across ALL presets)
+    let common_strategies = if config.preset_indices.len() > 1 && !all_working_strategy_names.is_empty() {
+        let mut common: std::collections::HashSet<String> = all_working_strategy_names[0].clone();
+        for wm in &all_working_strategy_names[1..] {
+            common.retain(|name| wm.contains(name));
+        }
+        let mut v: Vec<String> = common.into_iter().collect();
+        v.sort();
+        v
+    } else {
+        // Single preset: all working strategies are "common"
+        preset_results.first()
+            .map(|pr| {
+                let mut names: Vec<String> = pr.strategy_results
+                    .iter().filter(|s| s.works)
+                    .map(|s| s.strategy_name.clone())
+                    .collect();
+                names.sort();
+                names
+            })
+            .unwrap_or_default()
+    };
+
+    // Restore original ipset
     if let Some(ref saved) = saved_ipset {
         restore_ipset(saved);
         println!("  {}", rust_i18n::t!("autotune_ipset_restored"));
     }
 
     let results = AutotuneResults {
-        dns_spoof,
-        tcp_rst,
-        sni_block,
-        siberian_block,
-        quic_block,
-        cidr_whitelist,
-        domain_checks,
-        strategy_results,
+        block_results,
+        preset_results,
+        common_strategies,
     };
 
     save_results_file(&results);

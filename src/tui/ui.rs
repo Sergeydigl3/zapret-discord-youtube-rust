@@ -18,6 +18,7 @@ use crate::tui::state::{
     ActiveScreen, AppState, VersionTarget, MainMenuState,
     DownloadDepsMenuState, DownloadSubmenuState,
     GamefilterMenuState, AutotuneMenuState, AutotuneProtocolsState,
+    AutotuneBlockChecksState,
 };
 use crate::tui::menus;
 use crate::tui::theme::Theme;
@@ -82,6 +83,8 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::ListsEditorSubmenu => rust_i18n::t!("tui_title_lists"),
                 ActiveScreen::AutotuneSubmenu => rust_i18n::t!("tui_title_autotune"),
                 ActiveScreen::AutotuneProtocolsSubmenu => rust_i18n::t!("tui_title_autotune_proto"),
+                ActiveScreen::AutotuneBlockChecksSubmenu => rust_i18n::t!("tui_title_autotune_bc"),
+                ActiveScreen::AutotunePresetSelectionSubmenu => rust_i18n::t!("tui_title_autotune_presets"),
                 ActiveScreen::AutotuneStrategiesSubmenu => rust_i18n::t!("tui_title_autotune_strat"),
                 ActiveScreen::AutotuneResultsSubmenu => rust_i18n::t!("tui_title_autotune_results"),
             };
@@ -119,6 +122,12 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 }
                 ActiveScreen::AutotuneProtocolsSubmenu => {
                     menus::autotune_menu::render_protocols(app, app.autotune_protocols_menu)
+                }
+                ActiveScreen::AutotuneBlockChecksSubmenu => {
+                    menus::autotune_menu::render_blockchecks(app, app.autotune_block_checks_menu)
+                }
+                ActiveScreen::AutotunePresetSelectionSubmenu => {
+                    menus::autotune_menu::render_presets(app)
                 }
                 ActiveScreen::AutotuneStrategiesSubmenu => {
                     menus::autotune_menu::render_strategies(app, app.autotune_strat_index)
@@ -267,10 +276,11 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::ServiceSubmenu => rust_i18n::t!("help_srv_sel"),
                 ActiveScreen::ListsEditorSubmenu => rust_i18n::t!("help_lists"),
                 ActiveScreen::AutotuneSubmenu => match app.autotune_menu {
-                    AutotuneMenuState::DomainsSource => rust_i18n::t!("help_autotune_domains"),
+                    AutotuneMenuState::PresetSelection => rust_i18n::t!("help_autotune_domains"),
                     AutotuneMenuState::NumRequests => rust_i18n::t!("help_autotune_req"),
                     AutotuneMenuState::Strategies => rust_i18n::t!("help_autotune_strat_sel"),
                     AutotuneMenuState::Protocols => rust_i18n::t!("help_autotune_proto"),
+                    AutotuneMenuState::BlockChecks => rust_i18n::t!("help_autotune_blockchecks"),
                     AutotuneMenuState::EditCustom => rust_i18n::t!("help_autotune_domains"),
                     AutotuneMenuState::Results => rust_i18n::t!("help_autotune_results_sel"),
                     AutotuneMenuState::Run => rust_i18n::t!("help_autotune_run"),
@@ -280,6 +290,13 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     AutotuneProtocolsState::Back => rust_i18n::t!("help_back"),
                     _ => rust_i18n::t!("help_autotune_toggle"),
                 },
+                ActiveScreen::AutotuneBlockChecksSubmenu => match app.autotune_block_checks_menu {
+                    AutotuneBlockChecksState::Back => rust_i18n::t!("help_back"),
+                    _ => rust_i18n::t!("help_autotune_toggle"),
+                },
+                ActiveScreen::AutotunePresetSelectionSubmenu => {
+                    rust_i18n::t!("help_autotune_presets")
+                }
                 ActiveScreen::AutotuneStrategiesSubmenu => {
                     rust_i18n::t!("help_autotune_strat")
                 }
@@ -338,13 +355,19 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     match key.code {
                         KeyCode::Up => app.prev_menu(),
                         KeyCode::Down => app.next_menu(),
-                        KeyCode::Left => app.cycle_current(false),
+                        KeyCode::Left => {
+                            app.cycle_current(false);
+                        }
                         KeyCode::Right => app.cycle_current(true),
                         KeyCode::Enter | KeyCode::Char(' ') => app.cycle_current(true),
                         KeyCode::Char('q') | KeyCode::Esc => {
                             match app.active_screen {
-                                ActiveScreen::AutotuneSubmenu
-                                | ActiveScreen::AutotuneProtocolsSubmenu
+                                ActiveScreen::AutotuneSubmenu => {
+                                    app.active_screen = ActiveScreen::Main;
+                                }
+                                ActiveScreen::AutotuneProtocolsSubmenu
+                                | ActiveScreen::AutotuneBlockChecksSubmenu
+                                | ActiveScreen::AutotunePresetSelectionSubmenu
                                 | ActiveScreen::AutotuneStrategiesSubmenu
                                 | ActiveScreen::AutotuneResultsSubmenu => {
                                     app.active_screen = ActiveScreen::AutotuneSubmenu;
@@ -519,16 +542,18 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             disable_raw_mode()?;
             execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
             terminal.show_cursor()?;
-            
+
             let _ = crate::utils::open_editor(&file_path);
-            
+
             enable_raw_mode()?;
             execute!(terminal.backend_mut(), EnterAlternateScreen)?;
             terminal.clear()?;
-            
+
             app.status_message = Some(format!("{}{}", rust_i18n::t!("msg_closed_editor"), std::path::Path::new(&file_path).file_name().unwrap_or_default().to_string_lossy()));
-            app.active_screen = ActiveScreen::ListsEditorSubmenu;
-            app.refresh_ipset_status();
+            if app.active_screen != ActiveScreen::AutotuneSubmenu {
+                app.active_screen = ActiveScreen::ListsEditorSubmenu;
+                app.refresh_ipset_status();
+            }
         }
 
         if app.should_run_autotune {
@@ -560,68 +585,70 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             println!("{}", rust_i18n::t!("autotune_how_to_read"));
             println!();
             println!("--- {} ---", rust_i18n::t!("menu_autotune_net_checks"));
-            let net_checks = [
-                (rust_i18n::t!("menu_autotune_dns"), &results.dns_spoof.status),
-                (rust_i18n::t!("menu_autotune_tcp"), &results.tcp_rst.status),
-                (rust_i18n::t!("menu_autotune_sni"), &results.sni_block.status),
-                (rust_i18n::t!("menu_autotune_quic"), &results.quic_block.status),
-                (rust_i18n::t!("menu_autotune_cidr"), &results.cidr_whitelist.status),
-            ];
-            for (label, status) in &net_checks {
-                println!("  {}: {} - {}", status_str(status), label, status_detail(status));
+            let check_labels = ["DNS", "TCP RST", "SNI", "SIBERIAN", "QUIC", "CIDR"];
+            for (label, check) in check_labels.iter().zip(&results.block_results) {
+                println!("  {}: {} - {}", label, status_str(&check.status), status_detail(&check.status));
             }
             println!();
-            println!("--- {} ---", rust_i18n::t!("autotune_domain_checks"));
-            println!("  {}", rust_i18n::t!("autotune_proto_legend"));
-            let req_count = results.domain_checks.first().map(|_| app.autotune_config.num_requests).unwrap_or(3);
-            for dc in &results.domain_checks {
-                println!("  {}: alive={} HTTP:{}({}/{}) HTTPS:{}({}/{}) TLS1.2={} TLS1.3={} QUIC:{}({}/{}) baseline={}",
-                    dc.domain,
-                    status_str(&dc.alive),
-                    status_str(&dc.http), dc.http_count, req_count,
-                    status_str(&dc.https), dc.https_count, req_count,
-                    status_str(&dc.tls12),
-                    status_str(&dc.tls13),
-                    status_str(&dc.quic), dc.quic_count, req_count,
-                    status_str(if dc.baseline_pass { &CheckStatus::Pass } else { &CheckStatus::Fail }),
-                );
-            }
-            if !results.strategy_results.is_empty() {
-                println!();
-                println!("--- {} ---", rust_i18n::t!("autotune_strat_results"));
-                for sr in &results.strategy_results {
-                    let status = if sr.works { "✅ WORKS" } else { "❌ FAILS" };
-                    let protos = if sr.protocols_working.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" [{}]", sr.protocols_working.join(", "))
-                    };
-                    println!("  {}: {} ({}/{} blocked domains unblocked){}", sr.strategy_name, status, sr.score(), sr.total(), protos);
-                    for dc in &sr.domain_checks {
-                        println!("    {} HTTP:{} HTTPS:{} T12:{} T13:{} Q:{}",
-                            dc.domain,
-                            if dc.http { "✅" } else { "❌" },
-                            if dc.https { "✅" } else { "❌" },
-                            if dc.tls12 { "✅" } else { "❌" },
-                            if dc.tls13 { "✅" } else { "❌" },
-                            if dc.quic { "✅" } else { "❌" },
-                        );
-                    }
-                }
-                // Working strategies summary
-                println!();
-                let working: Vec<&StrategyCheckResult> = results.strategy_results.iter().filter(|s| s.works).collect();
-                if working.is_empty() {
-                    println!("  {}", rust_i18n::t!("autotune_strat_none_work"));
-                } else {
-                    println!("  {} {} {}", rust_i18n::t!("autotune_strat_works_count"), working.len(), rust_i18n::t!("autotune_strat_of_total").replace("{}", &results.strategy_results.len().to_string()));
-                    for s in &working {
-                        println!("    ✅ {} ({}/{})", s.strategy_name, s.score(), s.total());
-                    }
-                }
 
+            for pr in &results.preset_results {
+                println!("--- {} [{}] ---", rust_i18n::t!("autotune_domain_results"), pr.preset_name);
+                let req_count = pr.domain_checks.first().map(|_| app.autotune_config.num_requests).unwrap_or(3);
+                for dc in &pr.domain_checks {
+                    println!("  {}: alive={} HTTP:{}({}/{}) HTTPS:{}({}/{}) TLS1.2={} TLS1.3={} QUIC:{}({}/{}) baseline={}",
+                        dc.domain,
+                        status_str(&dc.alive),
+                        status_str(&dc.http), dc.http_count, req_count,
+                        status_str(&dc.https), dc.https_count, req_count,
+                        status_str(&dc.tls12),
+                        status_str(&dc.tls13),
+                        status_str(&dc.quic), dc.quic_count, req_count,
+                        status_str(if dc.baseline_pass { &CheckStatus::Pass } else { &CheckStatus::Fail }),
+                    );
+                }
+                if !pr.strategy_results.is_empty() {
+                    println!();
+                    println!("  --- {} ---", rust_i18n::t!("autotune_strat_results"));
+                    for sr in &pr.strategy_results {
+                        let status = if sr.works { "✅ WORKS" } else { "❌ FAILS" };
+                        let protos = if sr.protocols_working.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" [{}]", sr.protocols_working.join(", "))
+                        };
+                        println!("    {}: {} ({}/{} blocked domains unblocked){}", sr.strategy_name, status, sr.score(), sr.total(), protos);
+                        for dc in &sr.domain_checks {
+                            println!("      {} HTTP:{} HTTPS:{} T12:{} T13:{} Q:{}",
+                                dc.domain,
+                                if dc.http { "✅" } else { "❌" },
+                                if dc.https { "✅" } else { "❌" },
+                                if dc.tls12 { "✅" } else { "❌" },
+                                if dc.tls13 { "✅" } else { "❌" },
+                                if dc.quic { "✅" } else { "❌" },
+                            );
+                        }
+                    }
+                    let working: Vec<&StrategyCheckResult> = pr.strategy_results.iter().filter(|s| s.works).collect();
+                    if working.is_empty() {
+                        println!("    {}", rust_i18n::t!("autotune_strat_none_work"));
+                    } else {
+                        println!("    {} {} {}", rust_i18n::t!("autotune_strat_works_count"), working.len(), rust_i18n::t!("autotune_strat_of_total").replace("{}", &pr.strategy_results.len().to_string()));
+                        for s in &working {
+                            println!("      ✅ {} ({}/{})", s.strategy_name, s.score(), s.total());
+                        }
+                    }
+                }
+                println!();
             }
-            println!();
+
+            if !results.common_strategies.is_empty() {
+                println!("--- {} ({}) ---", rust_i18n::t!("autotune_common_strats"), results.common_strategies.len());
+                for name in &results.common_strategies {
+                    println!("  ✅ {}", name);
+                }
+                println!();
+            }
+            println!("{}", rust_i18n::t!("msg_dl_key"));
             println!("{}", rust_i18n::t!("msg_dl_key"));
 
             loop {
