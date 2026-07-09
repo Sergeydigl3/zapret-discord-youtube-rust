@@ -1,8 +1,6 @@
 #[cfg(target_os = "linux")]
 use crate::firewalls::LinuxBackend;
 
-use crate::autotune::CheckStatus;
-
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ActiveScreen {
     Main,
@@ -19,6 +17,8 @@ pub enum ActiveScreen {
     ListsEditorSubmenu,
     AutotuneSubmenu,
     AutotuneProtocolsSubmenu,
+    AutotuneBlockChecksSubmenu,
+    AutotunePresetSelectionSubmenu,
     AutotuneStrategiesSubmenu,
     AutotuneResultsSubmenu,
 }
@@ -85,8 +85,8 @@ impl MainMenuState {
             #[cfg(not(target_os = "linux"))]
             Self::IpsetMode => Self::GamefilterSettings,
             Self::ListsEditor => Self::IpsetMode,
-            Self::ServiceSettings => Self::Autotune,
             Self::Autotune => Self::ListsEditor,
+            Self::ServiceSettings => Self::Autotune,
             Self::Run => Self::ServiceSettings,
             Self::Quit => Self::Run,
         }
@@ -148,10 +148,11 @@ impl DefenderMenuState {
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum AutotuneMenuState {
-    DomainsSource,
+    PresetSelection,
     NumRequests,
     Strategies,
     Protocols,
+    BlockChecks,
     EditCustom,
     Results,
     Run,
@@ -165,6 +166,17 @@ pub enum AutotuneProtocolsState {
     Tls12,
     Tls13,
     Quic,
+    Back,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum AutotuneBlockChecksState {
+    DnsSpoof,
+    TcpRst,
+    SniBlock,
+    SiberianBlock,
+    QuicBlock,
+    CidrWhitelist,
     Back,
 }
 
@@ -309,6 +321,8 @@ pub struct AppState {
     pub autotune_menu: AutotuneMenuState,
     pub autotune_menu_index: usize,
     pub autotune_protocols_menu: AutotuneProtocolsState,
+    pub autotune_block_checks_menu: AutotuneBlockChecksState,
+    pub autotune_preset_index: usize,
     pub autotune_strat_index: usize,
     pub autotune_results_index: usize,
     pub should_run_autotune: bool,
@@ -405,9 +419,11 @@ impl AppState {
 
             autotune_config: crate::autotune::AutotuneConfig::default(),
             autotune_results: None,
-            autotune_menu: AutotuneMenuState::DomainsSource,
+            autotune_menu: AutotuneMenuState::PresetSelection,
             autotune_menu_index: 0,
             autotune_protocols_menu: AutotuneProtocolsState::Http,
+            autotune_block_checks_menu: AutotuneBlockChecksState::DnsSpoof,
+            autotune_preset_index: 0,
             autotune_strat_index: 0,
             autotune_results_index: 0,
             should_run_autotune: false,
@@ -548,16 +564,17 @@ impl AppState {
                 self.lists_menu_index = (self.lists_menu_index + 1) % max;
             }
             ActiveScreen::AutotuneSubmenu => {
-                let count = 8;
+                let count = 9;
                 self.autotune_menu_index = (self.autotune_menu_index + 1) % count;
                 self.autotune_menu = match self.autotune_menu_index {
-                    0 => AutotuneMenuState::DomainsSource,
+                    0 => AutotuneMenuState::PresetSelection,
                     1 => AutotuneMenuState::NumRequests,
                     2 => AutotuneMenuState::Strategies,
                     3 => AutotuneMenuState::Protocols,
-                    4 => AutotuneMenuState::EditCustom,
-                    5 => AutotuneMenuState::Results,
-                    6 => AutotuneMenuState::Run,
+                    4 => AutotuneMenuState::BlockChecks,
+                    5 => AutotuneMenuState::EditCustom,
+                    6 => AutotuneMenuState::Results,
+                    7 => AutotuneMenuState::Run,
                     _ => AutotuneMenuState::Back,
                 };
             }
@@ -569,6 +586,23 @@ impl AppState {
                     AutotuneProtocolsState::Tls13 => AutotuneProtocolsState::Quic,
                     AutotuneProtocolsState::Quic => AutotuneProtocolsState::Back,
                     AutotuneProtocolsState::Back => AutotuneProtocolsState::Http,
+                };
+            }
+            ActiveScreen::AutotunePresetSelectionSubmenu => {
+                let total = crate::autotune::PRESETS.len() + 1;
+                if total > 0 {
+                    self.autotune_preset_index = (self.autotune_preset_index + 1) % total;
+                }
+            }
+            ActiveScreen::AutotuneBlockChecksSubmenu => {
+                self.autotune_block_checks_menu = match self.autotune_block_checks_menu {
+                    AutotuneBlockChecksState::DnsSpoof => AutotuneBlockChecksState::TcpRst,
+                    AutotuneBlockChecksState::TcpRst => AutotuneBlockChecksState::SniBlock,
+                    AutotuneBlockChecksState::SniBlock => AutotuneBlockChecksState::SiberianBlock,
+                    AutotuneBlockChecksState::SiberianBlock => AutotuneBlockChecksState::QuicBlock,
+                    AutotuneBlockChecksState::QuicBlock => AutotuneBlockChecksState::CidrWhitelist,
+                    AutotuneBlockChecksState::CidrWhitelist => AutotuneBlockChecksState::Back,
+                    AutotuneBlockChecksState::Back => AutotuneBlockChecksState::DnsSpoof,
                 };
             }
             ActiveScreen::AutotuneStrategiesSubmenu => {
@@ -625,16 +659,17 @@ impl AppState {
                 self.lists_menu_index = (self.lists_menu_index + max - 1) % max;
             }
             ActiveScreen::AutotuneSubmenu => {
-                let count = 8;
+                let count = 9;
                 self.autotune_menu_index = (self.autotune_menu_index + count - 1) % count;
                 self.autotune_menu = match self.autotune_menu_index {
-                    0 => AutotuneMenuState::DomainsSource,
+                    0 => AutotuneMenuState::PresetSelection,
                     1 => AutotuneMenuState::NumRequests,
                     2 => AutotuneMenuState::Strategies,
                     3 => AutotuneMenuState::Protocols,
-                    4 => AutotuneMenuState::EditCustom,
-                    5 => AutotuneMenuState::Results,
-                    6 => AutotuneMenuState::Run,
+                    4 => AutotuneMenuState::BlockChecks,
+                    5 => AutotuneMenuState::EditCustom,
+                    6 => AutotuneMenuState::Results,
+                    7 => AutotuneMenuState::Run,
                     _ => AutotuneMenuState::Back,
                 };
             }
@@ -646,6 +681,21 @@ impl AppState {
                     AutotuneProtocolsState::Tls13 => AutotuneProtocolsState::Tls12,
                     AutotuneProtocolsState::Quic => AutotuneProtocolsState::Tls13,
                     AutotuneProtocolsState::Back => AutotuneProtocolsState::Quic,
+                };
+            }
+            ActiveScreen::AutotunePresetSelectionSubmenu => {
+                let total = crate::autotune::PRESETS.len() + 1;
+                self.autotune_preset_index = (self.autotune_preset_index + total - 1) % total;
+            }
+            ActiveScreen::AutotuneBlockChecksSubmenu => {
+                self.autotune_block_checks_menu = match self.autotune_block_checks_menu {
+                    AutotuneBlockChecksState::DnsSpoof => AutotuneBlockChecksState::Back,
+                    AutotuneBlockChecksState::TcpRst => AutotuneBlockChecksState::DnsSpoof,
+                    AutotuneBlockChecksState::SniBlock => AutotuneBlockChecksState::TcpRst,
+                    AutotuneBlockChecksState::SiberianBlock => AutotuneBlockChecksState::SniBlock,
+                    AutotuneBlockChecksState::QuicBlock => AutotuneBlockChecksState::SiberianBlock,
+                    AutotuneBlockChecksState::CidrWhitelist => AutotuneBlockChecksState::QuicBlock,
+                    AutotuneBlockChecksState::Back => AutotuneBlockChecksState::CidrWhitelist,
                 };
             }
             ActiveScreen::AutotuneStrategiesSubmenu => {
@@ -732,7 +782,7 @@ impl AppState {
                     MainMenuState::Autotune => {
                         self.active_screen = ActiveScreen::AutotuneSubmenu;
                         self.autotune_menu_index = 0;
-                        self.autotune_menu = AutotuneMenuState::DomainsSource;
+                        self.autotune_menu = AutotuneMenuState::PresetSelection;
                         self.status_message = None;
                     }
                     MainMenuState::Run => {
@@ -1004,15 +1054,7 @@ impl AppState {
             }
             ActiveScreen::AutotuneSubmenu => {
                 match self.autotune_menu {
-                    AutotuneMenuState::DomainsSource => {
-                        let count = crate::autotune::PRESETS.len();
-                        self.autotune_config.preset_index = (self.autotune_config.preset_index + 1) % count;
-                        self.status_message = Some(format!(
-                            "{}: {}",
-                            rust_i18n::t!("autotune_preset_sel"),
-                            crate::autotune::PRESETS[self.autotune_config.preset_index].name
-                        ));
-                    }
+                    AutotuneMenuState::PresetSelection => {}
                     AutotuneMenuState::NumRequests => {}
                     AutotuneMenuState::Strategies => {
                         if !self.strategies.is_empty() {
@@ -1026,6 +1068,11 @@ impl AppState {
                     AutotuneMenuState::Protocols => {
                         self.active_screen = ActiveScreen::AutotuneProtocolsSubmenu;
                         self.autotune_protocols_menu = AutotuneProtocolsState::Http;
+                        self.status_message = None;
+                    }
+                    AutotuneMenuState::BlockChecks => {
+                        self.active_screen = ActiveScreen::AutotuneBlockChecksSubmenu;
+                        self.autotune_block_checks_menu = AutotuneBlockChecksState::DnsSpoof;
                         self.status_message = None;
                     }
                     AutotuneMenuState::EditCustom => {
@@ -1069,6 +1116,75 @@ impl AppState {
                     }
                 }
             }
+            ActiveScreen::AutotuneBlockChecksSubmenu => {
+                match self.autotune_block_checks_menu {
+                    AutotuneBlockChecksState::DnsSpoof => {
+                        let mut bc = self.autotune_config.block_checks.clone();
+                        bc.set(0, !bc.get(0));
+                        self.autotune_config.block_checks = bc;
+                    }
+                    AutotuneBlockChecksState::TcpRst => {
+                        let mut bc = self.autotune_config.block_checks.clone();
+                        bc.set(1, !bc.get(1));
+                        self.autotune_config.block_checks = bc;
+                    }
+                    AutotuneBlockChecksState::SniBlock => {
+                        let mut bc = self.autotune_config.block_checks.clone();
+                        bc.set(2, !bc.get(2));
+                        self.autotune_config.block_checks = bc;
+                    }
+                    AutotuneBlockChecksState::SiberianBlock => {
+                        let mut bc = self.autotune_config.block_checks.clone();
+                        bc.set(3, !bc.get(3));
+                        self.autotune_config.block_checks = bc;
+                    }
+                    AutotuneBlockChecksState::QuicBlock => {
+                        let mut bc = self.autotune_config.block_checks.clone();
+                        bc.set(4, !bc.get(4));
+                        self.autotune_config.block_checks = bc;
+                    }
+                    AutotuneBlockChecksState::CidrWhitelist => {
+                        let mut bc = self.autotune_config.block_checks.clone();
+                        bc.set(5, !bc.get(5));
+                        self.autotune_config.block_checks = bc;
+                    }
+                    AutotuneBlockChecksState::Back => {
+                        self.active_screen = ActiveScreen::AutotuneSubmenu;
+                        self.status_message = None;
+                    }
+                }
+            }
+            ActiveScreen::AutotunePresetSelectionSubmenu => {
+                let idx = self.autotune_preset_index;
+                if idx >= crate::autotune::PRESETS.len() {
+                    self.active_screen = ActiveScreen::AutotuneSubmenu;
+                    self.status_message = None;
+                    return;
+                }
+                let was_selected = self.autotune_config.preset_indices.contains(&idx);
+                if was_selected {
+                    self.autotune_config.preset_indices.retain(|&i| i != idx);
+                } else {
+                    self.autotune_config.preset_indices.push(idx);
+                }
+                self.autotune_config.preset_indices.sort();
+                self.autotune_config.preset_indices.dedup();
+                let names: Vec<&str> = self.autotune_config.preset_indices.iter()
+                    .filter_map(|&i| if i < crate::autotune::PRESETS.len() {
+                        Some(crate::autotune::PRESETS[i].name)
+                    } else { None })
+                    .collect();
+                let label = if names.is_empty() {
+                    rust_i18n::t!("menu_autotune_preset_none").into_owned()
+                } else {
+                    names.join(", ")
+                };
+                self.status_message = Some(format!(
+                    "{}: {}",
+                    rust_i18n::t!("autotune_preset_sel"),
+                    label
+                ));
+            }
             ActiveScreen::AutotuneStrategiesSubmenu => {
                 let max = self.strategies.len(); // +1 for Back
                 if self.autotune_strat_index < max {
@@ -1094,26 +1210,30 @@ impl AppState {
 
     fn count_results_items(&self) -> usize {
         if let Some(ref results) = self.autotune_results {
-            let mut n = 8; // header + 5 net checks + domain header + back
-            if !results.strategy_results.is_empty() {
-                n += 1; // strategy header
-                for sr in &results.strategy_results {
-                    n += 1; // strategy name line
-                    if !sr.domains_pass.is_empty() { n += 1 + sr.domains_pass.len(); }
-                    if !sr.domains_fail.is_empty() { n += 1 + sr.domains_fail.len(); }
+            let mut n = 10; // header + 6 net checks + blank
+            for pr in &results.preset_results {
+                n += 1; // preset header
+                n += pr.domain_checks.len();
+                if !pr.strategy_results.is_empty() {
+                    n += 1; // strategy header
+                    for sr in &pr.strategy_results {
+                        n += 1; // strategy name line
+                        n += sr.domain_checks.len();
+                    }
+                    let working_count = pr.strategy_results.iter().filter(|s| s.works).count();
+                    if working_count > 0 {
+                        n += 1; // working summary header
+                        n += working_count;
+                    }
                 }
-                n += 1; // working summary header
-                let working_count = results.strategy_results.iter().filter(|s| s.works).count();
-                n += working_count; // each working strategy
-                // Recommendations
-                n += 1; // recommendation header
-                if results.dns_spoof.status == CheckStatus::Fail { n += 1; }
-                if results.quic_block.status == CheckStatus::Fail { n += 1; }
-                if results.tcp_rst.status == CheckStatus::Fail { n += 1; }
-                if results.sni_block.status == CheckStatus::Fail { n += 1; }
-                n += 1; // generic tip
+                n += 1; // blank
             }
-            n += results.domain_checks.len();
+            if !results.common_strategies.is_empty() {
+                n += 1; // common strategies header
+                n += results.common_strategies.len();
+                n += 1; // blank
+            }
+            n += 1; // back
             n
         } else if let Some(cached) = crate::autotune::load_results_file() {
             cached.lines().count() + 1 // lines + back
@@ -1217,13 +1337,13 @@ impl AppState {
             }
             ActiveScreen::AutotuneSubmenu => {
                 match self.autotune_menu {
-                    AutotuneMenuState::DomainsSource => {
+                    AutotuneMenuState::PresetSelection => {
+                        self.active_screen = ActiveScreen::AutotunePresetSelectionSubmenu;
                         let count = crate::autotune::PRESETS.len();
-                        if forward {
-                            self.autotune_config.preset_index = (self.autotune_config.preset_index + 1) % count;
-                        } else {
-                            self.autotune_config.preset_index = (self.autotune_config.preset_index + count - 1) % count;
+                        if self.autotune_preset_index >= count {
+                            self.autotune_preset_index = count - 1;
                         }
+                        self.status_message = None;
                     }
                     AutotuneMenuState::NumRequests => {
                         if forward {
@@ -1262,19 +1382,26 @@ impl AppState {
                     }
                 }
             }
-            ActiveScreen::AutotuneStrategiesSubmenu => {
-                if forward {
-                    self.toggle_current();
-                } else {
-                    self.active_screen = ActiveScreen::AutotuneSubmenu;
-                    self.status_message = None;
+             ActiveScreen::AutotuneBlockChecksSubmenu => {
+                match self.autotune_block_checks_menu {
+                    AutotuneBlockChecksState::Back => {
+                        self.active_screen = ActiveScreen::AutotuneSubmenu;
+                        self.status_message = None;
+                    }
+                    _ => {
+                        self.toggle_current();
+                    }
                 }
             }
+            ActiveScreen::AutotunePresetSelectionSubmenu => {
+                self.toggle_current();
+            }
+            ActiveScreen::AutotuneStrategiesSubmenu => {
+                self.toggle_current();
+            }
             ActiveScreen::AutotuneResultsSubmenu => {
-                if !forward {
-                    self.active_screen = ActiveScreen::AutotuneSubmenu;
-                    self.status_message = None;
-                }
+                self.active_screen = ActiveScreen::AutotuneSubmenu;
+                self.status_message = None;
             }
             _ => {
                 if forward {

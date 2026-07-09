@@ -4,7 +4,7 @@ use ratatui::{
     style::{Color, Style},
 };
 use crate::autotune::PRESETS;
-use crate::tui::state::{AppState, AutotuneMenuState, AutotuneProtocolsState};
+use crate::tui::state::{AppState, AutotuneMenuState, AutotuneProtocolsState, AutotuneBlockChecksState};
 use crate::tui::theme::Theme;
 
 fn on_off(v: bool) -> &'static str {
@@ -14,11 +14,14 @@ fn on_off(v: bool) -> &'static str {
 pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut items: Vec<ListItem<'static>> = Vec::new();
 
-    let is_sel = app.autotune_menu == AutotuneMenuState::DomainsSource;
-    let preset_name = if app.autotune_config.preset_index < PRESETS.len() {
-        PRESETS[app.autotune_config.preset_index].name
+    let is_sel = app.autotune_menu == AutotuneMenuState::PresetSelection;
+    let preset_names: Vec<&str> = app.autotune_config.preset_indices.iter()
+        .filter_map(|&i| if i < PRESETS.len() { Some(PRESETS[i].name) } else { None })
+        .collect();
+    let preset_label = if preset_names.is_empty() {
+        rust_i18n::t!("menu_autotune_preset_none").into_owned()
     } else {
-        "?"
+        format!("[ {} ]", preset_names.join(", "))
     };
     items.push(ListItem::new(Line::from(vec![
         Span::styled(
@@ -26,7 +29,7 @@ pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) 
             if is_sel { Theme::selected_item() } else { Theme::normal_item() },
         ),
         Span::styled(
-            format!("< {} >", preset_name),
+            format!("< {} >", preset_label),
             if is_sel { Theme::selected_value() } else { Theme::normal_value() },
         ),
     ])));
@@ -85,6 +88,26 @@ pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) 
         ),
         Span::styled(
             format!("< {} >", proto_status),
+            if is_sel { Theme::selected_value() } else { Theme::normal_value() },
+        ),
+    ])));
+
+    let is_sel = app.autotune_menu == AutotuneMenuState::BlockChecks;
+    let enabled_count = app.autotune_config.block_checks.count_enabled();
+    let bc_status = if enabled_count == 0 {
+        rust_i18n::t!("val_off").into_owned()
+    } else if enabled_count == 6 {
+        rust_i18n::t!("val_on").into_owned()
+    } else {
+        format!("{}/6", enabled_count)
+    };
+    items.push(ListItem::new(Line::from(vec![
+        Span::styled(
+            format!(" {}: ", rust_i18n::t!("menu_autotune_blockchecks")),
+            if is_sel { Theme::selected_item() } else { Theme::normal_item() },
+        ),
+        Span::styled(
+            format!("< {} >", bc_status),
             if is_sel { Theme::selected_value() } else { Theme::normal_value() },
         ),
     ])));
@@ -177,6 +200,95 @@ pub fn render_protocols(
         .style(if sel_back { Theme::selected_item() } else { Theme::normal_item() }));
 
     (items, rust_i18n::t!("tui_title_autotune_proto").into_owned(), selected_index)
+}
+
+pub fn render_blockchecks(
+    app: &AppState,
+    bc_menu: AutotuneBlockChecksState,
+) -> (Vec<ListItem<'static>>, String, usize) {
+    use crate::autotune::BlockCheckType;
+    let mut items: Vec<ListItem<'static>> = Vec::new();
+    let mut selected_index = 0;
+
+    let all_types = BlockCheckType::all();
+    for (idx, ty) in all_types.iter().enumerate() {
+        let state = match *ty {
+            BlockCheckType::DnsSpoof => AutotuneBlockChecksState::DnsSpoof,
+            BlockCheckType::TcpRst => AutotuneBlockChecksState::TcpRst,
+            BlockCheckType::SniBlock => AutotuneBlockChecksState::SniBlock,
+            BlockCheckType::SiberianBlock => AutotuneBlockChecksState::SiberianBlock,
+            BlockCheckType::QuicBlock => AutotuneBlockChecksState::QuicBlock,
+            BlockCheckType::CidrWhitelist => AutotuneBlockChecksState::CidrWhitelist,
+        };
+        let sel = state == bc_menu;
+        if sel { selected_index = idx; }
+        let enabled = app.autotune_config.block_checks.get(idx);
+        let toggle = if enabled {
+            rust_i18n::t!("val_on")
+        } else {
+            rust_i18n::t!("val_off")
+        };
+        let toggle_style = if enabled {
+            Theme::active_value()
+        } else {
+            Theme::inactive_value()
+        };
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled(
+                format!(" {}: ", ty.name()),
+                if sel { Theme::selected_item() } else { Theme::normal_item() },
+            ),
+            Span::styled(
+                format!("[ {} ]", toggle),
+                if sel { Theme::selected_value() } else { toggle_style },
+            ),
+        ])));
+    }
+
+    let sel_back = AutotuneBlockChecksState::Back == bc_menu;
+    if sel_back { selected_index = all_types.len(); }
+    items.push(ListItem::new(format!(" {}", rust_i18n::t!("menu_autotune_back")))
+        .style(if sel_back { Theme::selected_item() } else { Theme::normal_item() }));
+
+    (items, rust_i18n::t!("tui_title_autotune_bc").into_owned(), selected_index)
+}
+
+pub fn render_presets(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
+    let mut items: Vec<ListItem<'static>> = Vec::new();
+    let mut selected_index = 0;
+
+    for (idx, preset) in PRESETS.iter().enumerate() {
+        let sel = idx == app.autotune_preset_index;
+        if sel { selected_index = idx; }
+        let is_selected = app.autotune_config.preset_indices.contains(&idx);
+        let toggle = if is_selected {
+            rust_i18n::t!("val_on")
+        } else {
+            rust_i18n::t!("val_off")
+        };
+        let toggle_style = if is_selected {
+            Theme::active_value()
+        } else {
+            Theme::inactive_value()
+        };
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled(
+                format!(" {}: ", preset.name),
+                if sel { Theme::selected_item() } else { Theme::normal_item() },
+            ),
+            Span::styled(
+                format!("[ {} ]", toggle),
+                if sel { Theme::selected_value() } else { toggle_style },
+            ),
+        ])));
+    }
+
+    let sel_back = app.autotune_preset_index >= PRESETS.len();
+    if sel_back { selected_index = PRESETS.len(); }
+    items.push(ListItem::new(format!(" {}", rust_i18n::t!("menu_autotune_back")))
+        .style(if sel_back { Theme::selected_item() } else { Theme::normal_item() }));
+
+    (items, rust_i18n::t!("tui_title_autotune_presets").into_owned(), selected_index)
 }
 
 pub fn render_strategies(
