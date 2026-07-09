@@ -571,11 +571,15 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let interface = app.interfaces.get(app.selected_interface)
                 .map(|s| s.as_str())
                 .unwrap_or("any");
+            #[cfg(target_os = "linux")]
+            let backend: &dyn crate::firewalls::FirewallBackend = &app.selected_backend;
+            #[cfg(target_os = "windows")]
+            let backend: &dyn crate::firewalls::FirewallBackend = &crate::firewalls::windivert::WinDivertBackend;
             let results = crate::autotune::run_all(config, &|done, total| {
                 let pct = done * 100 / total.max(1);
                 print!("\r  {} {}/{} ({}%)", rust_i18n::t!("autotune_progress"), done, total, pct);
                 let _ = std::io::stdout().flush();
-            }, &app.selected_backend, interface);
+            }, backend, interface);
             // Save results to file for persistence across restarts
             crate::autotune::save_results_file(&results);
             println!();
