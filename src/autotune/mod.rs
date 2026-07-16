@@ -870,41 +870,21 @@ fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
 
 fn test_https(domain: &str) -> bool {
     let url = format!("https://{}", domain);
-    let ok = match ureq::AgentBuilder::new()
-        .timeout_connect(std::time::Duration::from_secs(5))
-        .timeout_read(std::time::Duration::from_secs(5))
-        .build()
-        .get(&url)
-        .call()
-    {
-        Ok(_) => true,
-        Err(ureq::Error::Status(_, _)) => true,
-        Err(_) => false,
-    };
-    if !ok {
-        // Fallback: try curl (same method as bash autotune)
-        let curl_ok = std::process::Command::new("curl")
-            .args([
-                "-s", "--tlsv1.3",
-                "--connect-timeout", "4",
-                "--max-time", "4",
-                "-o", "/dev/null",
-                "-w", "%{http_code}",
-                &url,
-            ])
-            .output()
-            .map(|o| {
-                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                code.starts_with('2') || code.starts_with('3')
-            })
-            .unwrap_or(false);
-        if curl_ok {
-            println!("      {} {} (curl OK, ureq failed)", rust_i18n::t!("status_ok"), domain);
-        }
-        curl_ok
-    } else {
-        true
-    }
+    std::process::Command::new("curl")
+        .args([
+            "-s", "--tlsv1.3",
+            "--connect-timeout", "4",
+            "--max-time", "4",
+            "-o", "/dev/null",
+            "-w", "%{http_code}",
+            &url,
+        ])
+        .output()
+        .map(|o| {
+            let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            code.starts_with('2') || code.starts_with('3')
+        })
+        .unwrap_or(false)
 }
 
 fn test_tls(domain: &str, tls_flag: &str) -> bool {
@@ -948,37 +928,21 @@ fn test_quic(domain: &str) -> bool {
 
 fn test_http(domain: &str) -> bool {
     let url = format!("http://{}", domain);
-    let ok = match ureq::AgentBuilder::new()
-        .timeout_connect(std::time::Duration::from_secs(5))
-        .timeout_read(std::time::Duration::from_secs(5))
-        .build()
-        .get(&url)
-        .call()
-    {
-        Ok(_) => true,
-        Err(ureq::Error::Status(_, _)) => true,
-        Err(_) => false,
-    };
-    if !ok {
-        let curl_ok = std::process::Command::new("curl")
-            .args([
-                "-s",
-                "--connect-timeout", "4",
-                "--max-time", "4",
-                "-o", "/dev/null",
-                "-w", "%{http_code}",
-                &url,
-            ])
-            .output()
-            .map(|o| {
-                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                code.starts_with('2') || code.starts_with('3')
-            })
-            .unwrap_or(false);
-        curl_ok
-    } else {
-        true
-    }
+    std::process::Command::new("curl")
+        .args([
+            "-s",
+            "--connect-timeout", "4",
+            "--max-time", "4",
+            "-o", "/dev/null",
+            "-w", "%{http_code}",
+            &url,
+        ])
+        .output()
+        .map(|o| {
+            let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            code.starts_with('2') || code.starts_with('3')
+        })
+        .unwrap_or(false)
 }
 
 pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult {
@@ -1287,13 +1251,13 @@ pub fn run_all(
                 for domain in &blocked_domains {
                     let http_ok = test_http(domain);
                     if http_ok { http_works = true; }
-                    let https_ok = test_https(domain);
+                    let https_ok = if http_ok { test_https(domain) } else { false };
                     if https_ok { https_works = true; }
-                    let tls12_ok = test_tls(domain, "--tlsv1.2");
+                    let tls12_ok = if https_ok { test_tls(domain, "--tlsv1.2") } else { false };
                     if tls12_ok { tls12_works = true; }
-                    let tls13_ok = test_tls(domain, "--tlsv1.3");
+                    let tls13_ok = if tls12_ok { test_tls(domain, "--tlsv1.3") } else { false };
                     if tls13_ok { tls13_works = true; }
-                    let quic_ok = test_quic(domain);
+                    let quic_ok = if tls13_ok { test_quic(domain) } else { false };
                     if quic_ok { quic_works = true; }
 
                     let ok = https_ok || http_ok || tls12_ok || tls13_ok;
