@@ -35,3 +35,14 @@ pub fn ensure_admin() {
         std::process::exit(1);
     }
 }
+
+pub fn is_nfqws_running() -> bool {
+    std::process::Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq nfqws.exe", "/NH"])
+        .output()
+        .map(|o| {
+            let out = String::from_utf8_lossy(&o.stdout);
+            out.contains("nfqws.exe")
+        })
+        .unwrap_or(false)
+}

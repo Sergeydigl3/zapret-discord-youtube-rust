@@ -1085,7 +1085,11 @@ impl AppState {
                         self.status_message = None;
                     }
                     AutotuneMenuState::Run => {
-                        self.should_run_autotune = true;
+                        if crate::platform::is_nfqws_running() {
+                            self.status_message = Some(rust_i18n::t!("autotune_err_nfqws_running").into_owned());
+                        } else {
+                            self.should_run_autotune = true;
+                        }
                     }
                     AutotuneMenuState::Back => {
                         self.active_screen = ActiveScreen::Main;

@@ -5,8 +5,8 @@ use crossterm::{
 };
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
+    layout::{Alignment, Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Borders, List, Paragraph},
     Terminal,
@@ -217,6 +217,27 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     .alignment(ratatui::layout::Alignment::Center);
                 
                 f.render_widget(status_paragraph, main_chunks[2]);
+            } else if app.active_screen == ActiveScreen::AutotuneSubmenu && !app.autotune_running {
+                f.render_widget(&list_block, chunks[1]);
+                let inner = list_block.inner(chunks[1]);
+                let sub = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Length(1),
+                        Constraint::Min(1),
+                    ])
+                    .split(inner);
+                let warning = Paragraph::new(Span::styled(
+                    rust_i18n::t!("autotune_warning_disable"),
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                ))
+                .alignment(Alignment::Center);
+                f.render_widget(warning, sub[0]);
+                let list = List::new(items)
+                    .highlight_style(Style::default().add_modifier(ratatui::style::Modifier::ITALIC));
+                let mut list_state = ratatui::widgets::ListState::default();
+                list_state.select(Some(selected_index));
+                f.render_stateful_widget(list, sub[1], &mut list_state);
             } else {
                 let list = List::new(items)
                     .block(list_block)

@@ -813,11 +813,13 @@ fn check_domain_http(domain: &str, num_req: usize) -> (CheckStatus, usize) {
                     let mut buf = [0u8; 16];
                     match stream.read(&mut buf) {
                         Ok(n) if n > 0 => success += 1,
-                        _ => {}
+                        _ => { return (CheckStatus::Fail, success); }
                     }
+                } else {
+                    return (CheckStatus::Fail, success);
                 }
             }
-            Err(_) => {}
+            Err(_) => { return (CheckStatus::Fail, success); }
         }
     }
     let status = if success > 0 { CheckStatus::Pass } else { CheckStatus::Fail };
@@ -834,7 +836,7 @@ fn check_domain_https(domain: &str, num_req: usize) -> (CheckStatus, usize) {
                 success += 1;
                 let _ = stream.read(&mut buf);
             }
-            Err(_) => {}
+            Err(_) => { return (CheckStatus::Fail, success); }
         }
     }
     let status = if success > 0 { CheckStatus::Pass } else { CheckStatus::Fail };
@@ -854,11 +856,11 @@ fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
             let _ = sock.set_read_timeout(Some(Duration::from_secs(2)));
             let probe = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
             for _ in 0..num_req {
-                if sock.send(probe).is_err() { continue; }
+                if sock.send(probe).is_err() { return (CheckStatus::Fail, success); }
                 let mut buf = [0u8; 64];
                 match sock.recv(&mut buf) {
-                    Ok(n) if n > 0 => { success += 1; break; }
-                    _ => {}
+                    Ok(n) if n > 0 => { success += 1; }
+                    _ => { return (CheckStatus::Fail, success); }
                 }
             }
         }
@@ -868,91 +870,104 @@ fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
     (status, success)
 }
 
-fn test_https(domain: &str) -> bool {
+fn test_https(domain: &str, num_requests: usize) -> bool {
     let url = format!("https://{}", domain);
-    std::process::Command::new("curl")
-        .args([
-            "-s", "--tlsv1.3",
-            "--connect-timeout", "4",
-            "--max-time", "4",
-            "-o", "/dev/null",
-            "-w", "%{http_code}",
-            &url,
-        ])
-        .output()
-        .map(|o| {
-            let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            code.starts_with('2') || code.starts_with('3')
-        })
-        .unwrap_or(false)
+    for _ in 0..num_requests {
+        let ok = std::process::Command::new("curl")
+            .args([
+                "-s", "--tlsv1.3",
+                "--connect-timeout", "4",
+                "--max-time", "4",
+                "-o", "/dev/null",
+                "-w", "%{http_code}",
+                &url,
+            ])
+            .output()
+            .map(|o| {
+                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                code.starts_with('2') || code.starts_with('3')
+            })
+            .unwrap_or(false);
+        if !ok { return false; }
+    }
+    true
 }
 
-fn test_tls(domain: &str, tls_flag: &str) -> bool {
+fn test_tls(domain: &str, tls_flag: &str, num_requests: usize) -> bool {
     let url = format!("https://{}", domain);
-    std::process::Command::new("curl")
-        .args([
-            "-s",
-            tls_flag,
-            "--connect-timeout", "4",
-            "--max-time", "4",
-            "-o", "/dev/null",
-            "-w", "%{http_code}",
-            &url,
-        ])
-        .output()
-        .map(|o| {
-            let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            code.starts_with('2') || code.starts_with('3')
-        })
-        .unwrap_or(false)
+    for _ in 0..num_requests {
+        let ok = std::process::Command::new("curl")
+            .args([
+                "-s",
+                tls_flag,
+                "--connect-timeout", "4",
+                "--max-time", "4",
+                "-o", "/dev/null",
+                "-w", "%{http_code}",
+                &url,
+            ])
+            .output()
+            .map(|o| {
+                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                code.starts_with('2') || code.starts_with('3')
+            })
+            .unwrap_or(false);
+        if !ok { return false; }
+    }
+    true
 }
 
-fn test_quic(domain: &str) -> bool {
+fn test_quic(domain: &str, num_requests: usize) -> bool {
     let url = format!("https://{}", domain);
-    std::process::Command::new("curl")
-        .args([
-            "-s", "--http3",
-            "--connect-timeout", "4",
-            "--max-time", "4",
-            "-o", "/dev/null",
-            "-w", "%{http_code}",
-            &url,
-        ])
-        .output()
-        .map(|o| {
-            let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            !code.is_empty() && code != "000"
-        })
-        .unwrap_or(false)
+    for _ in 0..num_requests {
+        let ok = std::process::Command::new("curl")
+            .args([
+                "-s", "--http3",
+                "--connect-timeout", "4",
+                "--max-time", "4",
+                "-o", "/dev/null",
+                "-w", "%{http_code}",
+                &url,
+            ])
+            .output()
+            .map(|o| {
+                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                !code.is_empty() && code != "000"
+            })
+            .unwrap_or(false);
+        if !ok { return false; }
+    }
+    true
 }
 
-fn test_http(domain: &str) -> bool {
+fn test_http(domain: &str, num_requests: usize) -> bool {
     let url = format!("http://{}", domain);
-    std::process::Command::new("curl")
-        .args([
-            "-s",
-            "--connect-timeout", "4",
-            "--max-time", "4",
-            "-o", "/dev/null",
-            "-w", "%{http_code}",
-            &url,
-        ])
-        .output()
-        .map(|o| {
-            let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            code.starts_with('2') || code.starts_with('3')
-        })
-        .unwrap_or(false)
+    for _ in 0..num_requests {
+        let ok = std::process::Command::new("curl")
+            .args([
+                "-s",
+                "--connect-timeout", "4",
+                "--max-time", "4",
+                "-o", "/dev/null",
+                "-w", "%{http_code}",
+                &url,
+            ])
+            .output()
+            .map(|o| {
+                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                code.starts_with('2') || code.starts_with('3')
+            })
+            .unwrap_or(false);
+        if !ok { return false; }
+    }
+    true
 }
 
 pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult {
     let alive = check_domain_alive(domain);
     let detail;
 
-    let (http, https, tls12, tls13, quic, http_count, https_count, quic_count) = if alive != CheckStatus::Pass && alive != CheckStatus::Skip {
-        detail = "Domain appears blocked (alive check failed)".to_string();
-        (CheckStatus::Skip, CheckStatus::Skip, CheckStatus::Skip, CheckStatus::Skip, CheckStatus::Skip, 0, 0, 0)
-    } else {
+    let (http, https, tls12, tls13, quic, http_count, https_count, quic_count) = if alive == CheckStatus::Pass {
         let mut parts = Vec::new();
 
         let (http, hc) = if config.check_http {
@@ -987,11 +1002,19 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
 
         detail = parts.join(" ");
         (http, https, tls12, tls13, quic, hc, hsc, qc)
+    } else if alive == CheckStatus::Skip {
+        detail = "Domain unreachable (skipped)".to_string();
+        (CheckStatus::Skip, CheckStatus::Skip, CheckStatus::Skip, CheckStatus::Skip, CheckStatus::Skip, 0, 0, 0)
+    } else {
+        detail = "Domain appears blocked (alive check failed)".to_string();
+        (CheckStatus::Skip, CheckStatus::Skip, CheckStatus::Skip, CheckStatus::Skip, CheckStatus::Skip, 0, 0, 0)
     };
 
     // Baseline HTTPS test: real TLS handshake + HTTP request
-    let baseline_pass = if alive == CheckStatus::Pass || alive == CheckStatus::Skip {
-        test_https(domain)
+    let baseline_pass = if alive == CheckStatus::Pass {
+        test_https(domain, config.num_requests)
+    } else if alive == CheckStatus::Skip {
+        true
     } else {
         false
     };
@@ -1214,12 +1237,7 @@ pub fn run_all(
 
                 std::thread::sleep(Duration::from_secs(3));
 
-                let nfqws_alive = std::process::Command::new("pgrep")
-                    .arg("-x")
-                    .arg("nfqws")
-                    .output()
-                    .map(|o| o.status.success())
-                    .unwrap_or(false);
+                let nfqws_alive = crate::platform::is_nfqws_running();
 
                 if !nfqws_alive {
                     println!("    {} {} (nfqws exited early)", rust_i18n::t!("status_failed"), strat_name);
@@ -1249,15 +1267,15 @@ pub fn run_all(
                 let mut quic_works = false;
                 let mut dc_results = Vec::new();
                 for domain in &blocked_domains {
-                    let http_ok = test_http(domain);
+                    let http_ok = test_http(domain, config.num_requests);
                     if http_ok { http_works = true; }
-                    let https_ok = if http_ok { test_https(domain) } else { false };
+                    let https_ok = test_https(domain, config.num_requests);
                     if https_ok { https_works = true; }
-                    let tls12_ok = if https_ok { test_tls(domain, "--tlsv1.2") } else { false };
+                    let tls12_ok = test_tls(domain, "--tlsv1.2", config.num_requests);
                     if tls12_ok { tls12_works = true; }
-                    let tls13_ok = if tls12_ok { test_tls(domain, "--tlsv1.3") } else { false };
+                    let tls13_ok = test_tls(domain, "--tlsv1.3", config.num_requests);
                     if tls13_ok { tls13_works = true; }
-                    let quic_ok = if tls13_ok { test_quic(domain) } else { false };
+                    let quic_ok = test_quic(domain, config.num_requests);
                     if quic_ok { quic_works = true; }
 
                     let ok = https_ok || http_ok || tls12_ok || tls13_ok;
