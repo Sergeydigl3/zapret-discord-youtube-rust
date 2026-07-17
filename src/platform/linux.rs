@@ -33,3 +33,12 @@ pub fn ensure_admin() {
         std::process::exit(1);
     }
 }
+
+pub fn is_nfqws_running() -> bool {
+    std::process::Command::new("pgrep")
+        .arg("-x")
+        .arg("nfqws")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
