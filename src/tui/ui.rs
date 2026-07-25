@@ -17,7 +17,7 @@ use crate::autotune::{CheckStatus, StrategyCheckResult};
 use crate::tui::state::{
     ActiveScreen, AppState, VersionTarget, MainMenuState,
     DownloadDepsMenuState, DownloadSubmenuState,
-    GamefilterMenuState, AutotuneMenuState, AutotuneProtocolsState,
+    GamefilterMenuState, FakesMenuState, AutotuneMenuState, AutotuneProtocolsState,
     AutotuneBlockChecksState,
 };
 use crate::tui::menus;
@@ -77,6 +77,8 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::DownloadZapretSubmenu => rust_i18n::t!("tui_title_download_zapret"),
                 ActiveScreen::DownloadStrategiesSubmenu => rust_i18n::t!("tui_title_download_strat"),
                 ActiveScreen::GamefilterSubmenu => rust_i18n::t!("tui_title_gamefilter"),
+                ActiveScreen::FakesSubmenu => rust_i18n::t!("tui_title_fakes"),
+                ActiveScreen::FakesSelectSubmenu => rust_i18n::t!("menu_fakes_select_title"),
                 ActiveScreen::ZapretTagSelect => rust_i18n::t!("tui_title_tag_zapret"),
                 ActiveScreen::StrategyTagSelect => rust_i18n::t!("tui_title_tag_strat"),
                 ActiveScreen::ServiceSubmenu => rust_i18n::t!("tui_title_service"),
@@ -109,6 +111,12 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::DownloadZapretSubmenu => menus::download_submenu::render(app, true),
                 ActiveScreen::DownloadStrategiesSubmenu => menus::download_submenu::render(app, false),
                 ActiveScreen::GamefilterSubmenu => menus::gamefilter_menu::render(app),
+                ActiveScreen::FakesSubmenu => menus::fakes_menu::render(app),
+                ActiveScreen::FakesSelectSubmenu => menus::fakes_menu::render_select(
+                    &app.fakes_state,
+                    &app.fakes_select_for,
+                    app.fakes_select_index,
+                ),
                 ActiveScreen::ZapretTagSelect => menus::tag_menu::render(&app.available_nfqws_tags, app.nfqws_tag_index, &rust_i18n::t!("menu_tag_title_zapret")),
                 ActiveScreen::StrategyTagSelect => menus::tag_menu::render(&app.available_strat_tags, app.strat_tag_index, &rust_i18n::t!("menu_tag_title_strat")),
                 ActiveScreen::ServiceSubmenu => menus::service_menu::render(app),
@@ -263,6 +271,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     MainMenuState::ServiceSettings => rust_i18n::t!("help_srv"),
                     MainMenuState::ListsEditor => rust_i18n::t!("help_lists"),
                     MainMenuState::Autotune => rust_i18n::t!("help_autotune"),
+                    MainMenuState::FakesSettings => rust_i18n::t!("help_fakes"),
                     MainMenuState::Run => rust_i18n::t!("help_run"),
                     MainMenuState::Quit => rust_i18n::t!("help_quit"),
                 },
@@ -289,6 +298,11 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     GamefilterMenuState::Udp => rust_i18n::t!("help_gf_udp"),
                     GamefilterMenuState::Back => rust_i18n::t!("help_back"),
                 },
+                ActiveScreen::FakesSubmenu => match app.fakes_menu {
+                    FakesMenuState::DiscordUdp | FakesMenuState::GameUdp => rust_i18n::t!("help_fakes_sel"),
+                    FakesMenuState::Back => rust_i18n::t!("help_back"),
+                },
+                ActiveScreen::FakesSelectSubmenu => rust_i18n::t!("help_fakes_select"),
                 #[cfg(target_os = "windows")]
                 ActiveScreen::DefenderSubmenu => rust_i18n::t!("help_def_sel"),
                 ActiveScreen::StrategySubmenu => rust_i18n::t!("help_strat_sel"),
@@ -392,6 +406,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                                 | ActiveScreen::AutotuneStrategiesSubmenu
                                 | ActiveScreen::AutotuneResultsSubmenu => {
                                     app.active_screen = ActiveScreen::AutotuneSubmenu;
+                                }
+                                ActiveScreen::FakesSelectSubmenu => {
+                                    app.active_screen = ActiveScreen::FakesSubmenu;
                                 }
                                 ActiveScreen::Main => {
                                     app.should_quit = true;

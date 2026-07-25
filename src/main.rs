@@ -1,6 +1,7 @@
 mod autotune;
 mod config;
 mod download;
+mod fakes;
 mod firewalls;
 pub mod inits;
 mod platform;
