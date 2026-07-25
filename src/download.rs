@@ -3,8 +3,8 @@ use std::fs;
 
 
 pub const ZAPRET_REPO: &str = "bol-van/zapret";
-pub const ZAPRET_REC_VER: &str = "v72.9";
-pub const STRAT_REC_VER: &str = "ef19845a801e4e743f7bdfdbd58f9745c6adbd60";
+pub const ZAPRET_REC_VER: &str = "v72.13";
+pub const STRAT_REC_VER: &str = "9503dc045133000af8075e066f09bb469008e530";
 
 const STRAT_REPO_ZIP: &str = "https://github.com/Flowseal/zapret-discord-youtube/archive/refs/heads/main.zip";
 
