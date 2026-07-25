@@ -144,6 +144,16 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         index += 1;
     }
 
+    // FakesSettings
+    {
+        let is_sel = app.main_menu == MainMenuState::FakesSettings;
+        if is_sel { selected_index = index; }
+        items.push(ListItem::new(format!(" {}", rust_i18n::t!("menu_main_fakes"))).style(
+            if is_sel { Theme::selected_item() } else { Theme::normal_item() }
+        ));
+        index += 1;
+    }
+
     // ServiceSettings
     {
         let is_sel = app.main_menu == MainMenuState::ServiceSettings;

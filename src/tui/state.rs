@@ -11,6 +11,8 @@ pub enum ActiveScreen {
     DownloadZapretSubmenu,
     DownloadStrategiesSubmenu,
     GamefilterSubmenu,
+    FakesSubmenu,
+    FakesSelectSubmenu,
     ZapretTagSelect,
     StrategyTagSelect,
     ServiceSubmenu,
@@ -36,6 +38,7 @@ pub enum MainMenuState {
     IpsetMode,
     ListsEditor,
     Autotune,
+    FakesSettings,
     ServiceSettings,
     Run,
     Quit,
@@ -57,7 +60,8 @@ impl MainMenuState {
             Self::GamefilterSettings => Self::IpsetMode,
             Self::IpsetMode => Self::ListsEditor,
             Self::ListsEditor => Self::Autotune,
-            Self::Autotune => Self::ServiceSettings,
+            Self::Autotune => Self::FakesSettings,
+            Self::FakesSettings => Self::ServiceSettings,
             Self::ServiceSettings => Self::Run,
             Self::Run => Self::Quit,
             #[cfg(target_os = "windows")]
@@ -86,7 +90,8 @@ impl MainMenuState {
             Self::IpsetMode => Self::GamefilterSettings,
             Self::ListsEditor => Self::IpsetMode,
             Self::Autotune => Self::ListsEditor,
-            Self::ServiceSettings => Self::Autotune,
+            Self::FakesSettings => Self::Autotune,
+            Self::ServiceSettings => Self::FakesSettings,
             Self::Run => Self::ServiceSettings,
             Self::Quit => Self::Run,
         }
@@ -117,6 +122,37 @@ impl GamefilterMenuState {
             Self::Back => Self::Udp,
         }
     }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum FakesMenuState {
+    DiscordUdp,
+    GameUdp,
+    Back,
+}
+
+impl FakesMenuState {
+    pub fn next(self) -> Self {
+        match self {
+            Self::DiscordUdp => Self::GameUdp,
+            Self::GameUdp => Self::Back,
+            Self::Back => Self::DiscordUdp,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::DiscordUdp => Self::Back,
+            Self::GameUdp => Self::DiscordUdp,
+            Self::Back => Self::GameUdp,
+        }
+    }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum FakesSelectTarget {
+    DiscordUdp,
+    GameUdp,
 }
 
 #[cfg(target_os = "windows")]
@@ -290,6 +326,10 @@ pub struct AppState {
     pub download_zapret_menu: DownloadSubmenuState,
     pub download_strategies_menu: DownloadSubmenuState,
     pub gamefilter_menu: GamefilterMenuState,
+    pub fakes_state: crate::fakes::FakesState,
+    pub fakes_menu: FakesMenuState,
+    pub fakes_select_index: usize,
+    pub fakes_select_for: FakesSelectTarget,
     pub nfqws_target: VersionTarget,
     pub strat_target: VersionTarget,
 
@@ -391,6 +431,10 @@ impl AppState {
             download_zapret_menu: DownloadSubmenuState::Version,
             download_strategies_menu: DownloadSubmenuState::Version,
             gamefilter_menu: GamefilterMenuState::Tcp,
+            fakes_state: crate::fakes::load_fakes_state(),
+            fakes_menu: FakesMenuState::DiscordUdp,
+            fakes_select_index: 0,
+            fakes_select_for: FakesSelectTarget::DiscordUdp,
             nfqws_target: VersionTarget::Recommended,
             strat_target: VersionTarget::Recommended,
 
@@ -543,6 +587,13 @@ impl AppState {
             ActiveScreen::DownloadZapretSubmenu => self.download_zapret_menu = self.download_zapret_menu.next(),
             ActiveScreen::DownloadStrategiesSubmenu => self.download_strategies_menu = self.download_strategies_menu.next(),
             ActiveScreen::GamefilterSubmenu => self.gamefilter_menu = self.gamefilter_menu.next(),
+            ActiveScreen::FakesSubmenu => self.fakes_menu = self.fakes_menu.next(),
+            ActiveScreen::FakesSelectSubmenu => {
+                let max = self.fakes_state.available.len() + 2;
+                if max > 0 {
+                    self.fakes_select_index = (self.fakes_select_index + 1) % max;
+                }
+            }
             ActiveScreen::ZapretTagSelect => {
                 if !self.available_nfqws_tags.is_empty() {
                     self.nfqws_tag_index = (self.nfqws_tag_index + 1) % (self.available_nfqws_tags.len() + 1);
@@ -636,6 +687,13 @@ impl AppState {
             ActiveScreen::DownloadZapretSubmenu => self.download_zapret_menu = self.download_zapret_menu.prev(),
             ActiveScreen::DownloadStrategiesSubmenu => self.download_strategies_menu = self.download_strategies_menu.prev(),
             ActiveScreen::GamefilterSubmenu => self.gamefilter_menu = self.gamefilter_menu.prev(),
+            ActiveScreen::FakesSubmenu => self.fakes_menu = self.fakes_menu.prev(),
+            ActiveScreen::FakesSelectSubmenu => {
+                let max = self.fakes_state.available.len() + 2;
+                if max > 0 {
+                    self.fakes_select_index = (self.fakes_select_index + max - 1) % max;
+                }
+            }
             ActiveScreen::ZapretTagSelect => {
                 if !self.available_nfqws_tags.is_empty() {
                     let max = self.available_nfqws_tags.len() + 1;
@@ -783,6 +841,12 @@ impl AppState {
                         self.active_screen = ActiveScreen::AutotuneSubmenu;
                         self.autotune_menu_index = 0;
                         self.autotune_menu = AutotuneMenuState::PresetSelection;
+                        self.status_message = None;
+                    }
+                    MainMenuState::FakesSettings => {
+                        self.fakes_state = crate::fakes::load_fakes_state();
+                        self.active_screen = ActiveScreen::FakesSubmenu;
+                        self.fakes_menu = FakesMenuState::DiscordUdp;
                         self.status_message = None;
                     }
                     MainMenuState::Run => {
@@ -944,6 +1008,50 @@ impl AppState {
                         self.active_screen = ActiveScreen::Main;
                         self.status_message = None;
                     }
+                }
+            }
+            ActiveScreen::FakesSubmenu => {
+                match self.fakes_menu {
+                    FakesMenuState::DiscordUdp => {
+                        self.fakes_select_for = FakesSelectTarget::DiscordUdp;
+                        self.fakes_select_index = if self.fakes_state.available.is_empty() { 0 } else { 1 };
+                        self.active_screen = ActiveScreen::FakesSelectSubmenu;
+                        self.status_message = None;
+                    }
+                    FakesMenuState::GameUdp => {
+                        self.fakes_select_for = FakesSelectTarget::GameUdp;
+                        self.fakes_select_index = if self.fakes_state.available.is_empty() { 0 } else { 1 };
+                        self.active_screen = ActiveScreen::FakesSelectSubmenu;
+                        self.status_message = None;
+                    }
+                    FakesMenuState::Back => {
+                        self.active_screen = ActiveScreen::Main;
+                        self.status_message = None;
+                    }
+                }
+            }
+            ActiveScreen::FakesSelectSubmenu => {
+                let file_count = self.fakes_state.available.len();
+                if self.fakes_select_index >= 1 && self.fakes_select_index <= file_count {
+                    let source_idx = self.fakes_select_index - 1;
+                    let source = self.fakes_state.available[source_idx].clone();
+                    let target: crate::fakes::FakeTarget = match self.fakes_select_for {
+                        FakesSelectTarget::DiscordUdp => crate::fakes::FakeTarget::DiscordUdp,
+                        FakesSelectTarget::GameUdp => crate::fakes::FakeTarget::GameUdp,
+                    };
+                    match crate::fakes::replace_active_fake(&self.fakes_state, &target, &source) {
+                        Ok(()) => {
+                            self.fakes_state = crate::fakes::load_fakes_state();
+                            self.active_screen = ActiveScreen::FakesSubmenu;
+                            self.status_message = Some(rust_i18n::t!("msg_fakes_replaced").into_owned());
+                        }
+                        Err(e) => {
+                            self.show_error(e);
+                        }
+                    }
+                } else {
+                    self.active_screen = ActiveScreen::FakesSubmenu;
+                    self.status_message = None;
                 }
             }
             ActiveScreen::ServiceSubmenu => {
@@ -1338,6 +1446,23 @@ impl AppState {
                         }
                     }
                 }
+            }
+            ActiveScreen::FakesSubmenu => {
+                match self.fakes_menu {
+                    FakesMenuState::DiscordUdp | FakesMenuState::GameUdp => {
+                        if forward {
+                            self.toggle_current();
+                        }
+                    }
+                    _ => {
+                        if forward {
+                            self.toggle_current();
+                        }
+                    }
+                }
+            }
+            ActiveScreen::FakesSelectSubmenu => {
+                self.toggle_current();
             }
             ActiveScreen::AutotuneSubmenu => {
                 match self.autotune_menu {
