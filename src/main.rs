@@ -11,6 +11,7 @@ mod strategy;
 mod tui;
 mod utils;
 mod ipset;
+mod logger;
 
 rust_i18n::i18n!("locales", fallback = "en");
 
