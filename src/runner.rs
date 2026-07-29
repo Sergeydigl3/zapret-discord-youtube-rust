@@ -5,6 +5,8 @@ use std::fs;
 use std::path::Path;
 use std::process::{Child, Command};
 use std::sync::Mutex;
+use std::thread;
+use std::time::Duration;
 
 static NFQWS_PROCESSES: Mutex<Vec<Child>> = Mutex::new(Vec::new());
 
@@ -16,6 +18,8 @@ pub fn run_zapret(
     use_udp: bool,
     backend: &dyn FirewallBackend,
 ) {
+    let mut term: Vec<String> = Vec::new();
+
     // 1. Parse strategy file
     let repo_dir = env::var("REPO_DIR").unwrap_or_else(|_| {
         crate::config::get_cache_dir()
@@ -69,7 +73,9 @@ pub fn run_zapret(
     }
 
     // 5. Start nfqws
-    println!("{}", rust_i18n::t!("msg_start_nfqws"));
+    let msg = rust_i18n::t!("msg_start_nfqws").to_string();
+    term.push(msg.clone());
+    println!("{}", msg);
 
     let bin_dir = crate::config::get_cache_dir().join("bin");
     let bin_name = if env::consts::OS == "windows" {
@@ -80,7 +86,9 @@ pub fn run_zapret(
     let bin_path = bin_dir.join(bin_name);
 
     if !bin_path.exists() {
-        println!("{}", rust_i18n::t!("err_bin_miss").replace("{:?}", &format!("{:?}", bin_path)));
+        let msg = rust_i18n::t!("err_bin_miss").replace("{:?}", &format!("{:?}", bin_path));
+        term.push(msg.clone());
+        println!("{}", msg);
         return;
     }
 
@@ -90,7 +98,11 @@ pub fn run_zapret(
         .output();
     match cap_status {
         Ok(o) if o.status.success() => (),
-        _ => println!("{}", rust_i18n::t!("err_setcap")),
+        _ => {
+            let msg = rust_i18n::t!("err_setcap").to_string();
+            term.push(msg.clone());
+            println!("{}", msg);
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -114,18 +126,69 @@ pub fn run_zapret(
         }
     }
 
-    println!("{}{:?} {:?}", rust_i18n::t!("msg_cmd"), bin_path, args);
-    match Command::new(&bin_path).args(&args).current_dir(&repo_path).spawn() {
+    let cmd_msg = format!("{}{:?} {:?}", rust_i18n::t!("msg_cmd"), bin_path, args);
+    term.push(cmd_msg.clone());
+    println!("{}", cmd_msg);
+
+    // Capture nfqws output to a temp file
+    let tmp_log = crate::config::get_cache_dir().join("logs").join("nfqws_output.tmp");
+    let _ = fs::create_dir_all(tmp_log.parent().unwrap());
+    let output_file = match fs::File::create(&tmp_log) {
+        Ok(f) => f,
+        Err(_) => {
+            let msg = format!("failed to create temp log file");
+            term.push(msg.clone());
+            println!("{}", msg);
+            return;
+        }
+    };
+
+    let out_dup = match output_file.try_clone() {
+        Ok(f) => f,
+        Err(_) => {
+            let msg = format!("failed to clone temp log file handle");
+            term.push(msg.clone());
+            println!("{}", msg);
+            return;
+        }
+    };
+
+    match Command::new(&bin_path)
+        .args(&args)
+        .current_dir(&repo_path)
+        .stdout(output_file)
+        .stderr(out_dup)
+        .spawn()
+    {
         Ok(child) => {
             if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
                 procs.push(child);
             }
-            println!("{}", rust_i18n::t!("msg_nfqws_run"));
+
+            let msg = rust_i18n::t!("msg_nfqws_run").to_string();
+            term.push(msg.clone());
+            println!("{}", msg);
+
+            // Wait briefly for nfqws startup output
+            thread::sleep(Duration::from_millis(300));
+
+            // Read captured output
+            let nfqws_out = fs::read_to_string(&tmp_log).unwrap_or_default();
+            let _ = fs::remove_file(&tmp_log);
+
+            if !nfqws_out.is_empty() {
+                term.push(nfqws_out.clone());
+                print!("{}", nfqws_out);
+            }
         }
         Err(e) => {
-            println!("{}{}", rust_i18n::t!("err_start_nfqws"), e);
+            let msg = format!("{}{}", rust_i18n::t!("err_start_nfqws"), e);
+            term.push(msg.clone());
+            println!("{}", msg);
         }
     }
+
+    crate::logger::log_nfqws_launch(&bin_path.to_string_lossy(), &parsed.nfqws_params, &term);
 }
 
 /// Run zapret silently for autotune (no println, returns Result).
@@ -215,6 +278,7 @@ pub fn run_zapret_silent(
         }
     }
 
+    crate::logger::log_nfqws_launch(&bin_path.to_string_lossy(), &parsed.nfqws_params, &[]);
     match Command::new(&bin_path).args(&args).current_dir(&repo_path).spawn() {
         Ok(child) => {
             if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
@@ -228,7 +292,12 @@ pub fn run_zapret_silent(
 
 /// Clear the firewall rules and stop any running processes.
 pub fn stop_zapret(backend: &dyn FirewallBackend) {
-    println!("{}", rust_i18n::t!("msg_zapret_stop"));
+    let mut term: Vec<String> = Vec::new();
+
+    let msg = rust_i18n::t!("msg_zapret_stop").to_string();
+    term.push(msg.clone());
+    println!("{}", msg);
+
     if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
         for child in procs.iter_mut() {
             let _ = child.kill();
@@ -236,6 +305,12 @@ pub fn stop_zapret(backend: &dyn FirewallBackend) {
         }
         procs.clear();
     }
+
     let _ = backend.clear();
-    println!("{}", rust_i18n::t!("msg_zapret_clear"));
+
+    let msg = rust_i18n::t!("msg_zapret_clear").to_string();
+    term.push(msg.clone());
+    println!("{}", msg);
+
+    crate::logger::log_stop(&term);
 }
