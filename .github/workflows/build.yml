@@ -1,0 +1,53 @@
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      upload-artifacts:
+        description: 'Whether to upload build artifacts'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            output-binary: zapret-rust-linux-x86_64
+            src-binary: zapret-rust
+          - target: x86_64-pc-windows-gnu
+            output-binary: zapret-rust-windows-x86_64.exe
+            src-binary: zapret-rust.exe
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Rust Environment
+        uses: ./.github/actions/setup-rust
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Zig and cargo-zigbuild
+        run: pip install ziglang cargo-zigbuild
+
+      - name: Build binary (cargo zigbuild)
+        run: cargo zigbuild --release --target ${{ matrix.target }}
+
+      - name: Prepare binary artifact
+        if: inputs.upload-artifacts
+        run: |
+          cp target/${{ matrix.target }}/release/${{ matrix.src-binary }} ./${{ matrix.output-binary }}
+
+      - name: Save build output for publish job
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.target }}
+          path: ${{ matrix.output-binary }}
