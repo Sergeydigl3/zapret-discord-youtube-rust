@@ -22,5 +22,5 @@ runs:
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
       with:
-        shared-key: "zapret-rust-${{ runner.os }}"
+        prefix-key: "zapret-rust"
         cache-targets: "true"

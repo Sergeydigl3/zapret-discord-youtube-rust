@@ -1,57 +1,40 @@
-name: Release Packages
+# Integration with release-please:
+# - release-please creates the draft GitHub Release + tag
+# - This workflow triggers on the tag push, runs build.yml (cargo zigbuild),
+#   and uploads the compiled binaries directly to the GitHub Release using gh CLI.
+
+name: Release
+
+permissions:
+  contents: write
 
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - '[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
-  build-linux:
-    name: Build Linux Packages
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      upload-artifacts: true
+
+  publish:
+    needs: build
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Rust Environment
-        uses: ./.github/actions/setup-rust
+      - name: Fetch build outputs
+        uses: actions/download-artifact@v4
         with:
-          targets: x86_64-unknown-linux-gnu
+          pattern: build-artifacts-*
+          merge-multiple: true
 
-      - name: Install cargo-deb and cargo-generate-rpm
+      - name: Upload artifacts to GitHub Release
         run: |
-          cargo install cargo-deb || true
-          cargo install cargo-generate-rpm || true
-
-      - name: Build release binary
-        run: cargo build --release --target x86_64-unknown-linux-gnu
-
-      - name: Generate DEB package
-        run: cargo deb --target x86_64-unknown-linux-gnu --no-build
-
-      - name: Generate RPM package
-        run: |
-          # Strip the binary before packaging
-          strip target/x86_64-unknown-linux-gnu/release/zapret-rust
-          cargo generate-rpm --target x86_64-unknown-linux-gnu
-
-      - name: Upload DEB Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: zapret-rust-deb
-          path: target/x86_64-unknown-linux-gnu/debian/*.deb
-
-      - name: Upload RPM Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: zapret-rust-rpm
-          path: target/x86_64-unknown-linux-gnu/generate-rpm/*.rpm
-
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            target/x86_64-unknown-linux-gnu/debian/*.deb
-            target/x86_64-unknown-linux-gnu/generate-rpm/*.rpm
+          gh release upload ${{ github.ref_name }} zapret-rust-* --clobber
+          gh release edit ${{ github.ref_name }} --draft=false
