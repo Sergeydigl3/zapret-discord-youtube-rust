@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 description = "Zapret-Rust TUI implementation for DPI bypass"
+repository = "https://github.com/Sergeydigl3/zapret-discord-youtube-rust"
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
@@ -29,18 +30,4 @@ windows-service = "0.6.0"
 name = "zapret-rust"
 path = "src/main.rs"
 
-[package.metadata.deb]
-maintainer = "Sergey <sergey@example.com>"
-copyright = "2024"
-extended-description = "Zapret-Rust TUI implementation for DPI bypass"
-depends = "$auto"
-section = "net"
-priority = "optional"
-assets = [
-    ["target/release/zapret-rust", "usr/bin/zapret-rust", "755"],
-]
 
-[package.metadata.generate-rpm]
-assets = [
-    { source = "target/release/zapret-rust", dest = "/usr/bin/zapret-rust", mode = "755" }
-]
