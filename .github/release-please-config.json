@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "rust",
+      "draft": true,
+      "changelog-sections": [
+        { "type": "feat", "section": "🚀 Новые функции", "hidden": false },
+        { "type": "fix", "section": "🐛 Исправления ошибок", "hidden": false },
+        { "type": "perf", "section": "⚡ Улучшения производительности", "hidden": false },
+        { "type": "refactor", "section": "♻️ Рефакторинг кода", "hidden": false },
+        { "type": "docs", "section": "📝 Документация", "hidden": false },
+        { "type": "chore", "section": "🔧 Обслуживание и зависимости", "hidden": false },
+        { "type": "style", "section": "🎨 Стиль кода", "hidden": true },
+        { "type": "test", "section": "✅ Тесты", "hidden": true }
+      ]
+    }
+  }
+}
