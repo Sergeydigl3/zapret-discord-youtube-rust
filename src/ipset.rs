@@ -24,7 +24,7 @@ pub fn get_ipset_dir() -> PathBuf {
     let exe_dir = std::env::current_exe()
         .map(|p| p.parent().unwrap().to_path_buf())
         .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
-        
+
     let base_dir = exe_dir.join("zapret-discord-youtube-linux");
     let lists_dir = base_dir.join("lists");
 
@@ -64,7 +64,10 @@ pub fn determine_current_mode() -> IpsetMode {
         return IpsetMode::Any;
     }
 
-    let content = fs::read_to_string(&path).unwrap_or_default().trim().to_string();
+    let content = fs::read_to_string(&path)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
 
     if content == "203.0.113.113/32" {
         return IpsetMode::None;
@@ -76,7 +79,10 @@ pub fn determine_current_mode() -> IpsetMode {
 
     let backup_path = get_ipset_backup_path();
     if backup_path.exists() {
-        let backup_content = fs::read_to_string(&backup_path).unwrap_or_default().trim().to_string();
+        let backup_content = fs::read_to_string(&backup_path)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
         if content == backup_content {
             return IpsetMode::Loaded;
         }
@@ -92,11 +98,11 @@ pub fn get_available_modes() -> Vec<IpsetMode> {
 
     let mut modes = vec![IpsetMode::None, IpsetMode::Any, IpsetMode::Loaded];
     let custom_path = get_ipset_custom_path();
-    
+
     if custom_path.exists() || determine_current_mode() == IpsetMode::Custom {
         modes.push(IpsetMode::Custom);
     }
-    
+
     modes
 }
 

@@ -16,7 +16,7 @@ pub fn ensure_admin() {
     if not_root {
         println!("{}", rust_i18n::t!("root_req"));
 
-        // Try pkexec first via exec(). 
+        // Try pkexec first via exec().
         // exec() replaces the current process. It only returns if it fails to start the binary.
         let _err1 = std::process::Command::new("pkexec")
             .arg(std::env::current_exe().unwrap_or_default())

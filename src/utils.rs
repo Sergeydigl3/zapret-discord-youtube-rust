@@ -1,14 +1,14 @@
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 pub fn get_lists_files() -> Vec<String> {
     let mut files = Vec::new();
-    
+
     // Check next to executable first
     let exe_dir = std::env::current_exe()
         .map(|p| p.parent().unwrap().to_path_buf())
         .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
-        
+
     let base_dir = exe_dir.join("zapret-discord-youtube-linux");
     let lists_dir = base_dir.join("lists");
 
@@ -34,7 +34,7 @@ pub fn get_lists_files() -> Vec<String> {
         // Fallback to current directory for dev mode
         let local_base = Path::new("zapret-discord-youtube-linux");
         let local_lists = local_base.join("lists");
-        
+
         if local_lists.exists() && local_lists.is_dir() {
             if let Ok(entries) = fs::read_dir(local_lists) {
                 for entry in entries.flatten() {
@@ -55,7 +55,7 @@ pub fn get_lists_files() -> Vec<String> {
             }
         }
     }
-    
+
     files.sort();
     files
 }
@@ -76,9 +76,7 @@ pub fn open_editor(file_path: &str) -> std::io::Result<std::process::ExitStatus>
             continue;
         }
 
-        let status = std::process::Command::new(editor)
-            .arg(file_path)
-            .status();
+        let status = std::process::Command::new(editor).arg(file_path).status();
 
         if let Ok(st) = status {
             if st.success() || st.code().is_some() {

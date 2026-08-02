@@ -1,11 +1,11 @@
 #![cfg(target_os = "windows")]
 
+use crate::inits::ServiceManager;
 use std::path::Path;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
-use crate::inits::ServiceManager;
 
 // We will use standard windows-service API when compiling on Windows
 use windows_service::{
@@ -33,7 +33,8 @@ impl WindowsServiceManager {
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let cmd_str = args.iter()
+            let cmd_str = args
+                .iter()
                 .map(|a| a.as_ref().to_string_lossy().into_owned())
                 .collect::<Vec<String>>()
                 .join(" ");
@@ -77,9 +78,15 @@ impl ServiceManager for WindowsServiceManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
-        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
-        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
+        let exe_str = exe_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         // Format binPath with correct arguments. SCM expects space after 'binPath=' and 'start='
         let bin_path_arg = format!(
@@ -101,7 +108,10 @@ impl ServiceManager for WindowsServiceManager {
 
     fn uninstall(&self) -> Result<(), String> {
         // Stop service first (ignore errors)
-        let _ = Command::new("sc").arg("stop").arg(Self::SERVICE_NAME).output();
+        let _ = Command::new("sc")
+            .arg("stop")
+            .arg(Self::SERVICE_NAME)
+            .output();
         thread::sleep(Duration::from_millis(500));
 
         self.run_sc(&["delete", Self::SERVICE_NAME])?;

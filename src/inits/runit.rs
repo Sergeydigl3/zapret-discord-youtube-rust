@@ -1,7 +1,7 @@
+use crate::inits::ServiceManager;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use crate::inits::ServiceManager;
 
 pub struct RunitManager;
 
@@ -31,7 +31,11 @@ impl RunitManager {
                 "sv {} {} failed: {}",
                 action,
                 Self::SERVICE_NAME,
-                if stderr.is_empty() { format!("exit code {:?}", output.status.code()) } else { stderr }
+                if stderr.is_empty() {
+                    format!("exit code {:?}", output.status.code())
+                } else {
+                    stderr
+                }
             ))
         }
     }
@@ -57,9 +61,15 @@ impl ServiceManager for RunitManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
-        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
-        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
+        let exe_str = exe_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         // 1. Create SV dir
         fs::create_dir_all(Self::SV_DIR)

@@ -1,7 +1,7 @@
+use crate::inits::ServiceManager;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use crate::inits::ServiceManager;
 
 pub struct DinitManager;
 
@@ -25,7 +25,11 @@ impl DinitManager {
                 "dinitctl {} {} failed: {}",
                 action,
                 Self::SERVICE_NAME,
-                if stderr.is_empty() { format!("exit code {:?}", output.status.code()) } else { stderr }
+                if stderr.is_empty() {
+                    format!("exit code {:?}", output.status.code())
+                } else {
+                    stderr
+                }
             ))
         }
     }
@@ -51,9 +55,15 @@ impl ServiceManager for DinitManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
-        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
-        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
+        let exe_str = exe_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         let service_content = format!(
             r#"type = simple
@@ -69,9 +79,13 @@ restart-delay = 5
 
         // Try to enable it by symlinking in boot.d
         if let Err(e) = fs::create_dir_all(Self::BOOT_DIR) {
-            println!("  (could not create boot.d directory, auto-start might not work: {})", e);
+            println!(
+                "  (could not create boot.d directory, auto-start might not work: {})",
+                e
+            );
         } else {
-            if Path::new(Self::BOOT_LINK).exists() || fs::symlink_metadata(Self::BOOT_LINK).is_ok() {
+            if Path::new(Self::BOOT_LINK).exists() || fs::symlink_metadata(Self::BOOT_LINK).is_ok()
+            {
                 let _ = fs::remove_file(Self::BOOT_LINK);
             }
             #[cfg(unix)]

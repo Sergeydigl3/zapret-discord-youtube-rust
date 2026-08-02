@@ -58,14 +58,15 @@ pub fn run_zapret(
     }
 
     // 3. Kill any leftover nfqws processes from previous runs
-    let _ = Command::new("pkill")
-        .arg("-9")
-        .arg("nfqws")
-        .output();
+    let _ = Command::new("pkill").arg("-9").arg("nfqws").output();
 
     // 4. Ensure user list files exist (original scripts create empty ones)
     let lists_dir = repo_path.join("lists");
-    for name in &["list-general-user.txt", "list-exclude-user.txt", "ipset-exclude-user.txt"] {
+    for name in &[
+        "list-general-user.txt",
+        "list-exclude-user.txt",
+        "ipset-exclude-user.txt",
+    ] {
         let path = lists_dir.join(name);
         if !path.exists() {
             let _ = fs::write(&path, "");
@@ -131,7 +132,9 @@ pub fn run_zapret(
     println!("{}", cmd_msg);
 
     // Capture nfqws output to a temp file
-    let tmp_log = crate::config::get_cache_dir().join("logs").join("nfqws_output.tmp");
+    let tmp_log = crate::config::get_cache_dir()
+        .join("logs")
+        .join("nfqws_output.tmp");
     let _ = fs::create_dir_all(tmp_log.parent().unwrap());
     let output_file = match fs::File::create(&tmp_log) {
         Ok(f) => f,
@@ -221,20 +224,24 @@ pub fn run_zapret_silent(
         None
     };
 
-    let parsed = strategy::parse_bat_file(path.to_str().ok_or("invalid strategy path")?, game_filter.as_ref())
-        .map_err(|e| format!("parse error: {}", e))?;
+    let parsed = strategy::parse_bat_file(
+        path.to_str().ok_or("invalid strategy path")?,
+        game_filter.as_ref(),
+    )
+    .map_err(|e| format!("parse error: {}", e))?;
 
     if let Err(e) = backend.setup(&parsed.tcp_ports, &parsed.udp_ports, interface) {
         return Err(format!("firewall setup error: {}", e));
     }
 
-    let _ = Command::new("pkill")
-        .arg("-9")
-        .arg("nfqws")
-        .output();
+    let _ = Command::new("pkill").arg("-9").arg("nfqws").output();
 
     let lists_dir = repo_path.join("lists");
-    for name in &["list-general-user.txt", "list-exclude-user.txt", "ipset-exclude-user.txt"] {
+    for name in &[
+        "list-general-user.txt",
+        "list-exclude-user.txt",
+        "ipset-exclude-user.txt",
+    ] {
         let lists_path = lists_dir.join(name);
         if !lists_path.exists() {
             let _ = fs::write(&lists_path, "");
@@ -279,7 +286,11 @@ pub fn run_zapret_silent(
     }
 
     crate::logger::log_nfqws_launch(&bin_path.to_string_lossy(), &parsed.nfqws_params, &[]);
-    match Command::new(&bin_path).args(&args).current_dir(&repo_path).spawn() {
+    match Command::new(&bin_path)
+        .args(&args)
+        .current_dir(&repo_path)
+        .spawn()
+    {
         Ok(child) => {
             if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
                 procs.push(child);

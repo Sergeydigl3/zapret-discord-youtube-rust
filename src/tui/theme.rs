@@ -22,7 +22,9 @@ impl Theme {
     }
 
     pub fn normal_value() -> Style {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn dim_item() -> Style {
@@ -30,7 +32,9 @@ impl Theme {
     }
 
     pub fn active_value() -> Style {
-        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn inactive_value() -> Style {
@@ -38,7 +42,9 @@ impl Theme {
     }
 
     pub fn header_style() -> Style {
-        Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn block_title() -> Style {

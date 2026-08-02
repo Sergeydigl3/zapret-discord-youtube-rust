@@ -1,7 +1,7 @@
+use crate::inits::ServiceManager;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use crate::inits::ServiceManager;
 
 pub struct InitManager;
 
@@ -22,14 +22,23 @@ impl InitManager {
                 "{} {} failed: {}",
                 Self::SCRIPT_PATH,
                 action,
-                if stderr.is_empty() { format!("exit code {:?}", output.status.code()) } else { stderr }
+                if stderr.is_empty() {
+                    format!("exit code {:?}", output.status.code())
+                } else {
+                    stderr
+                }
             ))
         }
     }
 
     fn register_service(&self) -> Result<(), String> {
         // Try update-rc.d first (Debian/Ubuntu/Devuan)
-        if Command::new("which").arg("update-rc.d").output().map(|o| o.status.success()).unwrap_or(false) {
+        if Command::new("which")
+            .arg("update-rc.d")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
             let output = Command::new("update-rc.d")
                 .arg(Self::SERVICE_NAME)
                 .arg("defaults")
@@ -41,7 +50,12 @@ impl InitManager {
             }
         }
         // Fallback to chkconfig (RedHat/CentOS/openSUSE)
-        else if Command::new("which").arg("chkconfig").output().map(|o| o.status.success()).unwrap_or(false) {
+        else if Command::new("which")
+            .arg("chkconfig")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
             let output = Command::new("chkconfig")
                 .arg("--add")
                 .arg(Self::SERVICE_NAME)
@@ -56,11 +70,21 @@ impl InitManager {
     }
 
     fn unregister_service(&self) -> Result<(), String> {
-        if Command::new("which").arg("update-rc.d").output().map(|o| o.status.success()).unwrap_or(false) {
+        if Command::new("which")
+            .arg("update-rc.d")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
             let _ = Command::new("update-rc.d")
                 .args(["-f", Self::SERVICE_NAME, "remove"])
                 .output();
-        } else if Command::new("which").arg("chkconfig").output().map(|o| o.status.success()).unwrap_or(false) {
+        } else if Command::new("which")
+            .arg("chkconfig")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
             let _ = Command::new("chkconfig")
                 .arg("--del")
                 .arg(Self::SERVICE_NAME)
@@ -79,9 +103,7 @@ impl ServiceManager for InitManager {
         if !self.is_installed() {
             return false;
         }
-        let output = Command::new(Self::SCRIPT_PATH)
-            .arg("status")
-            .output();
+        let output = Command::new(Self::SCRIPT_PATH).arg("status").output();
         match output {
             Ok(out) => out.status.success(),
             Err(_) => false,
@@ -89,9 +111,15 @@ impl ServiceManager for InitManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
-        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
-        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
+        let exe_str = exe_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         let script_content = format!(
             r#"#!/bin/sh

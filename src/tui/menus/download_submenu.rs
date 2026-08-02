@@ -1,18 +1,23 @@
+use crate::tui::state::{AppState, DownloadSubmenuState, VersionTarget};
+use crate::tui::theme::Theme;
 use ratatui::{
     text::{Line, Span},
     widgets::ListItem,
 };
-use crate::tui::state::{AppState, DownloadSubmenuState, VersionTarget};
-use crate::tui::theme::Theme;
 
-pub fn render(
-    app: &AppState,
-    is_zapret: bool,
-) -> (Vec<ListItem<'static>>, String, usize) {
+pub fn render(app: &AppState, is_zapret: bool) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
-    
-    let menu_state = if is_zapret { app.download_zapret_menu } else { app.download_strategies_menu };
-    let target_ver = if is_zapret { &app.nfqws_target } else { &app.strat_target };
+
+    let menu_state = if is_zapret {
+        app.download_zapret_menu
+    } else {
+        app.download_strategies_menu
+    };
+    let target_ver = if is_zapret {
+        &app.nfqws_target
+    } else {
+        &app.strat_target
+    };
 
     let is_version_selected = menu_state == DownloadSubmenuState::Version;
     let label_style = if is_version_selected {
@@ -28,9 +33,7 @@ pub fn render(
         rust_i18n::t!("menu_subdl_title_strat")
     };
 
-    let mut version_spans = vec![
-        Span::styled(version_title.into_owned(), label_style),
-    ];
+    let mut version_spans = vec![Span::styled(version_title.into_owned(), label_style)];
 
     let rec_ver_str = if is_zapret {
         crate::download::ZAPRET_REC_VER.to_string()
@@ -41,12 +44,18 @@ pub fn render(
     let latest_label = rust_i18n::t!("val_latest");
 
     let options = vec![
-        (VersionTarget::Recommended, format!("{} ({})", rust_i18n::t!("val_rec"), rec_ver_str)),
+        (
+            VersionTarget::Recommended,
+            format!("{} ({})", rust_i18n::t!("val_rec"), rec_ver_str),
+        ),
         (VersionTarget::Latest, latest_label.into_owned()),
-        (VersionTarget::Tag("".to_string()), match target_ver {
-            VersionTarget::Tag(t) => rust_i18n::t!("val_tag_fmt").replace("{}", &t),
-            _ => rust_i18n::t!("val_tag").into_owned(),
-        }),
+        (
+            VersionTarget::Tag("".to_string()),
+            match target_ver {
+                VersionTarget::Tag(t) => rust_i18n::t!("val_tag_fmt").replace("{}", &t),
+                _ => rust_i18n::t!("val_tag").into_owned(),
+            },
+        ),
     ];
 
     for (opt_ver, label) in options {
@@ -64,7 +73,7 @@ pub fn render(
                     Theme::selected_value()
                 } else {
                     Theme::normal_value()
-                }
+                },
             ));
         } else {
             version_spans.push(Span::styled(
@@ -73,19 +82,26 @@ pub fn render(
                     Theme::dim_item().patch(Theme::selected_item())
                 } else {
                     Theme::dim_item()
-                }
+                },
             ));
         }
     }
 
-    let mut items = vec![
-        ListItem::new(Line::from(version_spans)),
-    ];
+    let mut items = vec![ListItem::new(Line::from(version_spans))];
 
     let other_items = vec![
-        (DownloadSubmenuState::SelectTag, format!("   {}", rust_i18n::t!("menu_subdl_tag"))),
-        (DownloadSubmenuState::Start, format!(" {}", rust_i18n::t!("menu_subdl_start"))),
-        (DownloadSubmenuState::Back, format!(" {}", rust_i18n::t!("menu_subdl_back"))),
+        (
+            DownloadSubmenuState::SelectTag,
+            format!("   {}", rust_i18n::t!("menu_subdl_tag")),
+        ),
+        (
+            DownloadSubmenuState::Start,
+            format!(" {}", rust_i18n::t!("menu_subdl_start")),
+        ),
+        (
+            DownloadSubmenuState::Back,
+            format!(" {}", rust_i18n::t!("menu_subdl_back")),
+        ),
     ];
 
     for (state, m) in other_items {
@@ -96,7 +112,7 @@ pub fn render(
             DownloadSubmenuState::Back => 3,
             _ => 0,
         };
-        
+
         if is_selected {
             selected_index = index;
             items.push(ListItem::new(m).style(Theme::selected_item()));
@@ -105,6 +121,10 @@ pub fn render(
         }
     }
 
-    let block_title = if is_zapret { rust_i18n::t!("tui_title_download_zapret").into_owned() } else { rust_i18n::t!("tui_title_download_strat").into_owned() };
+    let block_title = if is_zapret {
+        rust_i18n::t!("tui_title_download_zapret").into_owned()
+    } else {
+        rust_i18n::t!("tui_title_download_strat").into_owned()
+    };
     (items, block_title, selected_index)
 }

@@ -1,6 +1,6 @@
-use ratatui::widgets::ListItem;
 use crate::tui::state::{AppState, DownloadDepsMenuState};
 use crate::tui::theme::Theme;
+use ratatui::widgets::ListItem;
 
 pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
@@ -10,7 +10,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         format!(" {}", rust_i18n::t!("menu_dl_defaults")),
         format!(" {}", rust_i18n::t!("menu_dl_back")),
     ];
-    
+
     let items: Vec<ListItem> = menu_items
         .into_iter()
         .enumerate()
@@ -22,7 +22,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
                 DownloadDepsMenuState::Back if i == 3 => true,
                 _ => false,
             };
-            
+
             if is_selected {
                 selected_index = i;
                 ListItem::new(m).style(Theme::selected_item())
@@ -32,5 +32,9 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         })
         .collect();
 
-    (items, rust_i18n::t!("menu_dl_title").into_owned(), selected_index)
+    (
+        items,
+        rust_i18n::t!("menu_dl_title").into_owned(),
+        selected_index,
+    )
 }

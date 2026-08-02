@@ -1,7 +1,7 @@
+use crate::inits::ServiceManager;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use crate::inits::ServiceManager;
 
 pub struct OpenRcManager;
 
@@ -23,7 +23,11 @@ impl OpenRcManager {
                 "rc-service {} {} failed: {}",
                 Self::SERVICE_NAME,
                 action,
-                if stderr.is_empty() { format!("exit code {:?}", output.status.code()) } else { stderr }
+                if stderr.is_empty() {
+                    format!("exit code {:?}", output.status.code())
+                } else {
+                    stderr
+                }
             ))
         }
     }
@@ -44,7 +48,11 @@ impl OpenRcManager {
                 action,
                 Self::SERVICE_NAME,
                 runlevel,
-                if stderr.is_empty() { format!("exit code {:?}", output.status.code()) } else { stderr }
+                if stderr.is_empty() {
+                    format!("exit code {:?}", output.status.code())
+                } else {
+                    stderr
+                }
             ))
         }
     }
@@ -67,9 +75,15 @@ impl ServiceManager for OpenRcManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
-        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
-        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
+        let exe_str = exe_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let config_str = config_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         let script_content = format!(
             r#"#!/sbin/openrc-run
@@ -94,11 +108,13 @@ depend() {{
             .map_err(|e| format!("{}{}", rust_i18n::t!("err_write_openrc"), e))?;
 
         #[cfg(unix)]
-        {{
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(Self::SCRIPT_PATH, fs::Permissions::from_mode(0o755))
-                .map_err(|e| format!("{}{}", rust_i18n::t!("err_chmod_openrc"), e))?;
-        }}
+        {
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(Self::SCRIPT_PATH, fs::Permissions::from_mode(0o755))
+                    .map_err(|e| format!("{}{}", rust_i18n::t!("err_chmod_openrc"), e))?;
+            }
+        }
 
         self.run_rc_update("add", "default")?;
 

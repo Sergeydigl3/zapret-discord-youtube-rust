@@ -1,30 +1,29 @@
 // Linux
 #[cfg(target_os = "linux")]
-pub mod init;
+pub mod dinit;
 #[cfg(target_os = "linux")]
-pub mod systemd;
+pub mod init;
 #[cfg(target_os = "linux")]
 pub mod openrc;
 #[cfg(target_os = "linux")]
 pub mod runit;
 #[cfg(target_os = "linux")]
-pub mod dinit;
-#[cfg(target_os = "linux")]
 pub mod s6;
+#[cfg(target_os = "linux")]
+pub mod systemd;
 
-
+#[cfg(target_os = "linux")]
+pub use dinit::DinitManager;
 #[cfg(target_os = "linux")]
 pub use init::InitManager;
-#[cfg(target_os = "linux")]
-pub use systemd::SystemdManager;
 #[cfg(target_os = "linux")]
 pub use openrc::OpenRcManager;
 #[cfg(target_os = "linux")]
 pub use runit::RunitManager;
 #[cfg(target_os = "linux")]
-pub use dinit::DinitManager;
-#[cfg(target_os = "linux")]
 pub use s6::S6Manager;
+#[cfg(target_os = "linux")]
+pub use systemd::SystemdManager;
 
 // Windows
 #[cfg(target_os = "windows")]
@@ -105,21 +104,36 @@ pub fn detect_init_system() -> Option<InitType> {
 
         // 3. Check dinit (usually dinitctl exists or checking process name/etc)
         if Path::new("/etc/dinit.d").exists() {
-            if std::process::Command::new("which").arg("dinitctl").output().map(|o| o.status.success()).unwrap_or(false) {
+            if std::process::Command::new("which")
+                .arg("dinitctl")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+            {
                 return Some(InitType::Dinit);
             }
         }
 
         // 4. Check runit (directory /etc/runit or command runsvdir/sv)
         if Path::new("/etc/runit").exists() || Path::new("/var/service").exists() {
-            if std::process::Command::new("which").arg("sv").output().map(|o| o.status.success()).unwrap_or(false) {
+            if std::process::Command::new("which")
+                .arg("sv")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+            {
                 return Some(InitType::Runit);
             }
         }
 
         // 5. Check s6
         if Path::new("/etc/s6").exists() {
-            if std::process::Command::new("which").arg("s6-svstat").output().map(|o| o.status.success()).unwrap_or(false) {
+            if std::process::Command::new("which")
+                .arg("s6-svstat")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+            {
                 return Some(InitType::S6);
             }
         }
@@ -153,7 +167,7 @@ pub fn get_manager(init_type: InitType) -> Box<dyn ServiceManager> {
         InitType::S6 => Box::new(S6Manager),
         #[cfg(target_os = "linux")]
         InitType::Init => Box::new(InitManager),
-        
+
         #[cfg(target_os = "windows")]
         InitType::Windows => Box::new(WindowsServiceManager),
     }
