@@ -36,6 +36,50 @@ cargo build --release
 
 ---
 
+### 1.2 Установка через Nix (Flakes)
+
+Если у вас установлен Nix с поддержкой Flakes, вы можете запустить или установить утилиту прямо из репозитория. Учтите, что пакет собирается из исходников - у проекта нет бинарного кэша, поэтому при первом запуске произойдёт локальная компиляция:
+
+```bash
+nix run github:Sergeydigl3/zapret-discord-youtube-rust
+```
+
+Добавление в конфигурацию NixOS (пример):
+
+```nix
+{
+  inputs.zapret-rust.url = "github:Sergeydigl3/zapret-discord-youtube-rust";
+
+  outputs = { self, nixpkgs, zapret-rust, ... }: {
+    nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./configuration.nix
+        {
+          environment.systemPackages = [
+            zapret-rust.packages.x86_64-linux.default
+          ];
+        }
+      ];
+    };
+  };
+}
+```
+
+Бинарник оборачивается (`wrapProgram`) так, что при запуске ему доступны `nftables` и `polkit` из PATH.
+
+#### Среда разработки
+
+Используйте предоставленный dev-шелл (flake):
+
+```bash
+nix develop .
+```
+
+Он включает компоненты Rust-тулчейна: `cargo`, `rustc`, `rustfmt`, `clippy`, `rust-analyzer`, а также `nftables` и `polkit`.
+
+---
+
 ### 2. Запуск в интерактивном режиме (TUI)
 
 Просто запустите утилиту без аргументов. Она сама проверит права и при необходимости запросит пароль:
