@@ -30,16 +30,9 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
             Theme::normal_value()
         };
 
-        let current = app
-            .fakes_state
-            .discord_active
-            .as_deref()
-            .unwrap_or(&none_label);
+        let current = app.fakes_state.discord_active.as_deref().unwrap_or(&none_label);
         let spans = vec![
-            Span::styled(
-                format!(" {}: ", rust_i18n::t!("menu_fakes_discord")),
-                label_style,
-            ),
+            Span::styled(format!(" {}: ", rust_i18n::t!("menu_fakes_discord")), label_style),
             Span::styled(format!("< {} >", current), val_style),
         ];
         items.push(ListItem::new(Line::from(spans)));
@@ -63,16 +56,9 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
             Theme::normal_value()
         };
 
-        let current = app
-            .fakes_state
-            .game_active
-            .as_deref()
-            .unwrap_or(&none_label);
+        let current = app.fakes_state.game_active.as_deref().unwrap_or(&none_label);
         let spans = vec![
-            Span::styled(
-                format!(" {}: ", rust_i18n::t!("menu_fakes_game")),
-                label_style,
-            ),
+            Span::styled(format!(" {}: ", rust_i18n::t!("menu_fakes_game")), label_style),
             Span::styled(format!("< {} >", current), val_style),
         ];
         items.push(ListItem::new(Line::from(spans)));
@@ -93,11 +79,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         items.push(ListItem::new(format!(" {}", rust_i18n::t!("menu_fakes_back"))).style(style));
     }
 
-    (
-        items,
-        rust_i18n::t!("menu_fakes_title").into_owned(),
-        selected_index,
-    )
+    (items, rust_i18n::t!("menu_fakes_title").into_owned(), selected_index)
 }
 
 pub fn render_select(
@@ -142,13 +124,11 @@ pub fn render_select(
     // Available .bin files
     for fake in &state.available {
         let is_sel = index == selected_index;
-        items.push(
-            ListItem::new(format!("   {}", fake.filename)).style(if is_sel {
-                Theme::selected_item()
-            } else {
-                Theme::normal_item()
-            }),
-        );
+        items.push(ListItem::new(format!("   {}", fake.filename)).style(if is_sel {
+            Theme::selected_item()
+        } else {
+            Theme::normal_item()
+        }));
         index += 1;
     }
 

@@ -9,11 +9,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         .iter()
         .enumerate()
         .map(|(i, s)| {
-            let prefix = if i == app.selected_strategy {
-                "✅ "
-            } else {
-                "   "
-            };
+            let prefix = if i == app.selected_strategy { "✅ " } else { "   " };
             let m = format!(" {}{}", prefix, s);
             if i == app.strategy_menu_index {
                 selected_index = i;
@@ -30,16 +26,11 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
     }
 
     let back_item = if back_selected {
-        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back")))
-            .style(Theme::selected_item())
+        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::selected_item())
     } else {
         ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::normal_item())
     };
 
     items.push(back_item);
-    (
-        items,
-        rust_i18n::t!("tui_title_strategy").into_owned(),
-        selected_index,
-    )
+    (items, rust_i18n::t!("tui_title_strategy").into_owned(), selected_index)
 }

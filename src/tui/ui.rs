@@ -16,9 +16,8 @@ use std::io::{self, Write};
 use crate::autotune::{CheckStatus, StrategyCheckResult};
 use crate::tui::menus;
 use crate::tui::state::{
-    ActiveScreen, AppState, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState,
-    DownloadDepsMenuState, DownloadSubmenuState, FakesMenuState, GamefilterMenuState,
-    MainMenuState, VersionTarget,
+    ActiveScreen, AppState, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState, DownloadDepsMenuState,
+    DownloadSubmenuState, FakesMenuState, GamefilterMenuState, MainMenuState, VersionTarget,
 };
 use crate::tui::theme::Theme;
 
@@ -52,14 +51,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .margin(3)
-                .constraints(
-                    [
-                        Constraint::Length(3),
-                        Constraint::Min(9),
-                        Constraint::Length(3),
-                    ]
-                    .as_ref(),
-                )
+                .constraints([Constraint::Length(3), Constraint::Min(9), Constraint::Length(3)].as_ref())
                 .split(f.size());
 
             let title_block = Block::default()
@@ -96,12 +88,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::AutotuneResultsSubmenu => rust_i18n::t!("tui_title_autotune_results"),
             };
 
-            let title = Paragraph::new(Line::from(vec![Span::styled(
-                title_text,
-                Theme::header_style(),
-            )]))
-            .alignment(ratatui::layout::Alignment::Center)
-            .block(title_block);
+            let title = Paragraph::new(Line::from(vec![Span::styled(title_text, Theme::header_style())]))
+                .alignment(ratatui::layout::Alignment::Center)
+                .block(title_block);
 
             f.render_widget(title, chunks[0]);
 
@@ -112,16 +101,12 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::StrategySubmenu => menus::strategy_menu::render(app),
                 ActiveScreen::DownloadDepsSubmenu => menus::download_menu::render(app),
                 ActiveScreen::DownloadZapretSubmenu => menus::download_submenu::render(app, true),
-                ActiveScreen::DownloadStrategiesSubmenu => {
-                    menus::download_submenu::render(app, false)
-                }
+                ActiveScreen::DownloadStrategiesSubmenu => menus::download_submenu::render(app, false),
                 ActiveScreen::GamefilterSubmenu => menus::gamefilter_menu::render(app),
                 ActiveScreen::FakesSubmenu => menus::fakes_menu::render(app),
-                ActiveScreen::FakesSelectSubmenu => menus::fakes_menu::render_select(
-                    &app.fakes_state,
-                    &app.fakes_select_for,
-                    app.fakes_select_index,
-                ),
+                ActiveScreen::FakesSelectSubmenu => {
+                    menus::fakes_menu::render_select(&app.fakes_state, &app.fakes_select_for, app.fakes_select_index)
+                }
                 ActiveScreen::ZapretTagSelect => menus::tag_menu::render(
                     &app.available_nfqws_tags,
                     app.nfqws_tag_index,
@@ -133,9 +118,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     &rust_i18n::t!("menu_tag_title_strat"),
                 ),
                 ActiveScreen::ServiceSubmenu => menus::service_menu::render(app),
-                ActiveScreen::ListsEditorSubmenu => {
-                    menus::lists_menu::render(&app.lists_files, app.lists_menu_index)
-                }
+                ActiveScreen::ListsEditorSubmenu => menus::lists_menu::render(&app.lists_files, app.lists_menu_index),
                 ActiveScreen::AutotuneSubmenu => {
                     if app.autotune_running {
                         menus::autotune_menu::render_header()
@@ -149,9 +132,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::AutotuneBlockChecksSubmenu => {
                     menus::autotune_menu::render_blockchecks(app, app.autotune_block_checks_menu)
                 }
-                ActiveScreen::AutotunePresetSelectionSubmenu => {
-                    menus::autotune_menu::render_presets(app)
-                }
+                ActiveScreen::AutotunePresetSelectionSubmenu => menus::autotune_menu::render_presets(app),
                 ActiveScreen::AutotuneStrategiesSubmenu => {
                     menus::autotune_menu::render_strategies(app, app.autotune_strat_index)
                 }
@@ -177,18 +158,13 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 let inner_area = list_block.inner(chunks[1]);
                 let main_chunks = Layout::default()
                     .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Min(1),
-                        Constraint::Length(1),
-                        Constraint::Length(1),
-                    ])
+                    .constraints([Constraint::Min(1), Constraint::Length(1), Constraint::Length(1)])
                     .split(inner_area);
 
                 f.render_widget(list_block, chunks[1]);
 
-                let list = List::new(items).highlight_style(
-                    Style::default().add_modifier(ratatui::style::Modifier::ITALIC),
-                );
+                let list =
+                    List::new(items).highlight_style(Style::default().add_modifier(ratatui::style::Modifier::ITALIC));
                 let mut list_state = ratatui::widgets::ListState::default();
                 list_state.select(Some(selected_index));
                 f.render_stateful_widget(list, main_chunks[0], &mut list_state);
@@ -220,10 +196,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 };
 
                 let service_status_text = Line::from(vec![
-                    Span::styled(
-                        rust_i18n::t!("status_srv_title"),
-                        Style::default().fg(Color::Gray),
-                    ),
+                    Span::styled(rust_i18n::t!("status_srv_title"), Style::default().fg(Color::Gray)),
                     Span::styled(service_type_str, Style::default().fg(Color::White)),
                     Span::styled("): ", Style::default().fg(Color::Gray)),
                     Span::styled(
@@ -235,22 +208,15 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     Span::raw(" "),
                     Span::raw(status_icon),
                 ]);
-                let service_status_paragraph = Paragraph::new(service_status_text)
-                    .alignment(ratatui::layout::Alignment::Center);
+                let service_status_paragraph =
+                    Paragraph::new(service_status_text).alignment(ratatui::layout::Alignment::Center);
                 f.render_widget(service_status_paragraph, main_chunks[1]);
 
                 // Dependencies status line
                 let nfqws_status = if app.nfqws_installed { "✅" } else { "❌" };
-                let strat_status = if app.strategies_installed {
-                    "✅"
-                } else {
-                    "❌"
-                };
+                let strat_status = if app.strategies_installed { "✅" } else { "❌" };
                 let status_text = Line::from(vec![
-                    Span::styled(
-                        rust_i18n::t!("status_deps_title"),
-                        Style::default().fg(Color::Gray),
-                    ),
+                    Span::styled(rust_i18n::t!("status_deps_title"), Style::default().fg(Color::Gray)),
                     Span::styled("nfqws ", Style::default().fg(Color::White)),
                     Span::raw(nfqws_status),
                     Span::styled(
@@ -259,8 +225,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     ),
                     Span::raw(strat_status),
                 ]);
-                let status_paragraph =
-                    Paragraph::new(status_text).alignment(ratatui::layout::Alignment::Center);
+                let status_paragraph = Paragraph::new(status_text).alignment(ratatui::layout::Alignment::Center);
 
                 f.render_widget(status_paragraph, main_chunks[2]);
             } else if app.active_screen == ActiveScreen::AutotuneSubmenu && !app.autotune_running {
@@ -272,22 +237,19 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     .split(inner);
                 let warning = Paragraph::new(Span::styled(
                     rust_i18n::t!("autotune_warning_disable"),
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
                 ))
                 .alignment(Alignment::Center);
                 f.render_widget(warning, sub[0]);
-                let list = List::new(items).highlight_style(
-                    Style::default().add_modifier(ratatui::style::Modifier::ITALIC),
-                );
+                let list =
+                    List::new(items).highlight_style(Style::default().add_modifier(ratatui::style::Modifier::ITALIC));
                 let mut list_state = ratatui::widgets::ListState::default();
                 list_state.select(Some(selected_index));
                 f.render_stateful_widget(list, sub[1], &mut list_state);
             } else {
-                let list = List::new(items).block(list_block).highlight_style(
-                    Style::default().add_modifier(ratatui::style::Modifier::ITALIC),
-                );
+                let list = List::new(items)
+                    .block(list_block)
+                    .highlight_style(Style::default().add_modifier(ratatui::style::Modifier::ITALIC));
 
                 let mut list_state = ratatui::widgets::ListState::default();
                 list_state.select(Some(selected_index));
@@ -586,10 +548,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
             terminal.show_cursor()?;
 
-            let res = crate::download::install_dependencies(
-                crate::download::ZAPRET_REC_VER,
-                "recommended",
-            );
+            let res = crate::download::install_dependencies(crate::download::ZAPRET_REC_VER, "recommended");
 
             if res.is_ok() {
                 println!("{}", rust_i18n::t!("msg_dl_ok"));
@@ -666,8 +625,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             #[cfg(target_os = "linux")]
             let backend: &dyn crate::firewalls::FirewallBackend = &app.selected_backend;
             #[cfg(target_os = "windows")]
-            let backend: &dyn crate::firewalls::FirewallBackend =
-                &crate::firewalls::windivert::WinDivertBackend;
+            let backend: &dyn crate::firewalls::FirewallBackend = &crate::firewalls::windivert::WinDivertBackend;
             let results = crate::autotune::run_all(
                 config,
                 &|done, total| {
@@ -716,15 +674,26 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     .map(|_| app.autotune_config.num_requests)
                     .unwrap_or(3);
                 for dc in &pr.domain_checks {
-                    println!("  {}: alive={} HTTP:{}({}/{}) HTTPS:{}({}/{}) TLS1.2={} TLS1.3={} QUIC:{}({}/{}) baseline={}",
+                    println!(
+                        "  {}: alive={} HTTP:{}({}/{}) HTTPS:{}({}/{}) TLS1.2={} TLS1.3={} QUIC:{}({}/{}) baseline={}",
                         dc.domain,
                         status_str(&dc.alive),
-                        status_str(&dc.http), dc.http_count, req_count,
-                        status_str(&dc.https), dc.https_count, req_count,
+                        status_str(&dc.http),
+                        dc.http_count,
+                        req_count,
+                        status_str(&dc.https),
+                        dc.https_count,
+                        req_count,
                         status_str(&dc.tls12),
                         status_str(&dc.tls13),
-                        status_str(&dc.quic), dc.quic_count, req_count,
-                        status_str(if dc.baseline_pass { &CheckStatus::Pass } else { &CheckStatus::Fail }),
+                        status_str(&dc.quic),
+                        dc.quic_count,
+                        req_count,
+                        status_str(if dc.baseline_pass {
+                            &CheckStatus::Pass
+                        } else {
+                            &CheckStatus::Fail
+                        }),
                     );
                 }
                 if !pr.strategy_results.is_empty() {
@@ -757,8 +726,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                             );
                         }
                     }
-                    let working: Vec<&StrategyCheckResult> =
-                        pr.strategy_results.iter().filter(|s| s.works).collect();
+                    let working: Vec<&StrategyCheckResult> = pr.strategy_results.iter().filter(|s| s.works).collect();
                     if working.is_empty() {
                         println!("    {}", rust_i18n::t!("autotune_strat_none_work"));
                     } else {

@@ -10,10 +10,7 @@ use std::time::Duration;
 // We will use standard windows-service API when compiling on Windows
 use windows_service::{
     define_windows_service,
-    service::{
-        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
-        ServiceType,
-    },
+    service::{ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType},
     service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle},
     service_dispatcher,
 };
@@ -49,10 +46,7 @@ impl WindowsServiceManager {
 
 impl ServiceManager for WindowsServiceManager {
     fn is_installed(&self) -> bool {
-        let output = Command::new("sc")
-            .arg("query")
-            .arg(Self::SERVICE_NAME)
-            .output();
+        let output = Command::new("sc").arg("query").arg(Self::SERVICE_NAME).output();
         match output {
             Ok(out) => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -64,10 +58,7 @@ impl ServiceManager for WindowsServiceManager {
     }
 
     fn is_active(&self) -> bool {
-        let output = Command::new("sc")
-            .arg("query")
-            .arg(Self::SERVICE_NAME)
-            .output();
+        let output = Command::new("sc").arg("query").arg(Self::SERVICE_NAME).output();
         match output {
             Ok(out) if out.status.success() => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -78,9 +69,7 @@ impl ServiceManager for WindowsServiceManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path
-            .to_str()
-            .ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
         let config_str = config_path
             .to_str()
             .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
@@ -108,10 +97,7 @@ impl ServiceManager for WindowsServiceManager {
 
     fn uninstall(&self) -> Result<(), String> {
         // Stop service first (ignore errors)
-        let _ = Command::new("sc")
-            .arg("stop")
-            .arg(Self::SERVICE_NAME)
-            .output();
+        let _ = Command::new("sc").arg("stop").arg(Self::SERVICE_NAME).output();
         thread::sleep(Duration::from_millis(500));
 
         self.run_sc(&["delete", Self::SERVICE_NAME])?;

@@ -33,9 +33,5 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         })
         .collect();
 
-    (
-        items,
-        rust_i18n::t!("menu_srv_title").into_owned(),
-        selected_index,
-    )
+    (items, rust_i18n::t!("menu_srv_title").into_owned(), selected_index)
 }

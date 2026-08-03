@@ -144,9 +144,5 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         items.push(ListItem::new(format!(" {}", rust_i18n::t!("menu_gf_back"))).style(style));
     }
 
-    (
-        items,
-        rust_i18n::t!("menu_gf_title").into_owned(),
-        selected_index,
-    )
+    (items, rust_i18n::t!("menu_gf_title").into_owned(), selected_index)
 }

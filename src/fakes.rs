@@ -108,11 +108,7 @@ pub fn load_fakes_state() -> FakesState {
     }
 }
 
-pub fn replace_active_fake(
-    state: &FakesState,
-    target: &FakeTarget,
-    source: &FakeFile,
-) -> Result<(), String> {
+pub fn replace_active_fake(state: &FakesState, target: &FakeTarget, source: &FakeFile) -> Result<(), String> {
     let dest = state.bin_dir.join(target.active_filename());
     fs::copy(&source.path, &dest).map_err(|e| format!("{}: {}", source.filename, e))?;
 

@@ -1,21 +1,13 @@
 use crate::tui::theme::Theme;
 use ratatui::widgets::ListItem;
 
-pub fn render(
-    tags: &[String],
-    selected_tag_index: usize,
-    title: &str,
-) -> (Vec<ListItem<'static>>, String, usize) {
+pub fn render(tags: &[String], selected_tag_index: usize, title: &str) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
     let mut items: Vec<ListItem> = tags
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            let prefix = if i == selected_tag_index {
-                "➡️ "
-            } else {
-                "   "
-            };
+            let prefix = if i == selected_tag_index { "➡️ " } else { "   " };
             let m = format!(" {}{}", prefix, t);
             if i == selected_tag_index {
                 selected_index = i;
@@ -32,8 +24,7 @@ pub fn render(
     }
 
     let back_item = if back_selected {
-        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back")))
-            .style(Theme::selected_item())
+        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::selected_item())
     } else {
         ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::normal_item())
     };

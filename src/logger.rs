@@ -111,11 +111,7 @@ fn collect_system_info() -> Vec<String> {
                 .output()
                 .map(|o| o.status.success())
                 .unwrap_or(false);
-            info.push(format!(
-                "{}: {}",
-                tool,
-                if ok { "available" } else { "not found" }
-            ));
+            info.push(format!("{}: {}", tool, if ok { "available" } else { "not found" }));
         }
     }
 
@@ -207,10 +203,7 @@ fn collect_system_info() -> Vec<String> {
         if ver_str.is_empty() {
             info.push(format!("Strategies: {} .bat files", count));
         } else {
-            info.push(format!(
-                "Strategies: {} .bat files (version {})",
-                count, ver_str
-            ));
+            info.push(format!("Strategies: {} .bat files (version {})", count, ver_str));
         }
     } else {
         info.push("Strategies: not installed".to_string());
@@ -226,9 +219,7 @@ fn collect_system_info() -> Vec<String> {
 }
 
 pub fn log_stop(stop_output: &[String]) {
-    let log_file = crate::config::get_cache_dir()
-        .join("logs")
-        .join("zapret.log");
+    let log_file = crate::config::get_cache_dir().join("logs").join("zapret.log");
     let mut file = match OpenOptions::new().create(true).append(true).open(&log_file) {
         Ok(f) => f,
         Err(_) => return,
@@ -254,10 +245,7 @@ fn timestamp() -> String {
     }
 
     #[cfg(target_os = "windows")]
-    if let Ok(output) = Command::new("cmd")
-        .args(["/c", "echo %DATE% %TIME%"])
-        .output()
-    {
+    if let Ok(output) = Command::new("cmd").args(["/c", "echo %DATE% %TIME%"]).output() {
         if let Ok(s) = String::from_utf8(output.stdout) {
             let t = s.trim().to_string();
             if !t.is_empty() {
@@ -308,8 +296,5 @@ fn timestamp() -> String {
     }
     let d = remaining + 1;
 
-    format!(
-        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-        y, m, d, hours, minutes, seconds
-    )
+    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", y, m, d, hours, minutes, seconds)
 }

@@ -75,9 +75,7 @@ impl ServiceManager for OpenRcManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path
-            .to_str()
-            .ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
         let config_str = config_path
             .to_str()
             .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
@@ -127,8 +125,7 @@ depend() {{
         let _ = self.run_rc_update("del", "default");
 
         if Path::new(Self::SCRIPT_PATH).exists() {
-            fs::remove_file(Self::SCRIPT_PATH)
-                .map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_openrc"), e))?;
+            fs::remove_file(Self::SCRIPT_PATH).map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_openrc"), e))?;
         }
 
         Ok(())

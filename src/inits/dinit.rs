@@ -41,10 +41,7 @@ impl ServiceManager for DinitManager {
     }
 
     fn is_active(&self) -> bool {
-        let output = Command::new("dinitctl")
-            .arg("status")
-            .arg(Self::SERVICE_NAME)
-            .output();
+        let output = Command::new("dinitctl").arg("status").arg(Self::SERVICE_NAME).output();
         match output {
             Ok(out) if out.status.success() => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -55,9 +52,7 @@ impl ServiceManager for DinitManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path
-            .to_str()
-            .ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
         let config_str = config_path
             .to_str()
             .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
@@ -84,8 +79,7 @@ restart-delay = 5
                 e
             );
         } else {
-            if Path::new(Self::BOOT_LINK).exists() || fs::symlink_metadata(Self::BOOT_LINK).is_ok()
-            {
+            if Path::new(Self::BOOT_LINK).exists() || fs::symlink_metadata(Self::BOOT_LINK).is_ok() {
                 let _ = fs::remove_file(Self::BOOT_LINK);
             }
             #[cfg(unix)]
@@ -108,8 +102,7 @@ restart-delay = 5
 
         // Remove service file
         if Path::new(Self::SERVICE_PATH).exists() {
-            fs::remove_file(Self::SERVICE_PATH)
-                .map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_dinit"), e))?;
+            fs::remove_file(Self::SERVICE_PATH).map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_dinit"), e))?;
         }
 
         Ok(())

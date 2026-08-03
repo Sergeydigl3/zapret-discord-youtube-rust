@@ -1,7 +1,5 @@
 use crate::autotune::PRESETS;
-use crate::tui::state::{
-    AppState, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState,
-};
+use crate::tui::state::{AppState, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState};
 use crate::tui::theme::Theme;
 use ratatui::{
     style::{Color, Style},
@@ -25,13 +23,7 @@ pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) 
         .autotune_config
         .preset_indices
         .iter()
-        .filter_map(|&i| {
-            if i < PRESETS.len() {
-                Some(PRESETS[i].name)
-            } else {
-                None
-            }
-        })
+        .filter_map(|&i| if i < PRESETS.len() { Some(PRESETS[i].name) } else { None })
         .collect();
     let preset_label = if preset_names.is_empty() {
         rust_i18n::t!("menu_autotune_preset_none").into_owned()
@@ -235,17 +227,10 @@ pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) 
     } else {
         0
     };
-    (
-        items,
-        rust_i18n::t!("menu_autotune_title").into_owned(),
-        selected_index,
-    )
+    (items, rust_i18n::t!("menu_autotune_title").into_owned(), selected_index)
 }
 
-pub fn render_protocols(
-    app: &AppState,
-    proto_menu: AutotuneProtocolsState,
-) -> (Vec<ListItem<'static>>, String, usize) {
+pub fn render_protocols(app: &AppState, proto_menu: AutotuneProtocolsState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut items: Vec<ListItem<'static>> = Vec::new();
     let mut selected_index = 0;
 
@@ -303,11 +288,7 @@ pub fn render_protocols(
             ),
             Span::styled(
                 format!("[ {} ]", toggle),
-                if sel {
-                    Theme::selected_value()
-                } else {
-                    toggle_style
-                },
+                if sel { Theme::selected_value() } else { toggle_style },
             ),
         ])));
     }
@@ -375,11 +356,7 @@ pub fn render_blockchecks(
             ),
             Span::styled(
                 format!("[ {} ]", toggle),
-                if sel {
-                    Theme::selected_value()
-                } else {
-                    toggle_style
-                },
+                if sel { Theme::selected_value() } else { toggle_style },
             ),
         ])));
     }
@@ -434,11 +411,7 @@ pub fn render_presets(app: &AppState) -> (Vec<ListItem<'static>>, String, usize)
             ),
             Span::styled(
                 format!("[ {} ]", toggle),
-                if sel {
-                    Theme::selected_value()
-                } else {
-                    toggle_style
-                },
+                if sel { Theme::selected_value() } else { toggle_style },
             ),
         ])));
     }
@@ -462,10 +435,7 @@ pub fn render_presets(app: &AppState) -> (Vec<ListItem<'static>>, String, usize)
     )
 }
 
-pub fn render_strategies(
-    app: &AppState,
-    selected: usize,
-) -> (Vec<ListItem<'static>>, String, usize) {
+pub fn render_strategies(app: &AppState, selected: usize) -> (Vec<ListItem<'static>>, String, usize) {
     let mut items: Vec<ListItem<'static>> = Vec::new();
     let mut selected_index = selected.min(app.strategies.len());
 
@@ -493,11 +463,7 @@ pub fn render_strategies(
             ),
             Span::styled(
                 format!("[ {} ]", toggle),
-                if sel {
-                    Theme::selected_value()
-                } else {
-                    toggle_style
-                },
+                if sel { Theme::selected_value() } else { toggle_style },
             ),
         ])));
     }
@@ -537,13 +503,11 @@ pub fn render_results(_app: &AppState, scroll: usize) -> (Vec<ListItem<'static>>
 
     let back_idx = items.len();
     items.push(
-        ListItem::new(format!(" {}", rust_i18n::t!("menu_autotune_back"))).style(
-            if scroll == back_idx {
-                Theme::selected_item()
-            } else {
-                Theme::normal_item()
-            },
-        ),
+        ListItem::new(format!(" {}", rust_i18n::t!("menu_autotune_back"))).style(if scroll == back_idx {
+            Theme::selected_item()
+        } else {
+            Theme::normal_item()
+        }),
     );
 
     let selected = scroll.min(back_idx);

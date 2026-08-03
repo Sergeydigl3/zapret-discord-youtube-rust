@@ -307,9 +307,5 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         );
     }
 
-    (
-        items,
-        rust_i18n::t!("menu_main_title").into_owned(),
-        selected_index,
-    )
+    (items, rust_i18n::t!("menu_main_title").into_owned(), selected_index)
 }

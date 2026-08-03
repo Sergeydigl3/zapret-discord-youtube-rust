@@ -1,10 +1,7 @@
 use crate::tui::theme::Theme;
 use ratatui::widgets::ListItem;
 
-pub fn render(
-    lists_files: &[String],
-    selected_index: usize,
-) -> (Vec<ListItem<'static>>, String, usize) {
+pub fn render(lists_files: &[String], selected_index: usize) -> (Vec<ListItem<'static>>, String, usize) {
     let mut items = vec![];
     let mut index = 0;
 
@@ -34,9 +31,5 @@ pub fn render(
         }),
     );
 
-    (
-        items,
-        rust_i18n::t!("tui_title_lists").into_owned(),
-        selected_index,
-    )
+    (items, rust_i18n::t!("tui_title_lists").into_owned(), selected_index)
 }

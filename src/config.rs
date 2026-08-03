@@ -29,8 +29,7 @@ impl Default for RunConfig {
 
 /// Parse a simple `key=value` env-style config file.
 pub fn load_config(file: &str) -> Result<RunConfig, String> {
-    let content =
-        fs::read_to_string(file).map_err(|e| format!("Cannot read config '{}': {}", file, e))?;
+    let content = fs::read_to_string(file).map_err(|e| format!("Cannot read config '{}': {}", file, e))?;
 
     let mut cfg = RunConfig::default();
 
@@ -112,18 +111,11 @@ pub fn save_config(cfg: &RunConfig) -> Result<(), String> {
         cfg.interface, cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp, cfg.backend,
         cfg.active_discord_fake, cfg.active_gamefilter_fake,
     );
-    fs::write(&path, &content)
-        .map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
+    fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     Ok(())
 }
 
-pub fn save_tui_state(
-    interface: &str,
-    strategy: &str,
-    tcp: bool,
-    udp: bool,
-    backend: &str,
-) -> Result<(), String> {
+pub fn save_tui_state(interface: &str, strategy: &str, tcp: bool, udp: bool, backend: &str) -> Result<(), String> {
     let path = config_path();
     let mut cfg = load_config(&path.to_string_lossy()).unwrap_or_default();
     cfg.interface = interface.to_string();
@@ -138,8 +130,7 @@ pub fn ensure_default_config() -> Result<(), String> {
     let path = config_path();
     if !path.exists() {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Cannot create config directory: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("Cannot create config directory: {}", e))?;
         }
         save_config(&RunConfig::default())?;
     }
@@ -149,8 +140,8 @@ pub fn ensure_default_config() -> Result<(), String> {
 
 fn validate_config() -> Result<(), String> {
     let path = config_path();
-    let mut content = fs::read_to_string(&path)
-        .map_err(|e| format!("Cannot read config '{}': {}", path.display(), e))?;
+    let mut content =
+        fs::read_to_string(&path).map_err(|e| format!("Cannot read config '{}': {}", path.display(), e))?;
 
     let existing_keys: Vec<&str> = content
         .lines()
@@ -174,15 +165,11 @@ fn validate_config() -> Result<(), String> {
             content.push_str(line);
             content.push('\n');
         }
-        fs::write(&path, &content)
-            .map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
+        fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     }
 
     let defaults = [
-        (
-            "active_discord_fake=",
-            "quic_initial_steamcommunity_com.bin",
-        ),
+        ("active_discord_fake=", "quic_initial_steamcommunity_com.bin"),
         ("active_gamefilter_fake=", "quic_initial_4pda.to.bin"),
     ];
 
@@ -202,8 +189,7 @@ fn validate_config() -> Result<(), String> {
     }
 
     if updated {
-        fs::write(&path, &content)
-            .map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
+        fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     }
 
     Ok(())

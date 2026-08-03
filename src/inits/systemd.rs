@@ -48,9 +48,7 @@ impl ServiceManager for SystemdManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path
-            .to_str()
-            .ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
+        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
         let config_str = config_path
             .to_str()
             .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
@@ -91,8 +89,7 @@ WantedBy=multi-user.target
         let _ = self.run_command(&["disable", Self::SERVICE_NAME]);
 
         if Path::new(Self::SERVICE_PATH).exists() {
-            fs::remove_file(Self::SERVICE_PATH)
-                .map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_svc"), e))?;
+            fs::remove_file(Self::SERVICE_PATH).map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_svc"), e))?;
         }
 
         self.run_command(&["daemon-reload"])?;

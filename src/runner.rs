@@ -11,13 +11,7 @@ use std::time::Duration;
 static NFQWS_PROCESSES: Mutex<Vec<Child>> = Mutex::new(Vec::new());
 
 /// Run the zapret firewall rule setup and spawn the nfqws daemon.
-pub fn run_zapret(
-    strategy_file: &str,
-    interface: &str,
-    use_tcp: bool,
-    use_udp: bool,
-    backend: &dyn FirewallBackend,
-) {
+pub fn run_zapret(strategy_file: &str, interface: &str, use_tcp: bool, use_udp: bool, backend: &dyn FirewallBackend) {
     let mut term: Vec<String> = Vec::new();
 
     // 1. Parse strategy file
@@ -107,10 +101,7 @@ pub fn run_zapret(
     }
 
     #[cfg(target_os = "linux")]
-    let mut args = vec![
-        "--dpi-desync-fwmark=0x40000000".to_string(),
-        "--qnum=200".to_string(),
-    ];
+    let mut args = vec!["--dpi-desync-fwmark=0x40000000".to_string(), "--qnum=200".to_string()];
 
     #[cfg(target_os = "windows")]
     let mut args = vec![
@@ -132,9 +123,7 @@ pub fn run_zapret(
     println!("{}", cmd_msg);
 
     // Capture nfqws output to a temp file
-    let tmp_log = crate::config::get_cache_dir()
-        .join("logs")
-        .join("nfqws_output.tmp");
+    let tmp_log = crate::config::get_cache_dir().join("logs").join("nfqws_output.tmp");
     let _ = fs::create_dir_all(tmp_log.parent().unwrap());
     let output_file = match fs::File::create(&tmp_log) {
         Ok(f) => f,
@@ -224,11 +213,8 @@ pub fn run_zapret_silent(
         None
     };
 
-    let parsed = strategy::parse_bat_file(
-        path.to_str().ok_or("invalid strategy path")?,
-        game_filter.as_ref(),
-    )
-    .map_err(|e| format!("parse error: {}", e))?;
+    let parsed = strategy::parse_bat_file(path.to_str().ok_or("invalid strategy path")?, game_filter.as_ref())
+        .map_err(|e| format!("parse error: {}", e))?;
 
     if let Err(e) = backend.setup(&parsed.tcp_ports, &parsed.udp_ports, interface) {
         return Err(format!("firewall setup error: {}", e));
@@ -265,10 +251,7 @@ pub fn run_zapret_silent(
         .output();
 
     #[cfg(target_os = "linux")]
-    let mut args = vec![
-        "--dpi-desync-fwmark=0x40000000".to_string(),
-        "--qnum=200".to_string(),
-    ];
+    let mut args = vec!["--dpi-desync-fwmark=0x40000000".to_string(), "--qnum=200".to_string()];
 
     #[cfg(target_os = "windows")]
     let mut args = vec![
@@ -286,11 +269,7 @@ pub fn run_zapret_silent(
     }
 
     crate::logger::log_nfqws_launch(&bin_path.to_string_lossy(), &parsed.nfqws_params, &[]);
-    match Command::new(&bin_path)
-        .args(&args)
-        .current_dir(&repo_path)
-        .spawn()
-    {
+    match Command::new(&bin_path).args(&args).current_dir(&repo_path).spawn() {
         Ok(child) => {
             if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
                 procs.push(child);

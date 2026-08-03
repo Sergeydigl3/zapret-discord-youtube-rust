@@ -89,9 +89,7 @@ pub struct BlockChecks {
 #[allow(dead_code)]
 impl BlockChecks {
     pub fn all_enabled() -> Self {
-        Self {
-            enabled: vec![true; 6],
-        }
+        Self { enabled: vec![true; 6] }
     }
 
     pub fn all_disabled() -> Self {
@@ -246,11 +244,7 @@ pub fn save_results_file(results: &AutotuneResults) {
     let mut file = match std::fs::File::create(&path) {
         Ok(f) => f,
         Err(e) => {
-            println!(
-                "  [save_results_file] Failed to create {}: {}",
-                path.display(),
-                e
-            );
+            println!("  [save_results_file] Failed to create {}: {}", path.display(), e);
             return;
         }
     };
@@ -366,10 +360,7 @@ const KNOWN_IPS: &[(&str, &[&str])] = &[
         "discord.com",
         &["162.159.128.233", "162.159.135.232", "162.159.136.232"],
     ),
-    (
-        "youtube.com",
-        &["142.250.150.46", "216.58.209.46", "142.250.185.78"],
-    ),
+    ("youtube.com", &["142.250.150.46", "216.58.209.46", "142.250.185.78"]),
     ("google.com", &["142.250.185.78", "216.58.215.14"]),
 ];
 
@@ -430,10 +421,7 @@ fn resolve_domain(domain: &str) -> Vec<IpAddr> {
 fn is_sinkhole(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
-            v4 == Ipv4Addr::UNSPECIFIED
-                || v4.is_loopback()
-                || v4.is_private()
-                || v4 == Ipv4Addr::new(0, 0, 0, 0)
+            v4 == Ipv4Addr::UNSPECIFIED || v4.is_loopback() || v4.is_private() || v4 == Ipv4Addr::new(0, 0, 0, 0)
         }
         IpAddr::V6(_) => false,
     }
@@ -468,24 +456,15 @@ pub fn check_dns_spoof() -> CheckResult {
             continue;
         }
 
-        let suspect: Vec<IpAddr> = sys_ips
-            .iter()
-            .copied()
-            .filter(|&ip| is_sinkhole(ip))
-            .collect();
+        let suspect: Vec<IpAddr> = sys_ips.iter().copied().filter(|&ip| is_sinkhole(ip)).collect();
         if !suspect.is_empty() {
-            return CheckResult::fail(format!(
-                "{} resolved to sinkhole IPs: {:?}",
-                domain, suspect
-            ));
+            return CheckResult::fail(format!("{} resolved to sinkhole IPs: {:?}", domain, suspect));
         }
 
         if let Some(&(_, known_ips)) = KNOWN_IPS.iter().find(|(d, _)| *d == domain) {
             let sys_strs: Vec<String> = sys_ips.iter().map(|ip| ip.to_string()).collect();
             let known_set: Vec<String> = known_ips.iter().map(|s| s.to_string()).collect();
-            let any_match = sys_ips
-                .iter()
-                .any(|ip| known_ips.contains(&ip.to_string().as_str()));
+            let any_match = sys_ips.iter().any(|ip| known_ips.contains(&ip.to_string().as_str()));
             if !any_match {
                 results.push(format!(
                     "{} resolved to {:?} (unexpected vs known {:?})",
@@ -533,9 +512,7 @@ pub fn check_tcp_rst() -> CheckResult {
                         domain_fail_rst += 1;
                         details.push(format!("{}: RST after connect", domain));
                     }
-                    Err(ref e)
-                        if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut =>
-                    {
+                    Err(ref e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {
                         domain_success += 1;
                         details.push(format!("{}: connected (idle)", domain));
                     }
@@ -600,22 +577,13 @@ pub fn check_sni_block() -> CheckResult {
                     match stream.read(&mut buf) {
                         Ok(_) => {
                             if !domain_ok {
-                                details.push(format!(
-                                    "{} (IP {}) works, domain fails -> SNI block",
-                                    domain, ip
-                                ));
+                                details.push(format!("{} (IP {}) works, domain fails -> SNI block", domain, ip));
                             }
                             ip_ok += 1;
                         }
-                        Err(ref e)
-                            if e.kind() == ErrorKind::WouldBlock
-                                || e.kind() == ErrorKind::TimedOut =>
-                        {
+                        Err(ref e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {
                             if !domain_ok {
-                                details.push(format!(
-                                    "{} (IP {}) works, domain fails -> SNI block",
-                                    domain, ip
-                                ));
+                                details.push(format!("{} (IP {}) works, domain fails -> SNI block", domain, ip));
                             }
                             ip_ok += 1;
                         }
@@ -763,14 +731,8 @@ pub fn check_quic_block() -> CheckResult {
                                 Ok(_) => {
                                     details.push(format!("{}: UDP sent, empty response", ip_str));
                                 }
-                                Err(ref e)
-                                    if e.kind() == ErrorKind::TimedOut
-                                        || e.kind() == ErrorKind::WouldBlock =>
-                                {
-                                    details.push(format!(
-                                        "{}: UDP sent, no response (possible QUIC block)",
-                                        ip_str
-                                    ));
+                                Err(ref e) if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock => {
+                                    details.push(format!("{}: UDP sent, no response (possible QUIC block)", ip_str));
                                 }
                                 Err(e) => {
                                     details.push(format!("{}: UDP recv error: {}", ip_str, e));
@@ -793,9 +755,7 @@ pub fn check_quic_block() -> CheckResult {
         Ok(sock) => {
             let clean_ip: IpAddr = "8.8.8.8".parse().unwrap();
             if sock.connect((clean_ip, 53)).is_err() {
-                return CheckResult::skip(
-                    "Internet connectivity issue (cannot reach 8.8.8.8:53 UDP)",
-                );
+                return CheckResult::skip("Internet connectivity issue (cannot reach 8.8.8.8:53 UDP)");
             }
         }
         Err(_) => {
@@ -811,10 +771,7 @@ pub fn check_quic_block() -> CheckResult {
             .filter(|d| d.contains("no response") || d.contains("error"))
             .map(|s| s.as_str())
             .collect();
-        CheckResult::fail(format!(
-            "QUIC/UDP likely blocked: {}",
-            fail_details.join("; ")
-        ))
+        CheckResult::fail(format!("QUIC/UDP likely blocked: {}", fail_details.join("; ")))
     }
 }
 
@@ -870,9 +827,7 @@ pub fn check_cidr_whitelist() -> CheckResult {
             fail_parts.join("; ")
         ))
     } else {
-        CheckResult::fail(format!(
-            "All tested IPs blocked: possible whitelist-only policy"
-        ))
+        CheckResult::fail(format!("All tested IPs blocked: possible whitelist-only policy"))
     }
 }
 
@@ -883,11 +838,7 @@ fn check_domain_alive(domain: &str) -> CheckStatus {
             let mut buf = [0u8; 1];
             match stream.read(&mut buf) {
                 Ok(_) => CheckStatus::Pass,
-                Err(ref e)
-                    if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut =>
-                {
-                    CheckStatus::Pass
-                }
+                Err(ref e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => CheckStatus::Pass,
                 Err(ref e) if e.kind() == ErrorKind::ConnectionReset => CheckStatus::Fail,
                 Err(_) => CheckStatus::Pass,
             }
@@ -904,10 +855,7 @@ fn check_domain_http(domain: &str, num_req: usize) -> (CheckStatus, usize) {
     for _ in 0..num_req {
         match try_tcp_connect_domain(domain, 80) {
             Ok(mut stream) => {
-                let req = format!(
-                    "GET / HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
-                    domain
-                );
+                let req = format!("GET / HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", domain);
                 let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
                 if stream.write(req.as_bytes()).is_ok() {
@@ -1122,92 +1070,76 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
     let alive = check_domain_alive(domain);
     let detail;
 
-    let (http, https, tls12, tls13, quic, http_count, https_count, quic_count) =
-        if alive == CheckStatus::Pass {
-            let mut parts = Vec::new();
+    let (http, https, tls12, tls13, quic, http_count, https_count, quic_count) = if alive == CheckStatus::Pass {
+        let mut parts = Vec::new();
 
-            let (http, hc) = if config.check_http {
-                let (s, c) = check_domain_http(domain, config.num_requests);
-                parts.push(format!(
-                    "HTTP:{} ({}/{})",
-                    status_char(&s),
-                    c,
-                    config.num_requests
-                ));
-                (s, c)
-            } else {
-                (CheckStatus::Skip, 0)
-            };
-
-            let (https, hsc) = if config.check_https || config.check_tls12 || config.check_tls13 {
-                let (s, c) = check_domain_https(domain, config.num_requests);
-                parts.push(format!(
-                    "HTTPS:{} ({}/{})",
-                    status_char(&s),
-                    c,
-                    config.num_requests
-                ));
-                (s, c)
-            } else {
-                (CheckStatus::Skip, 0)
-            };
-
-            let tls12 = if config.check_tls12 {
-                let (s, _) = check_domain_https(domain, config.num_requests);
-                parts.push(format!("TLS1.2:{}", status_char(&s)));
-                s
-            } else {
-                CheckStatus::Skip
-            };
-
-            let tls13 = if config.check_tls13 {
-                let (s, _) = check_domain_https(domain, config.num_requests);
-                parts.push(format!("TLS1.3:{}", status_char(&s)));
-                s
-            } else {
-                CheckStatus::Skip
-            };
-
-            let (quic, qc) = if config.check_quic {
-                let (s, c) = check_domain_quic(domain, config.num_requests);
-                parts.push(format!(
-                    "QUIC:{} ({}/{})",
-                    status_char(&s),
-                    c,
-                    config.num_requests
-                ));
-                (s, c)
-            } else {
-                (CheckStatus::Skip, 0)
-            };
-
-            detail = parts.join(" ");
-            (http, https, tls12, tls13, quic, hc, hsc, qc)
-        } else if alive == CheckStatus::Skip {
-            detail = "Domain unreachable (skipped)".to_string();
-            (
-                CheckStatus::Skip,
-                CheckStatus::Skip,
-                CheckStatus::Skip,
-                CheckStatus::Skip,
-                CheckStatus::Skip,
-                0,
-                0,
-                0,
-            )
+        let (http, hc) = if config.check_http {
+            let (s, c) = check_domain_http(domain, config.num_requests);
+            parts.push(format!("HTTP:{} ({}/{})", status_char(&s), c, config.num_requests));
+            (s, c)
         } else {
-            detail = "Domain appears blocked (alive check failed)".to_string();
-            (
-                CheckStatus::Skip,
-                CheckStatus::Skip,
-                CheckStatus::Skip,
-                CheckStatus::Skip,
-                CheckStatus::Skip,
-                0,
-                0,
-                0,
-            )
+            (CheckStatus::Skip, 0)
         };
+
+        let (https, hsc) = if config.check_https || config.check_tls12 || config.check_tls13 {
+            let (s, c) = check_domain_https(domain, config.num_requests);
+            parts.push(format!("HTTPS:{} ({}/{})", status_char(&s), c, config.num_requests));
+            (s, c)
+        } else {
+            (CheckStatus::Skip, 0)
+        };
+
+        let tls12 = if config.check_tls12 {
+            let (s, _) = check_domain_https(domain, config.num_requests);
+            parts.push(format!("TLS1.2:{}", status_char(&s)));
+            s
+        } else {
+            CheckStatus::Skip
+        };
+
+        let tls13 = if config.check_tls13 {
+            let (s, _) = check_domain_https(domain, config.num_requests);
+            parts.push(format!("TLS1.3:{}", status_char(&s)));
+            s
+        } else {
+            CheckStatus::Skip
+        };
+
+        let (quic, qc) = if config.check_quic {
+            let (s, c) = check_domain_quic(domain, config.num_requests);
+            parts.push(format!("QUIC:{} ({}/{})", status_char(&s), c, config.num_requests));
+            (s, c)
+        } else {
+            (CheckStatus::Skip, 0)
+        };
+
+        detail = parts.join(" ");
+        (http, https, tls12, tls13, quic, hc, hsc, qc)
+    } else if alive == CheckStatus::Skip {
+        detail = "Domain unreachable (skipped)".to_string();
+        (
+            CheckStatus::Skip,
+            CheckStatus::Skip,
+            CheckStatus::Skip,
+            CheckStatus::Skip,
+            CheckStatus::Skip,
+            0,
+            0,
+            0,
+        )
+    } else {
+        detail = "Domain appears blocked (alive check failed)".to_string();
+        (
+            CheckStatus::Skip,
+            CheckStatus::Skip,
+            CheckStatus::Skip,
+            CheckStatus::Skip,
+            CheckStatus::Skip,
+            0,
+            0,
+            0,
+        )
+    };
 
     // Baseline HTTPS test: real TLS handshake + HTTP request
     let baseline_pass = if alive == CheckStatus::Pass {
@@ -1444,8 +1376,7 @@ pub fn run_all(
             for (strat_name, strat_path) in &loaded {
                 println!("  {} {}", rust_i18n::t!("autotune_testing"), strat_name);
 
-                let started =
-                    crate::runner::run_zapret_silent(strat_path, interface, false, false, backend);
+                let started = crate::runner::run_zapret_silent(strat_path, interface, false, false, backend);
                 done += 1;
                 progress(done, total);
 
@@ -1624,9 +1555,7 @@ pub fn run_all(
     }
 
     // Find common strategies (work across ALL presets)
-    let common_strategies = if config.preset_indices.len() > 1
-        && !all_working_strategy_names.is_empty()
-    {
+    let common_strategies = if config.preset_indices.len() > 1 && !all_working_strategy_names.is_empty() {
         let mut common: std::collections::HashSet<String> = all_working_strategy_names[0].clone();
         for wm in &all_working_strategy_names[1..] {
             common.retain(|name| wm.contains(name));

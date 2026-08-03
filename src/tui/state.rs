@@ -378,21 +378,14 @@ impl AppState {
     pub fn new(interfaces: Vec<String>, strategies: Vec<String>) -> Self {
         let _ = crate::config::ensure_default_config();
 
-        let saved_cfg =
-            crate::config::load_config(&crate::config::config_path().to_string_lossy()).ok();
+        let saved_cfg = crate::config::load_config(&crate::config::config_path().to_string_lossy()).ok();
 
         let selected_interface = saved_cfg.as_ref().map_or(0, |cfg| {
-            interfaces
-                .iter()
-                .position(|i| i == &cfg.interface)
-                .unwrap_or(0)
+            interfaces.iter().position(|i| i == &cfg.interface).unwrap_or(0)
         });
-        let selected_strategy = saved_cfg.as_ref().map_or(0, |cfg| {
-            strategies
-                .iter()
-                .position(|s| s == &cfg.strategy)
-                .unwrap_or(0)
-        });
+        let selected_strategy = saved_cfg
+            .as_ref()
+            .map_or(0, |cfg| strategies.iter().position(|s| s == &cfg.strategy).unwrap_or(0));
         let tcp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_tcp);
         let udp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_udp);
 
@@ -550,13 +543,7 @@ impl AppState {
         let backend = self.selected_backend.to_config();
         #[cfg(not(target_os = "linux"))]
         let backend = "nftables";
-        let _ = crate::config::save_tui_state(
-            interface,
-            strategy,
-            self.tcp_gamefilter,
-            self.udp_gamefilter,
-            backend,
-        );
+        let _ = crate::config::save_tui_state(interface, strategy, self.tcp_gamefilter, self.udp_gamefilter, backend);
     }
 
     pub fn get_service_menu_count(&self) -> usize {
@@ -594,16 +581,11 @@ impl AppState {
             ActiveScreen::DefenderSubmenu => self.defender_menu = self.defender_menu.next(),
             ActiveScreen::StrategySubmenu => {
                 if !self.strategies.is_empty() {
-                    self.strategy_menu_index =
-                        (self.strategy_menu_index + 1) % (self.strategies.len() + 1);
+                    self.strategy_menu_index = (self.strategy_menu_index + 1) % (self.strategies.len() + 1);
                 }
             }
-            ActiveScreen::DownloadDepsSubmenu => {
-                self.download_deps_menu = self.download_deps_menu.next()
-            }
-            ActiveScreen::DownloadZapretSubmenu => {
-                self.download_zapret_menu = self.download_zapret_menu.next()
-            }
+            ActiveScreen::DownloadDepsSubmenu => self.download_deps_menu = self.download_deps_menu.next(),
+            ActiveScreen::DownloadZapretSubmenu => self.download_zapret_menu = self.download_zapret_menu.next(),
             ActiveScreen::DownloadStrategiesSubmenu => {
                 self.download_strategies_menu = self.download_strategies_menu.next()
             }
@@ -617,14 +599,12 @@ impl AppState {
             }
             ActiveScreen::ZapretTagSelect => {
                 if !self.available_nfqws_tags.is_empty() {
-                    self.nfqws_tag_index =
-                        (self.nfqws_tag_index + 1) % (self.available_nfqws_tags.len() + 1);
+                    self.nfqws_tag_index = (self.nfqws_tag_index + 1) % (self.available_nfqws_tags.len() + 1);
                 }
             }
             ActiveScreen::StrategyTagSelect => {
                 if !self.available_strat_tags.is_empty() {
-                    self.strat_tag_index =
-                        (self.strat_tag_index + 1) % (self.available_strat_tags.len() + 1);
+                    self.strat_tag_index = (self.strat_tag_index + 1) % (self.available_strat_tags.len() + 1);
                 }
             }
             ActiveScreen::ServiceSubmenu => {
@@ -706,12 +686,8 @@ impl AppState {
                     self.strategy_menu_index = (self.strategy_menu_index + max - 1) % max;
                 }
             }
-            ActiveScreen::DownloadDepsSubmenu => {
-                self.download_deps_menu = self.download_deps_menu.prev()
-            }
-            ActiveScreen::DownloadZapretSubmenu => {
-                self.download_zapret_menu = self.download_zapret_menu.prev()
-            }
+            ActiveScreen::DownloadDepsSubmenu => self.download_deps_menu = self.download_deps_menu.prev(),
+            ActiveScreen::DownloadZapretSubmenu => self.download_zapret_menu = self.download_zapret_menu.prev(),
             ActiveScreen::DownloadStrategiesSubmenu => {
                 self.download_strategies_menu = self.download_strategies_menu.prev()
             }
@@ -815,8 +791,7 @@ impl AppState {
                 }
                 MainMenuState::Interface => {
                     if !self.interfaces.is_empty() {
-                        self.selected_interface =
-                            (self.selected_interface + 1) % self.interfaces.len();
+                        self.selected_interface = (self.selected_interface + 1) % self.interfaces.len();
                         self.save_current_config();
                     }
                 }
@@ -824,10 +799,7 @@ impl AppState {
                 MainMenuState::BackendSettings => {
                     let backends = LinuxBackend::variants();
                     if !backends.is_empty() {
-                        let current_idx = backends
-                            .iter()
-                            .position(|b| *b == self.selected_backend)
-                            .unwrap_or(0);
+                        let current_idx = backends.iter().position(|b| *b == self.selected_backend).unwrap_or(0);
                         let new_idx = (current_idx + 1) % backends.len();
                         self.selected_backend = backends[new_idx];
                         self.save_current_config();
@@ -836,8 +808,7 @@ impl AppState {
                 MainMenuState::IpsetMode => {
                     if !self.available_ipset_modes.is_empty() {
                         let old_mode = self.available_ipset_modes[self.selected_ipset_mode];
-                        self.selected_ipset_mode =
-                            (self.selected_ipset_mode + 1) % self.available_ipset_modes.len();
+                        self.selected_ipset_mode = (self.selected_ipset_mode + 1) % self.available_ipset_modes.len();
                         let new_mode = self.available_ipset_modes[self.selected_ipset_mode];
                         crate::ipset::apply_ipset_mode(old_mode, new_mode);
                         self.available_ipset_modes = crate::ipset::get_available_modes();
@@ -900,18 +871,14 @@ impl AppState {
                         self.status_message = Some(rust_i18n::t!("msg_def_add_ok").into_owned());
                         self.refresh_defender_status();
                     }
-                    Err(e) => {
-                        self.status_message = Some(format!("{}{}", rust_i18n::t!("msg_err"), e))
-                    }
+                    Err(e) => self.status_message = Some(format!("{}{}", rust_i18n::t!("msg_err"), e)),
                 },
                 DefenderMenuState::Remove => match crate::defender::remove_defender_exclusion() {
                     Ok(_) => {
                         self.status_message = Some(rust_i18n::t!("msg_def_rm_ok").into_owned());
                         self.refresh_defender_status();
                     }
-                    Err(e) => {
-                        self.status_message = Some(format!("{}{}", rust_i18n::t!("msg_err"), e))
-                    }
+                    Err(e) => self.status_message = Some(format!("{}{}", rust_i18n::t!("msg_err"), e)),
                 },
                 DefenderMenuState::Back => {
                     self.active_screen = ActiveScreen::Main;
@@ -966,11 +933,7 @@ impl AppState {
                             self.status_message = None;
                         }
                         Err(e) => {
-                            self.show_error(format!(
-                                "{}{}",
-                                rust_i18n::t!("msg_err_fetch_tags"),
-                                e
-                            ));
+                            self.show_error(format!("{}{}", rust_i18n::t!("msg_err_fetch_tags"), e));
                         }
                     }
                 }
@@ -996,11 +959,7 @@ impl AppState {
                             self.status_message = None;
                         }
                         Err(e) => {
-                            self.show_error(format!(
-                                "{}{}",
-                                rust_i18n::t!("msg_err_fetch_tags"),
-                                e
-                            ));
+                            self.show_error(format!("{}{}", rust_i18n::t!("msg_err_fetch_tags"), e));
                         }
                     }
                 }
@@ -1051,21 +1010,13 @@ impl AppState {
             ActiveScreen::FakesSubmenu => match self.fakes_menu {
                 FakesMenuState::DiscordUdp => {
                     self.fakes_select_for = FakesSelectTarget::DiscordUdp;
-                    self.fakes_select_index = if self.fakes_state.available.is_empty() {
-                        0
-                    } else {
-                        1
-                    };
+                    self.fakes_select_index = if self.fakes_state.available.is_empty() { 0 } else { 1 };
                     self.active_screen = ActiveScreen::FakesSelectSubmenu;
                     self.status_message = None;
                 }
                 FakesMenuState::GameUdp => {
                     self.fakes_select_for = FakesSelectTarget::GameUdp;
-                    self.fakes_select_index = if self.fakes_state.available.is_empty() {
-                        0
-                    } else {
-                        1
-                    };
+                    self.fakes_select_index = if self.fakes_state.available.is_empty() { 0 } else { 1 };
                     self.active_screen = ActiveScreen::FakesSelectSubmenu;
                     self.status_message = None;
                 }
@@ -1087,8 +1038,7 @@ impl AppState {
                         Ok(()) => {
                             self.fakes_state = crate::fakes::load_fakes_state();
                             self.active_screen = ActiveScreen::FakesSubmenu;
-                            self.status_message =
-                                Some(rust_i18n::t!("msg_fakes_replaced").into_owned());
+                            self.status_message = Some(rust_i18n::t!("msg_fakes_replaced").into_owned());
                         }
                         Err(e) => {
                             self.show_error(e);
@@ -1117,14 +1067,12 @@ impl AppState {
                                     action_taken = false;
                                     Ok(())
                                 } else {
-                                    let exe_path =
-                                        std::env::current_exe().map_err(|e| e.to_string());
+                                    let exe_path = std::env::current_exe().map_err(|e| e.to_string());
                                     match exe_path {
                                         Ok(p) => {
                                             let config_path = crate::config::config_path();
                                             let cache_dir = crate::config::get_cache_dir();
-                                            mgr.install(&p, &config_path, &cache_dir)
-                                                .and_then(|_| mgr.start())
+                                            mgr.install(&p, &config_path, &cache_dir).and_then(|_| mgr.start())
                                         }
                                         Err(e) => Err(e),
                                     }
@@ -1242,8 +1190,7 @@ impl AppState {
                 }
                 AutotuneMenuState::Run => {
                     if crate::platform::is_nfqws_running() {
-                        self.status_message =
-                            Some(rust_i18n::t!("autotune_err_nfqws_running").into_owned());
+                        self.status_message = Some(rust_i18n::t!("autotune_err_nfqws_running").into_owned());
                     } else {
                         self.should_run_autotune = true;
                     }
@@ -1342,23 +1289,14 @@ impl AppState {
                 } else {
                     names.join(", ")
                 };
-                self.status_message = Some(format!(
-                    "{}: {}",
-                    rust_i18n::t!("autotune_preset_sel"),
-                    label
-                ));
+                self.status_message = Some(format!("{}: {}", rust_i18n::t!("autotune_preset_sel"), label));
             }
             ActiveScreen::AutotuneStrategiesSubmenu => {
                 let max = self.strategies.len(); // +1 for Back
                 if self.autotune_strat_index < max {
                     // Toggle strategy selection
                     let idx = self.autotune_strat_index;
-                    if let Some(pos) = self
-                        .autotune_config
-                        .strategy_indices
-                        .iter()
-                        .position(|&i| i == idx)
-                    {
+                    if let Some(pos) = self.autotune_config.strategy_indices.iter().position(|&i| i == idx) {
                         self.autotune_config.strategy_indices.remove(pos);
                     } else {
                         self.autotune_config.strategy_indices.push(idx);
@@ -1428,10 +1366,7 @@ impl AppState {
                 MainMenuState::BackendSettings => {
                     let backends = LinuxBackend::variants();
                     if !backends.is_empty() {
-                        let current_idx = backends
-                            .iter()
-                            .position(|b| *b == self.selected_backend)
-                            .unwrap_or(0);
+                        let current_idx = backends.iter().position(|b| *b == self.selected_backend).unwrap_or(0);
                         let len = backends.len();
                         let new_idx = if forward {
                             (current_idx + 1) % len
