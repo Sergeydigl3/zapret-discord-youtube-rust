@@ -21,24 +21,24 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # lint:
-  #   name: Lint and Test
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
+  lint:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Setup Rust Environment
-  #       uses: ./.github/actions/setup-rust
-  #       with:
-  #         components: clippy, rustfmt
+      - name: Setup Rust Environment
+        uses: ./.github/actions/setup-rust
+        with:
+          components: clippy, rustfmt
 
-  #     - name: Check formatting
-  #       run: cargo fmt --all -- --check
-  #       continue-on-error: true
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+        # continue-on-error: true
 
-  #     - name: Run Clippy
-  #       run: cargo clippy --all-targets --all-features
-  #       continue-on-error: true
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features
+        # continue-on-error: true
 
   #     - name: Run tests
   #       run: cargo test --verbose
