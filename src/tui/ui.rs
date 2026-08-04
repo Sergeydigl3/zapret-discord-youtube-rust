@@ -388,12 +388,12 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                         continue;
                     }
                     match key.code {
-                        KeyCode::Up => app.prev_menu(),
-                        KeyCode::Down => app.next_menu(),
-                        KeyCode::Left => {
+                        KeyCode::Up | KeyCode::Char('k') => app.prev_menu(),
+                        KeyCode::Down | KeyCode::Char('j') => app.next_menu(),
+                        KeyCode::Left | KeyCode::Char('h') => {
                             app.cycle_current(false);
                         }
-                        KeyCode::Right => app.cycle_current(true),
+                        KeyCode::Right | KeyCode::Char('l') => app.cycle_current(true),
                         KeyCode::Enter | KeyCode::Char(' ') => app.cycle_current(true),
                         KeyCode::Char('q') | KeyCode::Esc => {
                             match app.active_screen {
