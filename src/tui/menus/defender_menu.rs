@@ -1,10 +1,10 @@
-use ratatui::widgets::ListItem;
 use crate::tui::state::{AppState, DefenderMenuState};
 use crate::tui::theme::Theme;
+use ratatui::widgets::ListItem;
 
 pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
-    
+
     let status_str = match app.defender_status_cache {
         Some(true) => rust_i18n::t!("status_def_active"),
         Some(false) => rust_i18n::t!("status_def_inactive"),
@@ -29,12 +29,16 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
                 DefenderMenuState::Back if i == 4 => true,
                 _ => false,
             };
-            
+
             if is_selected {
                 selected_index = i;
                 ListItem::new(m).style(Theme::selected_item())
             } else {
-                ListItem::new(m).style(if i < 2 { Theme::normal_value() } else { Theme::normal_item() })
+                ListItem::new(m).style(if i < 2 {
+                    Theme::normal_value()
+                } else {
+                    Theme::normal_item()
+                })
             }
         })
         .collect();

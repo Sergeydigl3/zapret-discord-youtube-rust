@@ -1,10 +1,10 @@
-use ratatui::widgets::ListItem;
 use crate::tui::state::AppState;
 use crate::tui::theme::Theme;
+use ratatui::widgets::ListItem;
 
 pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut menu_items = vec![];
-    
+
     if !app.service_installed {
         menu_items.push(format!(" {}", rust_i18n::t!("menu_srv_install")));
         menu_items.push(format!(" {}", rust_i18n::t!("menu_srv_back")));

@@ -27,17 +27,17 @@ pub struct GameFilterPorts {
 /// Returns an error string when:
 /// - The file does not exist.
 /// - `--wf-tcp` or `--wf-udp` are missing or appear more than once.
-pub fn parse_bat_file(
-    file_path: &str,
-    game_filter: Option<&GameFilterPorts>,
-) -> Result<ParsedStrategy, String> {
+pub fn parse_bat_file(file_path: &str, game_filter: Option<&GameFilterPorts>) -> Result<ParsedStrategy, String> {
     if !Path::new(file_path).exists() {
         return Err(format!("Strategy file not found: {}", file_path));
     }
 
     let raw = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
     let mut content = raw.replace('\r', "");
-    content = regex::Regex::new(r"\^\s*\n").unwrap().replace_all(&content, "\n").to_string();
+    content = regex::Regex::new(r"\^\s*\n")
+        .unwrap()
+        .replace_all(&content, "\n")
+        .to_string();
 
     // Replace static path placeholders.
     content = content.replace("%BIN%", "bin/");
@@ -69,30 +69,20 @@ pub fn parse_bat_file(
     let udp_matches: Vec<_> = wf_udp_re.find_iter(&content).collect();
 
     if tcp_matches.is_empty() || udp_matches.is_empty() {
-        return Err(format!(
-            "--wf-tcp or --wf-udp not found in '{}'",
-            file_path
-        ));
+        return Err(format!("--wf-tcp or --wf-udp not found in '{}'", file_path));
     }
     if tcp_matches.len() > 1 {
-        return Err(format!(
-            "Multiple --wf-tcp entries found in '{}'",
-            file_path
-        ));
+        return Err(format!("Multiple --wf-tcp entries found in '{}'", file_path));
     }
     if udp_matches.len() > 1 {
-        return Err(format!(
-            "Multiple --wf-udp entries found in '{}'",
-            file_path
-        ));
+        return Err(format!("Multiple --wf-udp entries found in '{}'", file_path));
     }
 
     let tcp_ports = wf_tcp_re.captures(&content).unwrap()[1].to_string();
     let udp_ports = wf_udp_re.captures(&content).unwrap()[1].to_string();
 
     // --- per-filter argument extraction ----------------------------------
-    let filter_re =
-        Regex::new(r"--filter-(tcp|udp)=([0-9,-]+)\s+([\s\S]*?--new|.*)").unwrap();
+    let filter_re = Regex::new(r"--filter-(tcp|udp)=([0-9,-]+)\s+([\s\S]*?--new|.*)").unwrap();
 
     let nfqws_params = filter_re
         .captures_iter(&content)

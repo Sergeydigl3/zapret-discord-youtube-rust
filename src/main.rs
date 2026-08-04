@@ -6,22 +6,22 @@ mod firewalls;
 pub mod inits;
 mod platform;
 // Removed i18n module, using rust_i18n directly
+mod ipset;
+mod logger;
 mod runner;
 mod strategy;
 mod tui;
 mod utils;
-mod ipset;
-mod logger;
 
 rust_i18n::i18n!("locales", fallback = "en");
 
 use clap::Parser;
+#[cfg(not(target_os = "windows"))]
+use nix::sys::signal::{self, SaFlags, SigAction, SigHandler, Signal};
 use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
-#[cfg(not(target_os = "windows"))]
-use nix::sys::signal::{self, SigAction, SigHandler, Signal, SaFlags};
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
@@ -61,7 +61,11 @@ struct Cli {
     #[arg(long = "gamefilterudp", short = 'u', help = "Enable gamefilterudp")]
     gamefilterudp: bool,
 
-    #[arg(long = "cache-dir", short = 'd', help = "Cache directory for downloaded dependencies and strategies")]
+    #[arg(
+        long = "cache-dir",
+        short = 'd',
+        help = "Cache directory for downloaded dependencies and strategies"
+    )]
     cache_dir: Option<String>,
 
     #[arg(short = 'h', long = "help", help = "Show this help")]
@@ -134,7 +138,9 @@ fn main() {
                 use_gamefilter_tcp = cfg.gamefilter_tcp;
                 use_gamefilter_udp = cfg.gamefilter_udp;
                 #[cfg(target_os = "linux")]
-                { use_backend = LinuxBackend::from_config(&cfg.backend); }
+                {
+                    use_backend = LinuxBackend::from_config(&cfg.backend);
+                }
                 is_interactive = false;
             }
             Err(e) => {
@@ -187,7 +193,9 @@ fn main() {
             use_gamefilter_tcp = app.tcp_gamefilter;
             use_gamefilter_udp = app.udp_gamefilter;
             #[cfg(target_os = "linux")]
-            { use_backend = app.selected_backend; }
+            {
+                use_backend = app.selected_backend;
+            }
 
             if app.should_quit {
                 println!("{}", rust_i18n::t!("msg_exited"));
@@ -238,7 +246,12 @@ fn main() {
 
         println!(
             "{}{}, interface={}, gamefiltertcp={}, gamefilterudp={}{}",
-            rust_i18n::t!("msg_run_params"), strategy_file, use_interface, use_gamefilter_tcp, use_gamefilter_udp, backend_info
+            rust_i18n::t!("msg_run_params"),
+            strategy_file,
+            use_interface,
+            use_gamefilter_tcp,
+            use_gamefilter_udp,
+            backend_info
         );
 
         runner::run_zapret(

@@ -39,9 +39,7 @@ pub fn get_strategies() -> Vec<String> {
     if let Ok(entries) = fs::read_dir(&repo) {
         for entry in entries.flatten() {
             if let Ok(name) = entry.file_name().into_string() {
-                if name.ends_with(".bat")
-                    && (name.starts_with("general") || name.starts_with("discord"))
-                {
+                if name.ends_with(".bat") && (name.starts_with("general") || name.starts_with("discord")) {
                     strats.push(name);
                 }
             }

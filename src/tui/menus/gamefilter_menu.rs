@@ -1,9 +1,9 @@
+use crate::tui::state::{AppState, GamefilterMenuState};
+use crate::tui::theme::Theme;
 use ratatui::{
     text::{Line, Span},
     widgets::ListItem,
 };
-use crate::tui::state::{AppState, GamefilterMenuState};
-use crate::tui::theme::Theme;
 
 pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut selected_index = 0;
@@ -20,18 +20,51 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
             selected_index = index;
         }
 
-        let label_style = if is_sel { Theme::selected_item() } else { Theme::normal_item() };
+        let label_style = if is_sel {
+            Theme::selected_item()
+        } else {
+            Theme::normal_item()
+        };
 
-        let mut spans = vec![
-            Span::styled(format!(" {}      ", rust_i18n::t!("menu_gf_tcp")), label_style),
-        ];
+        let mut spans = vec![Span::styled(
+            format!(" {}      ", rust_i18n::t!("menu_gf_tcp")),
+            label_style,
+        )];
 
         if app.tcp_gamefilter {
-            spans.push(Span::styled(format!(" [● {}] ", on_label), if is_sel { Theme::selected_value() } else { Theme::active_value() }));
-            spans.push(Span::styled(format!(" [ {} ] ", off_label), if is_sel { Theme::dim_item().patch(Theme::selected_item()) } else { Theme::dim_item() }));
+            spans.push(Span::styled(
+                format!(" [● {}] ", on_label),
+                if is_sel {
+                    Theme::selected_value()
+                } else {
+                    Theme::active_value()
+                },
+            ));
+            spans.push(Span::styled(
+                format!(" [ {} ] ", off_label),
+                if is_sel {
+                    Theme::dim_item().patch(Theme::selected_item())
+                } else {
+                    Theme::dim_item()
+                },
+            ));
         } else {
-            spans.push(Span::styled(format!(" [ {} ] ", on_label), if is_sel { Theme::dim_item().patch(Theme::selected_item()) } else { Theme::dim_item() }));
-            spans.push(Span::styled(format!(" [● {}] ", off_label), if is_sel { Theme::selected_value() } else { Theme::inactive_value() }));
+            spans.push(Span::styled(
+                format!(" [ {} ] ", on_label),
+                if is_sel {
+                    Theme::dim_item().patch(Theme::selected_item())
+                } else {
+                    Theme::dim_item()
+                },
+            ));
+            spans.push(Span::styled(
+                format!(" [● {}] ", off_label),
+                if is_sel {
+                    Theme::selected_value()
+                } else {
+                    Theme::inactive_value()
+                },
+            ));
         }
 
         items.push(ListItem::new(Line::from(spans)));
@@ -45,18 +78,51 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
             selected_index = index;
         }
 
-        let label_style = if is_sel { Theme::selected_item() } else { Theme::normal_item() };
+        let label_style = if is_sel {
+            Theme::selected_item()
+        } else {
+            Theme::normal_item()
+        };
 
-        let mut spans = vec![
-            Span::styled(format!(" {}      ", rust_i18n::t!("menu_gf_udp")), label_style),
-        ];
+        let mut spans = vec![Span::styled(
+            format!(" {}      ", rust_i18n::t!("menu_gf_udp")),
+            label_style,
+        )];
 
         if app.udp_gamefilter {
-            spans.push(Span::styled(format!(" [● {}] ", on_label), if is_sel { Theme::selected_value() } else { Theme::active_value() }));
-            spans.push(Span::styled(format!(" [ {} ] ", off_label), if is_sel { Theme::dim_item().patch(Theme::selected_item()) } else { Theme::dim_item() }));
+            spans.push(Span::styled(
+                format!(" [● {}] ", on_label),
+                if is_sel {
+                    Theme::selected_value()
+                } else {
+                    Theme::active_value()
+                },
+            ));
+            spans.push(Span::styled(
+                format!(" [ {} ] ", off_label),
+                if is_sel {
+                    Theme::dim_item().patch(Theme::selected_item())
+                } else {
+                    Theme::dim_item()
+                },
+            ));
         } else {
-            spans.push(Span::styled(format!(" [ {} ] ", on_label), if is_sel { Theme::dim_item().patch(Theme::selected_item()) } else { Theme::dim_item() }));
-            spans.push(Span::styled(format!(" [● {}] ", off_label), if is_sel { Theme::selected_value() } else { Theme::inactive_value() }));
+            spans.push(Span::styled(
+                format!(" [ {} ] ", on_label),
+                if is_sel {
+                    Theme::dim_item().patch(Theme::selected_item())
+                } else {
+                    Theme::dim_item()
+                },
+            ));
+            spans.push(Span::styled(
+                format!(" [● {}] ", off_label),
+                if is_sel {
+                    Theme::selected_value()
+                } else {
+                    Theme::inactive_value()
+                },
+            ));
         }
 
         items.push(ListItem::new(Line::from(spans)));
@@ -70,7 +136,11 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
             selected_index = index;
         }
 
-        let style = if is_sel { Theme::selected_item() } else { Theme::normal_item() };
+        let style = if is_sel {
+            Theme::selected_item()
+        } else {
+            Theme::normal_item()
+        };
         items.push(ListItem::new(format!(" {}", rust_i18n::t!("menu_gf_back"))).style(style));
     }
 

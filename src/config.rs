@@ -29,8 +29,7 @@ impl Default for RunConfig {
 
 /// Parse a simple `key=value` env-style config file.
 pub fn load_config(file: &str) -> Result<RunConfig, String> {
-    let content =
-        fs::read_to_string(file).map_err(|e| format!("Cannot read config '{}': {}", file, e))?;
+    let content = fs::read_to_string(file).map_err(|e| format!("Cannot read config '{}': {}", file, e))?;
 
     let mut cfg = RunConfig::default();
 
@@ -141,10 +140,11 @@ pub fn ensure_default_config() -> Result<(), String> {
 
 fn validate_config() -> Result<(), String> {
     let path = config_path();
-    let mut content = fs::read_to_string(&path)
-        .map_err(|e| format!("Cannot read config '{}': {}", path.display(), e))?;
+    let mut content =
+        fs::read_to_string(&path).map_err(|e| format!("Cannot read config '{}': {}", path.display(), e))?;
 
-    let existing_keys: Vec<&str> = content.lines()
+    let existing_keys: Vec<&str> = content
+        .lines()
         .filter_map(|line| line.trim().split_once('=').map(|(k, _)| k))
         .collect();
 
@@ -165,8 +165,7 @@ fn validate_config() -> Result<(), String> {
             content.push_str(line);
             content.push('\n');
         }
-        fs::write(&path, &content)
-            .map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
+        fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     }
 
     let defaults = [
@@ -190,8 +189,7 @@ fn validate_config() -> Result<(), String> {
     }
 
     if updated {
-        fs::write(&path, &content)
-            .map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
+        fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     }
 
     Ok(())
