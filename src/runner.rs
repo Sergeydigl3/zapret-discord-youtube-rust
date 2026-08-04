@@ -128,7 +128,7 @@ pub fn run_zapret(strategy_file: &str, interface: &str, use_tcp: bool, use_udp: 
     let output_file = match fs::File::create(&tmp_log) {
         Ok(f) => f,
         Err(_) => {
-            let msg = format!("failed to create temp log file");
+            let msg = "failed to create temp log file".to_string();
             term.push(msg.clone());
             println!("{}", msg);
             return;
@@ -138,7 +138,7 @@ pub fn run_zapret(strategy_file: &str, interface: &str, use_tcp: bool, use_udp: 
     let out_dup = match output_file.try_clone() {
         Ok(f) => f,
         Err(_) => {
-            let msg = format!("failed to clone temp log file handle");
+            let msg = "failed to clone temp log file handle".to_string();
             term.push(msg.clone());
             println!("{}", msg);
             return;
@@ -147,7 +147,7 @@ pub fn run_zapret(strategy_file: &str, interface: &str, use_tcp: bool, use_udp: 
 
     match Command::new(&bin_path)
         .args(&args)
-        .current_dir(&repo_path)
+        .current_dir(repo_path)
         .stdout(output_file)
         .stderr(out_dup)
         .spawn()
@@ -269,7 +269,7 @@ pub fn run_zapret_silent(
     }
 
     crate::logger::log_nfqws_launch(&bin_path.to_string_lossy(), &parsed.nfqws_params, &[]);
-    match Command::new(&bin_path).args(&args).current_dir(&repo_path).spawn() {
+    match Command::new(&bin_path).args(&args).current_dir(repo_path).spawn() {
         Ok(child) => {
             if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
                 procs.push(child);

@@ -52,7 +52,7 @@ pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) 
     let is_sel = app.autotune_menu == AutotuneMenuState::NumRequests;
     items.push(ListItem::new({
         let value = if app.autotune_request_editing {
-            let cursor = if (app.autotune_request_buf.len() as u64) % 2 == 0 {
+            let cursor = if (app.autotune_request_buf.len() as u64).is_multiple_of(2) {
                 "_"
             } else {
                 " "

@@ -99,14 +99,13 @@ pub fn download_nfqws(version: &str) -> Result<(), String> {
         if env::consts::OS == "windows" {
             // For Windows, we need winws.exe, WinDivert.dll, WinDivert64.sys, cygwin1.dll, etc.
             // Copy everything in the platform folder.
-            for entry in
-                fs::read_dir(&expected_bin_path).map_err(|e| format!("{}{}", rust_i18n::t!("err_read_bin"), e))?
+            for entry in fs::read_dir(&expected_bin_path)
+                .map_err(|e| format!("{}{}", rust_i18n::t!("err_read_bin"), e))?
+                .flatten()
             {
-                if let Ok(entry) = entry {
-                    let file_name = entry.file_name();
-                    fs::copy(entry.path(), bin_dir.join(&file_name))
-                        .map_err(|e| format!("{}{:?}: {}", rust_i18n::t!("err_copy_file"), file_name, e))?;
-                }
+                let file_name = entry.file_name();
+                fs::copy(entry.path(), bin_dir.join(&file_name))
+                    .map_err(|e| format!("{}{:?}: {}", rust_i18n::t!("err_copy_file"), file_name, e))?;
             }
             println!("{}", rust_i18n::t!("msg_inst_win_ok"));
         } else {

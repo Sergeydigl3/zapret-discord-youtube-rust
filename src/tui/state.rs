@@ -386,8 +386,8 @@ impl AppState {
         let selected_strategy = saved_cfg
             .as_ref()
             .map_or(0, |cfg| strategies.iter().position(|s| s == &cfg.strategy).unwrap_or(0));
-        let tcp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_tcp);
-        let udp_gamefilter = saved_cfg.as_ref().map_or(false, |cfg| cfg.gamefilter_udp);
+        let tcp_gamefilter = saved_cfg.as_ref().is_some_and(|cfg| cfg.gamefilter_tcp);
+        let udp_gamefilter = saved_cfg.as_ref().is_some_and(|cfg| cfg.gamefilter_udp);
 
         #[cfg(target_os = "linux")]
         let selected_backend = saved_cfg.as_ref().map_or_else(

@@ -109,11 +109,9 @@ pub fn apply_ipset_mode(old_mode: IpsetMode, new_mode: IpsetMode) {
     }
 
     // Save custom mode if leaving it
-    if old_mode == IpsetMode::Custom && new_mode != IpsetMode::Custom {
-        if path.exists() {
-            let custom_path = get_ipset_custom_path();
-            let _ = fs::copy(&path, &custom_path);
-        }
+    if old_mode == IpsetMode::Custom && new_mode != IpsetMode::Custom && path.exists() {
+        let custom_path = get_ipset_custom_path();
+        let _ = fs::copy(&path, &custom_path);
     }
 
     match new_mode {

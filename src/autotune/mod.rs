@@ -436,7 +436,7 @@ fn try_tcp_connect(addr: &str, port: u16) -> Result<TcpStream, io::Error> {
 
 fn try_tcp_connect_domain(domain: &str, port: u16) -> Result<TcpStream, io::Error> {
     let addrs = (domain, port).to_socket_addrs()?;
-    let mut last_err = io::Error::new(ErrorKind::Other, "no addresses");
+    let mut last_err = io::Error::other("no addresses");
     for addr in addrs {
         match TcpStream::connect_timeout(&addr, TIMEOUT) {
             Ok(stream) => return Ok(stream),
@@ -629,7 +629,7 @@ pub fn check_siberian_block() -> CheckResult {
     const MAX_CONCURRENT: usize = 15;
     const EXTRA_CONNECTIONS: usize = 10;
 
-    let test_ips: Vec<&str> = KNOWN_IPS[0].1.iter().copied().collect();
+    let test_ips: Vec<&str> = KNOWN_IPS[0].1.to_vec();
 
     let clean_ok = try_tcp_connect_domain(CLEAN_DOMAIN, 443).is_ok();
 
@@ -827,7 +827,7 @@ pub fn check_cidr_whitelist() -> CheckResult {
             fail_parts.join("; ")
         ))
     } else {
-        CheckResult::fail(format!("All tested IPs blocked: possible whitelist-only policy"))
+        CheckResult::fail("All tested IPs blocked: possible whitelist-only policy".to_string())
     }
 }
 
@@ -1144,10 +1144,8 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
     // Baseline HTTPS test: real TLS handshake + HTTP request
     let baseline_pass = if alive == CheckStatus::Pass {
         test_https(domain, config.num_requests)
-    } else if alive == CheckStatus::Skip {
-        true
     } else {
-        false
+        alive == CheckStatus::Skip
     };
 
     DomainCheckResult {
@@ -1497,7 +1495,7 @@ pub fn run_all(
 
                 crate::runner::stop_zapret(backend);
 
-                let works = pass.len() >= blocked_domains.len() / 2 + 1;
+                let works = pass.len() > blocked_domains.len() / 2;
                 if works {
                     working_names.insert(strat_name.clone());
                 }
