@@ -87,7 +87,7 @@ impl InitType {
 pub fn detect_init_system() -> Option<InitType> {
     #[cfg(target_os = "windows")]
     {
-        return Some(InitType::Windows);
+        Some(InitType::Windows)
     }
 
     #[cfg(target_os = "linux")]
@@ -149,7 +149,7 @@ pub fn detect_init_system() -> Option<InitType> {
 
 /// Factory function to get the ServiceManager for the detected init system.
 pub fn get_detected_manager() -> Option<Box<dyn ServiceManager>> {
-    detect_init_system().map(|t| get_manager(t))
+    detect_init_system().map(get_manager)
 }
 
 /// Factory function to get the ServiceManager for a specific InitType.

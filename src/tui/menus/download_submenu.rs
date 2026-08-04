@@ -52,7 +52,7 @@ pub fn render(app: &AppState, is_zapret: bool) -> (Vec<ListItem<'static>>, Strin
         (
             VersionTarget::Tag("".to_string()),
             match target_ver {
-                VersionTarget::Tag(t) => rust_i18n::t!("val_tag_fmt").replace("{}", &t),
+                VersionTarget::Tag(t) => rust_i18n::t!("val_tag_fmt").replace("{}", t),
                 _ => rust_i18n::t!("val_tag").into_owned(),
             },
         ),

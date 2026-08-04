@@ -25,7 +25,7 @@ pub fn get_lists_files() -> Vec<String> {
         if let Ok(entries) = fs::read_dir(base_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.is_file() && path.extension().map_or(false, |e| e == "txt") {
+                if path.is_file() && path.extension().is_some_and(|e| e == "txt") {
                     files.push(path.to_string_lossy().into_owned());
                 }
             }
@@ -48,7 +48,7 @@ pub fn get_lists_files() -> Vec<String> {
             if let Ok(entries) = fs::read_dir(local_base) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.is_file() && path.extension().map_or(false, |e| e == "txt") {
+                    if path.is_file() && path.extension().is_some_and(|e| e == "txt") {
                         files.push(path.to_string_lossy().into_owned());
                     }
                 }

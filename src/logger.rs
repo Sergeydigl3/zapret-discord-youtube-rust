@@ -24,26 +24,26 @@ pub fn log_nfqws_launch(bin_path: &str, nfqws_params: &[String], terminal_output
     let ts = timestamp();
 
     let _ = writeln!(file, "===== nfqws | {} =====", ts);
-    let _ = writeln!(file, "");
+    let _ = writeln!(file);
 
     let _ = writeln!(file, "--- System Info ---");
     for line in collect_system_info() {
         let _ = writeln!(file, "{}", line);
     }
-    let _ = writeln!(file, "");
+    let _ = writeln!(file);
 
     let config_path = crate::config::config_path();
     let config_content = fs::read_to_string(&config_path).unwrap_or_default();
     let _ = writeln!(file, "--- Config ---");
     let _ = write!(file, "{}", config_content);
-    let _ = writeln!(file, "");
+    let _ = writeln!(file);
 
     if !terminal_output.is_empty() {
         let _ = writeln!(file, "--- Terminal ---");
         for line in terminal_output {
             let _ = writeln!(file, "{}", line);
         }
-        let _ = writeln!(file, "");
+        let _ = writeln!(file);
     }
 
     let _ = writeln!(file, "--- Strategy params ---");
@@ -226,7 +226,7 @@ pub fn log_stop(stop_output: &[String]) {
     };
 
     let ts = timestamp();
-    let _ = writeln!(file, "");
+    let _ = writeln!(file);
     let _ = writeln!(file, "===== stop | {} =====", ts);
     for line in stop_output {
         let _ = writeln!(file, "{}", line);
@@ -266,7 +266,7 @@ fn timestamp() -> String {
     let seconds = time % 60;
 
     fn is_leap(year: u64) -> bool {
-        (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+        (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
     }
 
     let mut y = 1970i64;
