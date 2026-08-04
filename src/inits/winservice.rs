@@ -1,19 +1,16 @@
 #![cfg(target_os = "windows")]
 
+use crate::inits::ServiceManager;
 use std::path::Path;
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
-use crate::inits::ServiceManager;
 
 // We will use standard windows-service API when compiling on Windows
 use windows_service::{
     define_windows_service,
-    service::{
-        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
-        ServiceType,
-    },
+    service::{ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType},
     service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle},
     service_dispatcher,
 };
@@ -33,7 +30,8 @@ impl WindowsServiceManager {
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
             let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let cmd_str = args.iter()
+            let cmd_str = args
+                .iter()
                 .map(|a| a.as_ref().to_string_lossy().into_owned())
                 .collect::<Vec<String>>()
                 .join(" ");
@@ -48,10 +46,7 @@ impl WindowsServiceManager {
 
 impl ServiceManager for WindowsServiceManager {
     fn is_installed(&self) -> bool {
-        let output = Command::new("sc")
-            .arg("query")
-            .arg(Self::SERVICE_NAME)
-            .output();
+        let output = Command::new("sc").arg("query").arg(Self::SERVICE_NAME).output();
         match output {
             Ok(out) => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -63,10 +58,7 @@ impl ServiceManager for WindowsServiceManager {
     }
 
     fn is_active(&self) -> bool {
-        let output = Command::new("sc")
-            .arg("query")
-            .arg(Self::SERVICE_NAME)
-            .output();
+        let output = Command::new("sc").arg("query").arg(Self::SERVICE_NAME).output();
         match output {
             Ok(out) if out.status.success() => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -78,8 +70,12 @@ impl ServiceManager for WindowsServiceManager {
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
         let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
-        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
-        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
+        let config_str = config_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         // Format binPath with correct arguments. SCM expects space after 'binPath=' and 'start='
         let bin_path_arg = format!(

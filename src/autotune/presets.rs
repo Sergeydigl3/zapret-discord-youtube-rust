@@ -63,8 +63,14 @@ pub const PRESETS: &[DomainPreset] = &[
     DomainPreset {
         name: "Social",
         domains: &[
-            "twitter.com", "twimg.com", "reddit.com", "redditmedia.com",
-            "t.me", "telegram.org", "instagram.com", "facebook.com",
+            "twitter.com",
+            "twimg.com",
+            "reddit.com",
+            "redditmedia.com",
+            "t.me",
+            "telegram.org",
+            "instagram.com",
+            "facebook.com",
             "whatsapp.com",
         ],
     },

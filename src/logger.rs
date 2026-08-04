@@ -11,7 +11,12 @@ pub fn log_nfqws_launch(bin_path: &str, nfqws_params: &[String], terminal_output
         return;
     }
 
-    let mut file = match OpenOptions::new().create(true).write(true).truncate(true).open(&log_file) {
+    let mut file = match OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&log_file)
+    {
         Ok(f) => f,
         Err(_) => return,
     };
@@ -75,13 +80,18 @@ fn collect_system_info() -> Vec<String> {
         }
 
         let modules_raw = fs::read_to_string("/proc/modules").unwrap_or_default();
-        let nf_modules: Vec<&str> = modules_raw.lines()
+        let nf_modules: Vec<&str> = modules_raw
+            .lines()
             .filter_map(|l| {
                 let name = l.split_whitespace().next()?;
-                if name.starts_with("nf_") || name.starts_with("nft_")
-                    || name.starts_with("ip_t") || name.starts_with("ip6_t")
-                    || name.starts_with("iptable") || name.starts_with("ip6table")
-                    || name == "arptables" || name == "ebtables"
+                if name.starts_with("nf_")
+                    || name.starts_with("nft_")
+                    || name.starts_with("ip_t")
+                    || name.starts_with("ip6_t")
+                    || name.starts_with("iptable")
+                    || name.starts_with("ip6table")
+                    || name == "arptables"
+                    || name == "ebtables"
                 {
                     Some(name)
                 } else {
@@ -140,7 +150,11 @@ fn collect_system_info() -> Vec<String> {
     let cache_dir = crate::config::get_cache_dir();
 
     let bin_dir = cache_dir.join("bin");
-    let bin_name = if env::consts::OS == "windows" { "winws.exe" } else { "nfqws" };
+    let bin_name = if env::consts::OS == "windows" {
+        "winws.exe"
+    } else {
+        "nfqws"
+    };
     let bin_path = bin_dir.join(bin_name);
     if bin_path.exists() {
         info.push("nfqws: installed".to_string());
@@ -195,8 +209,10 @@ fn collect_system_info() -> Vec<String> {
         info.push("Strategies: not installed".to_string());
     }
 
-    info.push(format!("User: {}",
-        env::var("USER").unwrap_or_else(|_| env::var("USERNAME").unwrap_or_default())));
+    info.push(format!(
+        "User: {}",
+        env::var("USER").unwrap_or_else(|_| env::var("USERNAME").unwrap_or_default())
+    ));
     info.push(format!("Cache dir: {}", cache_dir.display()));
 
     info

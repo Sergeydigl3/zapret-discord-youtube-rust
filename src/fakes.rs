@@ -83,7 +83,8 @@ pub fn load_fakes_state() -> FakesState {
     let (discord_source, game_source) = crate::config::load_active_fakes();
 
     let discord_active = if !discord_source.is_empty() {
-        available.iter()
+        available
+            .iter()
             .find(|f| f.filename == discord_source)
             .map(|f| f.display_name.clone())
     } else {
@@ -91,7 +92,8 @@ pub fn load_fakes_state() -> FakesState {
     };
 
     let game_active = if !game_source.is_empty() {
-        available.iter()
+        available
+            .iter()
             .find(|f| f.filename == game_source)
             .map(|f| f.display_name.clone())
     } else {
@@ -106,20 +108,14 @@ pub fn load_fakes_state() -> FakesState {
     }
 }
 
-pub fn replace_active_fake(
-    state: &FakesState,
-    target: &FakeTarget,
-    source: &FakeFile,
-) -> Result<(), String> {
+pub fn replace_active_fake(state: &FakesState, target: &FakeTarget, source: &FakeFile) -> Result<(), String> {
     let dest = state.bin_dir.join(target.active_filename());
-    fs::copy(&source.path, &dest)
-        .map_err(|e| format!("{}: {}", source.filename, e))?;
+    fs::copy(&source.path, &dest).map_err(|e| format!("{}: {}", source.filename, e))?;
 
     let (mut discord, mut game) = crate::config::load_active_fakes();
     match target {
         FakeTarget::DiscordUdp => discord = source.filename.clone(),
         FakeTarget::GameUdp => game = source.filename.clone(),
     }
-    crate::config::save_active_fakes(&discord, &game)
-        .map_err(|e| format!("config: {}", e))
+    crate::config::save_active_fakes(&discord, &game).map_err(|e| format!("config: {}", e))
 }

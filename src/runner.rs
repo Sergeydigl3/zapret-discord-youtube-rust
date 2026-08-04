@@ -11,13 +11,7 @@ use std::time::Duration;
 static NFQWS_PROCESSES: Mutex<Vec<Child>> = Mutex::new(Vec::new());
 
 /// Run the zapret firewall rule setup and spawn the nfqws daemon.
-pub fn run_zapret(
-    strategy_file: &str,
-    interface: &str,
-    use_tcp: bool,
-    use_udp: bool,
-    backend: &dyn FirewallBackend,
-) {
+pub fn run_zapret(strategy_file: &str, interface: &str, use_tcp: bool, use_udp: bool, backend: &dyn FirewallBackend) {
     let mut term: Vec<String> = Vec::new();
 
     // 1. Parse strategy file
@@ -58,14 +52,15 @@ pub fn run_zapret(
     }
 
     // 3. Kill any leftover nfqws processes from previous runs
-    let _ = Command::new("pkill")
-        .arg("-9")
-        .arg("nfqws")
-        .output();
+    let _ = Command::new("pkill").arg("-9").arg("nfqws").output();
 
     // 4. Ensure user list files exist (original scripts create empty ones)
     let lists_dir = repo_path.join("lists");
-    for name in &["list-general-user.txt", "list-exclude-user.txt", "ipset-exclude-user.txt"] {
+    for name in &[
+        "list-general-user.txt",
+        "list-exclude-user.txt",
+        "ipset-exclude-user.txt",
+    ] {
         let path = lists_dir.join(name);
         if !path.exists() {
             let _ = fs::write(&path, "");
@@ -106,10 +101,7 @@ pub fn run_zapret(
     }
 
     #[cfg(target_os = "linux")]
-    let mut args = vec![
-        "--dpi-desync-fwmark=0x40000000".to_string(),
-        "--qnum=200".to_string(),
-    ];
+    let mut args = vec!["--dpi-desync-fwmark=0x40000000".to_string(), "--qnum=200".to_string()];
 
     #[cfg(target_os = "windows")]
     let mut args = vec![
@@ -228,13 +220,14 @@ pub fn run_zapret_silent(
         return Err(format!("firewall setup error: {}", e));
     }
 
-    let _ = Command::new("pkill")
-        .arg("-9")
-        .arg("nfqws")
-        .output();
+    let _ = Command::new("pkill").arg("-9").arg("nfqws").output();
 
     let lists_dir = repo_path.join("lists");
-    for name in &["list-general-user.txt", "list-exclude-user.txt", "ipset-exclude-user.txt"] {
+    for name in &[
+        "list-general-user.txt",
+        "list-exclude-user.txt",
+        "ipset-exclude-user.txt",
+    ] {
         let lists_path = lists_dir.join(name);
         if !lists_path.exists() {
             let _ = fs::write(&lists_path, "");
@@ -258,10 +251,7 @@ pub fn run_zapret_silent(
         .output();
 
     #[cfg(target_os = "linux")]
-    let mut args = vec![
-        "--dpi-desync-fwmark=0x40000000".to_string(),
-        "--qnum=200".to_string(),
-    ];
+    let mut args = vec!["--dpi-desync-fwmark=0x40000000".to_string(), "--qnum=200".to_string()];
 
     #[cfg(target_os = "windows")]
     let mut args = vec![

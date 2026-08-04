@@ -1,7 +1,7 @@
+use crate::inits::ServiceManager;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use crate::inits::ServiceManager;
 
 pub struct S6Manager;
 
@@ -22,7 +22,11 @@ impl S6Manager {
                 "s6-svc {} {} failed: {}",
                 flag,
                 Self::SERVICE_DIR,
-                if stderr.is_empty() { format!("exit code {:?}", output.status.code()) } else { stderr }
+                if stderr.is_empty() {
+                    format!("exit code {:?}", output.status.code())
+                } else {
+                    stderr
+                }
             ))
         }
     }
@@ -34,9 +38,7 @@ impl ServiceManager for S6Manager {
     }
 
     fn is_active(&self) -> bool {
-        let output = Command::new("s6-svstat")
-            .arg(Self::SERVICE_DIR)
-            .output();
+        let output = Command::new("s6-svstat").arg(Self::SERVICE_DIR).output();
         match output {
             Ok(out) if out.status.success() => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -48,12 +50,15 @@ impl ServiceManager for S6Manager {
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
         let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
-        let config_str = config_path.to_str().ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
-        let cache_str = cache_dir.to_str().ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
+        let config_str = config_path
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
+        let cache_str = cache_dir
+            .to_str()
+            .ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
         // 1. Create S6 dir
-        fs::create_dir_all(Self::SERVICE_DIR)
-            .map_err(|e| format!("{}{}", rust_i18n::t!("err_mkdir_s6"), e))?;
+        fs::create_dir_all(Self::SERVICE_DIR).map_err(|e| format!("{}{}", rust_i18n::t!("err_mkdir_s6"), e))?;
 
         // 2. Write run file
         let run_path = Path::new(Self::SERVICE_DIR).join("run");
@@ -63,8 +68,7 @@ exec {} --config {} --cache-dir {}
 "#,
             exe_str, config_str, cache_str
         );
-        fs::write(&run_path, run_content)
-            .map_err(|e| format!("{}{}", rust_i18n::t!("err_write_run"), e))?;
+        fs::write(&run_path, run_content).map_err(|e| format!("{}{}", rust_i18n::t!("err_write_run"), e))?;
 
         // 3. Make run script executable
         #[cfg(unix)]
@@ -83,8 +87,7 @@ exec {} --config {} --cache-dir {}
 
         // Remove service directory
         if Path::new(Self::SERVICE_DIR).exists() {
-            fs::remove_dir_all(Self::SERVICE_DIR)
-                .map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_s6"), e))?;
+            fs::remove_dir_all(Self::SERVICE_DIR).map_err(|e| format!("{}{}", rust_i18n::t!("err_rm_s6"), e))?;
         }
 
         Ok(())
