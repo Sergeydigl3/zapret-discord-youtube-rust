@@ -6,6 +6,9 @@
   };
 
   outputs = { self, nixpkgs, naersk, flake-utils, ... }:
+  let
+    baseModule = import ./nix/nixos-module.nix;
+  in
     flake-utils.lib.eachDefaultSystem (system:
     let
       pkgs = import nixpkgs { inherit system; };
@@ -37,5 +40,16 @@
 
         env.RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
       };
-    });
+    }) // {
+      nixosModules.zapret-rust-base = baseModule;
+
+      nixosModules.zapret-rust = { config, lib, pkgs, ... }: {
+        imports = [ baseModule ];
+        services.zapret-rust.package = lib.mkDefault (
+          self.packages.${pkgs.stdenv.hostPlatform.system}.default
+        );
+      };
+
+      nixosModule = self.nixosModules.zapret-rust;
+    };
 }
