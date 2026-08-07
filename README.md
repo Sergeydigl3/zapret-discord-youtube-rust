@@ -44,6 +44,8 @@ cargo build --release
 nix run github:Sergeydigl3/zapret-discord-youtube-rust
 ```
 
+#### Использование в качестве пакета
+
 Добавление в конфигурацию NixOS (пример):
 
 ```nix
@@ -67,6 +69,36 @@ nix run github:Sergeydigl3/zapret-discord-youtube-rust
 ```
 
 Бинарник оборачивается (`wrapProgram`) так, что при запуске ему доступны `nftables` и `polkit` из PATH.
+
+#### Использование в качестве системной службы (NixOS Module)
+
+Репозиторий предоставляет NixOS-модуль для удобной настройки и автоматического запуска `zapret-rust` в фоне через `systemd`.
+
+Пример подключения модуля и настройки службы:
+
+```nix
+{
+  inputs.zapret-rust.url = "github:Sergeydigl3/zapret-discord-youtube-rust";
+
+  outputs = { self, nixpkgs, zapret-rust, ... }: {
+    nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./configuration.nix
+        zapret-rust.nixosModules.zapret-rust
+        {
+          services.zapret-rust = {
+            enable = true;
+            interface = "any";
+            strategy = "general.bat";
+            backend = "nftables";
+          };
+        }
+      ];
+    };
+  };
+}
+```
 
 #### Среда разработки
 
@@ -174,6 +206,7 @@ nix develop .
 
 > [!IMPORTANT]
 > *   На **Linux** служба регистрируется под именем `zapret-rust.service` (или аналогичным в зависимости от вашей Init-системы) и настраивается на автоматический запуск при старте системы (`WantedBy=multi-user.target`).
+> *   **Для пользователей NixOS**: Настоятельно рекомендуется использовать предоставляемый NixOS-модуль (`services.zapret-rust.enable = true;`) вместо установки службы через TUI, чтобы сохранить декларативность системы.
 > *   На **Windows** служба устанавливается как системная служба Windows с флагом запуска `--service`.
 
 ---
