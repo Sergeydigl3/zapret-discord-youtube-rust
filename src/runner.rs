@@ -123,11 +123,19 @@ fn build_args(parsed: &ParsedStrategy, ttl: Option<u8>) -> Vec<String> {
 }
 
 fn set_cap(bin_path: &Path) -> bool {
-    Command::new("setcap")
-        .args(["cap_net_admin+ep", &bin_path.to_string_lossy()])
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("setcap")
+            .args(["cap_net_admin+ep", &bin_path.to_string_lossy()])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = bin_path;
+        true
+    }
 }
 
 /// Run the zapret firewall rule setup and spawn the nfqws daemon.
