@@ -107,6 +107,7 @@ pub fn run_all(
     backend: &dyn FirewallBackend,
     interface: &str,
 ) -> AutotuneResults {
+    let start_instant = std::time::Instant::now();
     // Temporarily set TTL to auto (None) during autotune, restoring original TTL on exit
     let original_ttl = crate::config::load_ttl();
     let _ttl_guard = TtlGuard { original_ttl };
@@ -146,6 +147,7 @@ pub fn run_all(
                 block_results,
                 preset_results: Vec::new(),
                 common_strategies: Vec::new(),
+                elapsed_secs: start_instant.elapsed().as_secs(),
             };
         }
     }
@@ -191,6 +193,7 @@ pub fn run_all(
                     block_results,
                     preset_results,
                     common_strategies: Vec::new(),
+                    elapsed_secs: start_instant.elapsed().as_secs(),
                 };
             }
         }
@@ -222,6 +225,7 @@ pub fn run_all(
                         block_results,
                         preset_results,
                         common_strategies: Vec::new(),
+                        elapsed_secs: start_instant.elapsed().as_secs(),
                     };
                 }
 
@@ -239,6 +243,7 @@ pub fn run_all(
                                 block_results,
                                 preset_results,
                                 common_strategies: Vec::new(),
+                                elapsed_secs: start_instant.elapsed().as_secs(),
                             };
                         }
                     }
@@ -266,6 +271,7 @@ pub fn run_all(
                                 block_results,
                                 preset_results,
                                 common_strategies: Vec::new(),
+                                elapsed_secs: start_instant.elapsed().as_secs(),
                             };
                         }
                     }
@@ -346,6 +352,7 @@ pub fn run_all(
                             block_results,
                             preset_results,
                             common_strategies: Vec::new(),
+                            elapsed_secs: start_instant.elapsed().as_secs(),
                         };
                     }
                 }
@@ -364,6 +371,7 @@ pub fn run_all(
                             block_results,
                             preset_results,
                             common_strategies: Vec::new(),
+                            elapsed_secs: start_instant.elapsed().as_secs(),
                         };
                     }
                 }
@@ -409,6 +417,7 @@ pub fn run_all(
                         block_results,
                         preset_results,
                         common_strategies: Vec::new(),
+                        elapsed_secs: start_instant.elapsed().as_secs(),
                     };
                 }
                 for _ in &domains {
@@ -422,6 +431,7 @@ pub fn run_all(
                             block_results,
                             preset_results,
                             common_strategies: Vec::new(),
+                            elapsed_secs: start_instant.elapsed().as_secs(),
                         };
                     }
                 }
@@ -495,6 +505,7 @@ pub fn run_all(
         block_results,
         preset_results,
         common_strategies,
+        elapsed_secs: start_instant.elapsed().as_secs(),
     };
 
     save_results_file(&results);

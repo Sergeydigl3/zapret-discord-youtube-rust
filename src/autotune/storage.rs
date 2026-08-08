@@ -21,6 +21,16 @@ pub fn save_results_file(results: &AutotuneResults) {
         rust_i18n::t!("autotune_saving_results").replace("{}", &path.display().to_string())
     );
 
+    let mins = results.elapsed_secs / 60;
+    let secs = results.elapsed_secs % 60;
+    let _ = writeln!(
+        file,
+        "⏱ {}: {:02}:{:02}\n",
+        rust_i18n::t!("autotune_time_elapsed"),
+        mins,
+        secs
+    );
+
     let check_names = ["DNS", "TCP RST", "SNI", "SIBERIAN", "QUIC", "CIDR"];
     let _ = writeln!(file, "--- {} ---", rust_i18n::t!("autotune_net_results"));
     for (name, check) in check_names.iter().zip(&results.block_results) {
