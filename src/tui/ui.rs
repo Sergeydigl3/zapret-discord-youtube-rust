@@ -701,18 +701,24 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
             #[cfg(target_os = "windows")]
             let backend: &dyn crate::firewalls::FirewallBackend = &crate::firewalls::windivert::WinDivertBackend;
 
+            let start_time = std::time::Instant::now();
             drain_events(rx);
 
             let results = crate::autotune::run_all(
                 config,
                 &|done, total| {
                     let pct = done * 100 / total.max(1);
+                    let elapsed_sec = start_time.elapsed().as_secs();
+                    let mins = elapsed_sec / 60;
+                    let secs = elapsed_sec % 60;
                     print!(
-                        "\r  {} {}/{} ({}%)",
+                        "\r  {} {}/{} ({}%) [{:02}:{:02}]",
                         rust_i18n::t!("autotune_progress"),
                         done,
                         total,
-                        pct
+                        pct,
+                        mins,
+                        secs
                     );
                     let _ = std::io::stdout().flush();
 
@@ -734,8 +740,18 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
             // Results file is saved inside run_all; just track its presence
             app.has_autotune_results_file = true;
             app.dpi_desync_ttl = crate::config::load_ttl();
+
+            let total_elapsed = start_time.elapsed().as_secs();
+            let total_mins = total_elapsed / 60;
+            let total_secs = total_elapsed % 60;
             println!();
             println!();
+            println!(
+                "⏱  {} {:02}:{:02}",
+                rust_i18n::t!("autotune_time_elapsed"),
+                total_mins,
+                total_secs
+            );
             println!("{}", rust_i18n::t!("autotune_done"));
             println!();
             println!("{}", rust_i18n::t!("autotune_how_to_read"));

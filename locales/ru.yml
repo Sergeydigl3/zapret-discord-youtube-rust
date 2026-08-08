@@ -315,6 +315,7 @@ autotune_running: "🔍 Запуск диагностики автотюн... (�
 autotune_cancelled: "🛑 Остановка автотюна пользователем. Сетевые настройки и процессы восстановлены."
 autotune_done: "✅ Диагностика автотюн завершена."
 autotune_progress: "Прогресс"
+autotune_time_elapsed: "Время выполнения:"
 autotune_how_to_read: "✅ = Нет блокировки, ❌ = Блокировка обнаружена, ⏩ = Пропущено"
 autotune_proto_legend: "alive=TCP 443 | HTTP=TCP 80 | HTTPS=TLS=TCP 443 | QUIC=UDP 443"
 autotune_preset_sel: "Выбран пресет"

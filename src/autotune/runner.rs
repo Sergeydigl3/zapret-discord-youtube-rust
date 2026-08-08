@@ -122,11 +122,17 @@ pub fn run_all(
 
     let proto_steps = count_protocol_steps(config);
 
-    // Calculate total steps: network checks + per-preset baseline domain checks
+    // Calculate total steps upfront: network checks + per-preset baseline domain checks + strategy tests
     let mut total = net_check_count;
     for &preset_idx in config.preset_indices.iter() {
         let domain_count = get_domains_for_preset(preset_idx).len();
-        total += domain_count * (1 + proto_steps);
+        let baseline_steps = domain_count * (1 + proto_steps);
+        let strat_steps = if strat_count > 0 {
+            strat_count * (1 + domain_count)
+        } else {
+            0
+        };
+        total += baseline_steps + strat_steps;
     }
 
     let mut done = 0;
@@ -196,16 +202,6 @@ pub fn run_all(
             .map(|dc| dc.domain.clone())
             .collect();
 
-        // Accurately add strategy testing steps for this preset to `total`
-        let tested_count = if !loaded.is_empty() && !blocked_domains.is_empty() {
-            blocked_domains.len()
-        } else if !loaded.is_empty() {
-            domains.len()
-        } else {
-            0
-        };
-        total += strat_count * (1 + tested_count);
-
         // === Strategy testing with real nfqws ===
         let mut strategy_results: Vec<StrategyCheckResult> = Vec::new();
         let mut working_names: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -232,7 +228,7 @@ pub fn run_all(
                 if let Err(e) = started {
                     println!("    {} {}: {}", rust_i18n::t!("status_failed"), strat_name, e);
                     strategy_results.push(StrategyCheckResult::failed(strat_name, &blocked_domains));
-                    for _ in &blocked_domains {
+                    for _ in 0..domains.len() {
                         done += 1;
                         if !progress(done, total) {
                             println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
@@ -259,7 +255,7 @@ pub fn run_all(
                     );
                     strategy_results.push(StrategyCheckResult::failed(strat_name, &blocked_domains));
                     crate::runner::stop_zapret(backend);
-                    for _ in &blocked_domains {
+                    for _ in 0..domains.len() {
                         done += 1;
                         if !progress(done, total) {
                             println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
@@ -321,7 +317,7 @@ pub fn run_all(
                     if tls13_ok {
                         tls13_works = true;
                     }
-                    if quic_ok {
+                    if quic_works {
                         quic_works = true;
                     }
 
@@ -339,6 +335,24 @@ pub fn run_all(
                         tls13: tls13_ok,
                         quic: quic_ok,
                     });
+                    done += 1;
+                    if !progress(done, total) {
+                        println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                        crate::runner::stop_zapret(backend);
+                        if let Some(ref saved) = saved_ipset {
+                            restore_ipset(saved);
+                        }
+                        return AutotuneResults {
+                            block_results,
+                            preset_results,
+                            common_strategies: Vec::new(),
+                        };
+                    }
+                }
+
+                // Credit steps for domains that passed baseline (unblocked)
+                let unblocked_count = domains.len().saturating_sub(blocked_domains.len());
+                for _ in 0..unblocked_count {
                     done += 1;
                     if !progress(done, total) {
                         println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
