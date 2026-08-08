@@ -10,6 +10,7 @@ mod ipset;
 mod logger;
 mod runner;
 mod strategy;
+mod ttl;
 mod tui;
 mod utils;
 
@@ -172,13 +173,19 @@ fn main() {
         .unwrap_or_else(|e| eprintln!("{}{}", rust_i18n::t!("err_ctrl_c"), e));
     }
 
+    // Single event reader for the whole process lifetime. Re-entering the TUI
+    // after each "Run" must reuse this reader: spawning a new one per session
+    // leaks threads that stay blocked on the console input handle and starve
+    // the live reader of events.
+    let rx = tui::spawn_event_reader();
+
     loop {
         if is_interactive {
             let interfaces = config::get_interfaces();
             let strategies = strategy::get_strategies();
             let mut app = tui::AppState::new(interfaces, strategies);
 
-            let res = tui::run_tui(&mut app);
+            let res = tui::run_tui(&mut app, &rx);
             if let Err(e) = res {
                 println!("{}{}", rust_i18n::t!("err_tui"), e);
                 exit(1);
