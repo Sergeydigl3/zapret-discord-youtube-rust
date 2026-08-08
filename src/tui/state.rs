@@ -454,7 +454,12 @@ impl AppState {
                 } else {
                     preset.name.to_string()
                 };
-                files.push((label, crate::autotune::preset_domains_file_path(idx).to_string_lossy().into_owned()));
+                files.push((
+                    label,
+                    crate::autotune::preset_domains_file_path(idx)
+                        .to_string_lossy()
+                        .into_owned(),
+                ));
             }
             files.push((
                 rust_i18n::t!("menu_domain_ttl").into_owned(),

@@ -10,8 +10,8 @@ use std::time::Duration;
 use windows_service::{
     define_windows_service,
     service::{
-        ServiceAccess, ServiceControl, ServiceControlAccept, ServiceErrorControl, ServiceExitCode,
-        ServiceInfo, ServiceStartType, ServiceState, ServiceStatus, ServiceType,
+        ServiceAccess, ServiceControl, ServiceControlAccept, ServiceErrorControl, ServiceExitCode, ServiceInfo,
+        ServiceStartType, ServiceState, ServiceStatus, ServiceType,
     },
     service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle},
     service_dispatcher,
@@ -28,10 +28,7 @@ impl WindowsServiceManager {
             .map_err(|e| format!("{}{}", rust_i18n::t!("err_service"), e))
     }
 
-    fn open_service(
-        &self,
-        access: ServiceAccess,
-    ) -> Result<windows_service::service::Service, String> {
+    fn open_service(&self, access: ServiceAccess) -> Result<windows_service::service::Service, String> {
         let manager = Self::connect_scm()?;
         manager
             .open_service(Self::SERVICE_NAME, access)

@@ -23,8 +23,8 @@ type Aes128Gcm = aes_gcm::Aes128Gcm;
 
 /// RFC 9001 section 5.2 initial_salt.
 const INITIAL_SALT: [u8; 20] = [
-    0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3, 0x4d, 0x17,
-    0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad, 0xcc, 0xbb, 0x7f, 0x0a,
+    0x38, 0x76, 0x2c, 0xf7, 0xf5, 0x59, 0x34, 0xb3, 0x4d, 0x17, 0x9a, 0xe6, 0xa4, 0xc8, 0x0c, 0xad, 0xcc, 0xbb, 0x7f,
+    0x0a,
 ];
 
 const CLIENT_IN_LABEL: &str = "client in";
@@ -334,8 +334,7 @@ fn send_one_probe(sock: &std::net::UdpSocket, server_name: &str) -> ProbeOutcome
     let pn_len = 1;
     let length_varint_len = 2;
     let tag_len = 16;
-    let max_frames = TARGET_DATAGRAM
-        .saturating_sub(fixed_header + length_varint_len + pn_len + tag_len);
+    let max_frames = TARGET_DATAGRAM.saturating_sub(fixed_header + length_varint_len + pn_len + tag_len);
     if frames.len() < max_frames {
         frames.resize(max_frames, 0x00); // PADDING frames
     }
@@ -472,12 +471,7 @@ mod tests {
     #[ignore]
     fn live_probe_known_hosts() {
         use std::net::ToSocketAddrs;
-        let targets = [
-            "cloudflare.com",
-            "www.google.com",
-            "youtube.com",
-            "discord.com",
-        ];
+        let targets = ["cloudflare.com", "www.google.com", "youtube.com", "discord.com"];
         for name in targets {
             let ips: Vec<std::net::IpAddr> = (name, 443)
                 .to_socket_addrs()

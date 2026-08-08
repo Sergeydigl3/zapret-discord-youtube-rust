@@ -1,9 +1,7 @@
-﻿use crossterm::{
+use crossterm::{
     event::{Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{
-        disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
-    },
+    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -24,14 +22,14 @@ use crate::tui::state::{
 };
 use crate::tui::theme::Theme;
 
-    fn status_str(s: &CheckStatus) -> &'static str {
-        match s {
-            CheckStatus::Pass => "✅",
-            CheckStatus::Fail => "❌",
-            CheckStatus::Skip => "⏩",
-            CheckStatus::Error => "🚨",
-        }
+fn status_str(s: &CheckStatus) -> &'static str {
+    match s {
+        CheckStatus::Pass => "✅",
+        CheckStatus::Fail => "❌",
+        CheckStatus::Skip => "⏩",
+        CheckStatus::Error => "🚨",
     }
+}
 
 fn status_detail(s: &CheckStatus) -> &'static str {
     match s {
@@ -238,9 +236,7 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
                         menus::autotune_menu::render_config(app)
                     }
                 }
-                ActiveScreen::AutotuneEditDomainsSubmenu => {
-                    menus::autotune_menu::render_domain_files(app)
-                }
+                ActiveScreen::AutotuneEditDomainsSubmenu => menus::autotune_menu::render_domain_files(app),
                 ActiveScreen::AutotuneProtocolsSubmenu => {
                     menus::autotune_menu::render_protocols(app, app.autotune_protocols_menu)
                 }
