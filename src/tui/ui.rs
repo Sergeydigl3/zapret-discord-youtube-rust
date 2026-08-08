@@ -701,6 +701,8 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
             #[cfg(target_os = "windows")]
             let backend: &dyn crate::firewalls::FirewallBackend = &crate::firewalls::windivert::WinDivertBackend;
 
+            drain_events(rx);
+
             let results = crate::autotune::run_all(
                 config,
                 &|done, total| {
@@ -713,6 +715,18 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
                         pct
                     );
                     let _ = std::io::stdout().flush();
+
+                    while let Ok(event) = rx.try_recv() {
+                        if let crossterm::event::Event::Key(key) = event {
+                            if key.code == crossterm::event::KeyCode::Char('q')
+                                || key.code == crossterm::event::KeyCode::Char('Q')
+                                || key.code == crossterm::event::KeyCode::Esc
+                            {
+                                return false; // Emergency stop requested!
+                            }
+                        }
+                    }
+                    true
                 },
                 backend,
                 interface,

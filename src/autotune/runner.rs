@@ -93,7 +93,7 @@ fn domain_check_error() -> DomainCheckResult {
 
 pub fn run_all(
     config: &AutotuneConfig,
-    progress: &dyn Fn(usize, usize),
+    progress: &dyn Fn(usize, usize) -> bool,
     backend: &dyn FirewallBackend,
     interface: &str,
 ) -> AutotuneResults {
@@ -119,7 +119,14 @@ pub fn run_all(
     // === Network checks ===
     for _result in block_results.iter() {
         done += 1;
-        progress(done, total);
+        if !progress(done, total) {
+            println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+            return AutotuneResults {
+                block_results,
+                preset_results: Vec::new(),
+                common_strategies: Vec::new(),
+            };
+        }
     }
 
     let mut preset_results: Vec<PresetResult> = Vec::new();
@@ -154,7 +161,17 @@ pub fn run_all(
         for handle in handles {
             domain_checks.push(handle.join().unwrap_or_else(|_| domain_check_error()));
             done += 1 + proto_steps;
-            progress(done, total);
+            if !progress(done, total) {
+                println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                if let Some(ref saved) = saved_ipset {
+                    restore_ipset(saved);
+                }
+                return AutotuneResults {
+                    block_results,
+                    preset_results,
+                    common_strategies: Vec::new(),
+                };
+            }
         }
 
         // Determine which domains are blocked (baseline TLS 1.3 failed)
@@ -184,14 +201,35 @@ pub fn run_all(
 
                 let started = crate::runner::run_zapret_silent(strat_path, interface, false, false, backend);
                 done += 1;
-                progress(done, total);
+                if !progress(done, total) {
+                    println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                    crate::runner::stop_zapret(backend);
+                    if let Some(ref saved) = saved_ipset {
+                        restore_ipset(saved);
+                    }
+                    return AutotuneResults {
+                        block_results,
+                        preset_results,
+                        common_strategies: Vec::new(),
+                    };
+                }
 
                 if let Err(e) = started {
                     println!("    {} {}: {}", rust_i18n::t!("status_failed"), strat_name, e);
                     strategy_results.push(StrategyCheckResult::failed(strat_name, &blocked_domains));
                     for _ in &blocked_domains {
                         done += 1;
-                        progress(done, total);
+                        if !progress(done, total) {
+                            println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                            if let Some(ref saved) = saved_ipset {
+                                restore_ipset(saved);
+                            }
+                            return AutotuneResults {
+                                block_results,
+                                preset_results,
+                                common_strategies: Vec::new(),
+                            };
+                        }
                     }
                     continue;
                 }
@@ -208,7 +246,17 @@ pub fn run_all(
                     crate::runner::stop_zapret(backend);
                     for _ in &blocked_domains {
                         done += 1;
-                        progress(done, total);
+                        if !progress(done, total) {
+                            println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                            if let Some(ref saved) = saved_ipset {
+                                restore_ipset(saved);
+                            }
+                            return AutotuneResults {
+                                block_results,
+                                preset_results,
+                                common_strategies: Vec::new(),
+                            };
+                        }
                     }
                     continue;
                 }
@@ -277,7 +325,18 @@ pub fn run_all(
                         quic: quic_ok,
                     });
                     done += 1;
-                    progress(done, total);
+                    if !progress(done, total) {
+                        println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                        crate::runner::stop_zapret(backend);
+                        if let Some(ref saved) = saved_ipset {
+                            restore_ipset(saved);
+                        }
+                        return AutotuneResults {
+                            block_results,
+                            preset_results,
+                            common_strategies: Vec::new(),
+                        };
+                    }
                 }
 
                 let mut protocols_working = Vec::new();
@@ -312,10 +371,30 @@ pub fn run_all(
         } else if !loaded.is_empty() && blocked_domains.is_empty() {
             for (strat_name, _) in &loaded {
                 done += 1;
-                progress(done, total);
+                if !progress(done, total) {
+                    println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                    if let Some(ref saved) = saved_ipset {
+                        restore_ipset(saved);
+                    }
+                    return AutotuneResults {
+                        block_results,
+                        preset_results,
+                        common_strategies: Vec::new(),
+                    };
+                }
                 for _ in &domains {
                     done += 1;
-                    progress(done, total);
+                    if !progress(done, total) {
+                        println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                        if let Some(ref saved) = saved_ipset {
+                            restore_ipset(saved);
+                        }
+                        return AutotuneResults {
+                            block_results,
+                            preset_results,
+                            common_strategies: Vec::new(),
+                        };
+                    }
                 }
                 working_names.insert(strat_name.clone());
                 strategy_results.push(StrategyCheckResult {
