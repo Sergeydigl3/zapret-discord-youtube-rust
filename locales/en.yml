@@ -315,6 +315,7 @@ autotune_running: "🔍 Running autotune diagnostics... (Press 'q' or Esc to can
 autotune_cancelled: "🛑 Emergency stop triggered by user. Network settings and processes restored."
 autotune_done: "✅ Autotune diagnostics completed."
 autotune_progress: "Progress"
+autotune_time_elapsed: "Elapsed time:"
 autotune_how_to_read: "✅ = No blocking detected, ❌ = Blocking detected, ⏩ = Skipped"
 autotune_proto_legend: "alive=TCP 443 | HTTP=TCP 80 | HTTPS=TLS=TCP 443 | QUIC=UDP 443"
 autotune_preset_sel: "Selected preset"
