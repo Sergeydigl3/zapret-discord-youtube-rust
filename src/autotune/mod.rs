@@ -44,6 +44,7 @@ impl CheckResult {
     }
 }
 
+mod quic;
 pub mod presets;
 pub use presets::*;
 
@@ -86,16 +87,9 @@ pub struct BlockChecks {
     pub enabled: Vec<bool>, // same order as BlockCheckType::all()
 }
 
-#[allow(dead_code)]
 impl BlockChecks {
     pub fn all_enabled() -> Self {
         Self { enabled: vec![true; 6] }
-    }
-
-    pub fn all_disabled() -> Self {
-        Self {
-            enabled: vec![false; 6],
-        }
     }
 
     pub fn get(&self, idx: usize) -> bool {
@@ -108,20 +102,16 @@ impl BlockChecks {
         }
     }
 
-    pub fn any_enabled(&self) -> bool {
-        self.enabled.iter().any(|&e| e)
-    }
-
     pub fn count_enabled(&self) -> usize {
         self.enabled.iter().filter(|&&e| e).count()
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct AutotuneConfig {
     pub preset_indices: Vec<usize>,
     pub num_requests: usize,
     pub check_http: bool,
-    pub check_https: bool,
     pub check_tls12: bool,
     pub check_tls13: bool,
     pub check_quic: bool,
@@ -135,7 +125,6 @@ impl Default for AutotuneConfig {
             preset_indices: vec![0],
             num_requests: 3,
             check_http: true,
-            check_https: true,
             check_tls12: true,
             check_tls13: true,
             check_quic: true,
@@ -150,7 +139,6 @@ pub struct DomainCheckResult {
     pub domain: String,
     pub alive: CheckStatus,
     pub http: CheckStatus,
-    pub https: CheckStatus,
     pub tls12: CheckStatus,
     pub tls13: CheckStatus,
     pub quic: CheckStatus,
@@ -158,7 +146,6 @@ pub struct DomainCheckResult {
     #[allow(dead_code)]
     pub detail: String,
     pub http_count: usize,
-    pub https_count: usize,
     pub quic_count: usize,
 }
 
@@ -176,7 +163,6 @@ pub struct StrategyCheckResult {
 pub struct DomainProtocolCheck {
     pub domain: String,
     pub http: bool,
-    pub https: bool,
     pub tls12: bool,
     pub tls13: bool,
     pub quic: bool,
@@ -188,6 +174,16 @@ impl StrategyCheckResult {
     }
     pub fn score(&self) -> usize {
         self.domains_pass.len()
+    }
+    fn failed(name: &str, blocked_domains: &[String]) -> Self {
+        Self {
+            strategy_name: name.to_string(),
+            domains_pass: Vec::new(),
+            domains_fail: blocked_domains.to_vec(),
+            works: false,
+            protocols_working: Vec::new(),
+            domain_checks: Vec::new(),
+        }
     }
 }
 
@@ -270,13 +266,11 @@ pub fn save_results_file(results: &AutotuneResults) {
         for dc in &pr.domain_checks {
             let _ = writeln!(
                 file,
-                "  {}: alive={} HTTP:{}({}) HTTPS:{}({}) T12:{} T13:{} QUIC:{}({}) baseline={}",
+                "  {}: alive={} HTTP:{}({}) TLS1.2:{} TLS1.3:{} QUIC:{}({}) baseline={}",
                 dc.domain,
                 status_str_file(&dc.alive),
                 status_str_file(&dc.http),
                 dc.http_count,
-                status_str_file(&dc.https),
-                dc.https_count,
                 status_str_file(&dc.tls12),
                 status_str_file(&dc.tls13),
                 status_str_file(&dc.quic),
@@ -314,10 +308,9 @@ pub fn save_results_file(results: &AutotuneResults) {
                 for dc in &sr.domain_checks {
                     let _ = writeln!(
                         file,
-                        "      {} HTTP:{} HTTPS:{} T12:{} T13:{} Q:{}",
+                        "      {} HTTP:{} T12:{} T13:{} Q:{}",
                         dc.domain,
                         if dc.http { "✅" } else { "❌" },
-                        if dc.https { "✅" } else { "❌" },
                         if dc.tls12 { "✅" } else { "❌" },
                         if dc.tls13 { "✅" } else { "❌" },
                         if dc.quic { "✅" } else { "❌" },
@@ -364,17 +357,18 @@ const KNOWN_IPS: &[(&str, &[&str])] = &[
     ("google.com", &["142.250.185.78", "216.58.215.14"]),
 ];
 
-pub fn custom_domains_file_path() -> std::path::PathBuf {
-    let cache = crate::config::get_cache_dir();
-    cache.join(CUSTOM_DOMAINS_FILE)
+pub fn preset_domains_file_path(preset_idx: usize) -> std::path::PathBuf {
+    let name = PRESET_FILES.get(preset_idx).copied().unwrap_or(CUSTOM_DOMAINS_FILE);
+    crate::config::get_cache_dir().join(name)
 }
 
-pub fn load_custom_domains() -> Vec<String> {
-    let path = custom_domains_file_path();
+/// Read a domain list file. One domain per line, lines starting with `#` are
+/// treated as comments and skipped.
+pub fn load_domain_file(path: &std::path::Path) -> Vec<String> {
     if !path.exists() {
         return Vec::new();
     }
-    match std::fs::read_to_string(&path) {
+    match std::fs::read_to_string(path) {
         Ok(content) => content
             .lines()
             .map(|l| l.trim().to_string())
@@ -384,31 +378,44 @@ pub fn load_custom_domains() -> Vec<String> {
     }
 }
 
+/// Domains for a preset come entirely from its text file. If the file is
+/// missing or empty, the built-in defaults are used as a fallback.
 pub fn get_domains_for_preset(preset_idx: usize) -> Vec<String> {
     if preset_idx >= PRESETS.len() {
         return Vec::new();
     }
-    let preset = &PRESETS[preset_idx];
-    if preset_idx == PRESETS.len() - 1 {
-        // Custom preset
-        load_custom_domains()
-    } else {
-        preset.domains.iter().map(|s| s.to_string()).collect()
+    let file_domains = load_domain_file(&preset_domains_file_path(preset_idx));
+    if !file_domains.is_empty() {
+        return file_domains;
     }
+    PRESETS[preset_idx].domains.iter().map(|s| s.to_string()).collect()
 }
 
-#[allow(dead_code)]
-pub fn get_preset_names(indices: &[usize]) -> Vec<String> {
-    indices
-        .iter()
-        .filter_map(|&i| {
-            if i < PRESETS.len() {
-                Some(PRESETS[i].name.to_string())
-            } else {
-                None
-            }
-        })
-        .collect()
+/// Create/refresh the per-preset domain list files (and the TTL list) with the
+/// full built-in domain list so the user can add/remove domains freely.
+pub fn ensure_domain_files() -> Result<(), String> {
+    for (idx, preset) in PRESETS.iter().enumerate() {
+        let path = preset_domains_file_path(idx);
+        let header = rust_i18n::t!("domain_file_header_full").replace("{}", preset.name);
+        ensure_domain_file(&path, &header, preset.domains)?;
+    }
+    crate::ttl::ensure_ttl_file()
+}
+
+fn ensure_domain_file(path: &std::path::Path, header: &str, defaults: &[&str]) -> Result<(), String> {
+    if path.exists() && !load_domain_file(path).is_empty() {
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Cannot create directory '{}': {}", parent.display(), e))?;
+    }
+    let mut content = format!("# {}\n", header);
+    for d in defaults {
+        content.push_str(d);
+        content.push('\n');
+    }
+    std::fs::write(path, content).map_err(|e| format!("Cannot write '{}': {}", path.display(), e))
 }
 
 fn resolve_domain(domain: &str) -> Vec<IpAddr> {
@@ -462,13 +469,12 @@ pub fn check_dns_spoof() -> CheckResult {
         }
 
         if let Some(&(_, known_ips)) = KNOWN_IPS.iter().find(|(d, _)| *d == domain) {
-            let sys_strs: Vec<String> = sys_ips.iter().map(|ip| ip.to_string()).collect();
-            let known_set: Vec<String> = known_ips.iter().map(|s| s.to_string()).collect();
-            let any_match = sys_ips.iter().any(|ip| known_ips.contains(&ip.to_string().as_str()));
+            let known_addrs: Vec<IpAddr> = known_ips.iter().filter_map(|s| s.parse().ok()).collect();
+            let any_match = sys_ips.iter().any(|ip| known_addrs.contains(ip));
             if !any_match {
                 results.push(format!(
                     "{} resolved to {:?} (unexpected vs known {:?})",
-                    domain, sys_strs, known_set
+                    domain, sys_ips, known_ips
                 ));
             } else {
                 results.push(format!("{} OK", domain));
@@ -697,6 +703,20 @@ pub fn check_siberian_block() -> CheckResult {
 }
 
 pub fn check_quic_block() -> CheckResult {
+    // First verify general UDP connectivity so a broken link isn't reported
+    // as a QUIC block.
+    match UdpSocket::bind("0.0.0.0:0") {
+        Ok(sock) => {
+            let clean_ip: IpAddr = "8.8.8.8".parse().unwrap();
+            if sock.connect((clean_ip, 53)).is_err() {
+                return CheckResult::skip("Internet connectivity issue (cannot reach 8.8.8.8:53 UDP)");
+            }
+        }
+        Err(_) => {
+            return CheckResult::skip("Cannot create UDP socket");
+        }
+    }
+
     let mut details: Vec<String> = Vec::new();
     let mut quic_ok = 0;
 
@@ -719,28 +739,16 @@ pub fn check_quic_block() -> CheckResult {
                     if sock.set_read_timeout(Some(Duration::from_secs(2))).is_err() {
                         continue;
                     }
-                    let probe = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
-                    match sock.send(probe) {
-                        Ok(_) => {
-                            let mut buf = [0u8; 64];
-                            match sock.recv(&mut buf) {
-                                Ok(n) if n > 0 => {
-                                    details.push(format!("{}: UDP response ({} bytes)", ip_str, n));
-                                    quic_ok += 1;
-                                }
-                                Ok(_) => {
-                                    details.push(format!("{}: UDP sent, empty response", ip_str));
-                                }
-                                Err(ref e) if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock => {
-                                    details.push(format!("{}: UDP sent, no response (possible QUIC block)", ip_str));
-                                }
-                                Err(e) => {
-                                    details.push(format!("{}: UDP recv error: {}", ip_str, e));
-                                }
-                            }
+                    match quic::send_probe(&sock, domain) {
+                        quic::ProbeOutcome::Reply => {
+                            details.push(format!("{}: QUIC response", ip_str));
+                            quic_ok += 1;
                         }
-                        Err(e) => {
-                            details.push(format!("{}: UDP send error: {}", ip_str, e));
+                        quic::ProbeOutcome::NoReply => {
+                            details.push(format!("{}: QUIC sent, no response (possible QUIC block)", ip_str));
+                        }
+                        quic::ProbeOutcome::Error => {
+                            details.push(format!("{}: QUIC probe error", ip_str));
                         }
                     }
                 }
@@ -748,18 +756,6 @@ pub fn check_quic_block() -> CheckResult {
                     details.push(format!("{}: socket bind error: {}", ip_str, e));
                 }
             }
-        }
-    }
-
-    match UdpSocket::bind("0.0.0.0:0") {
-        Ok(sock) => {
-            let clean_ip: IpAddr = "8.8.8.8".parse().unwrap();
-            if sock.connect((clean_ip, 53)).is_err() {
-                return CheckResult::skip("Internet connectivity issue (cannot reach 8.8.8.8:53 UDP)");
-            }
-        }
-        Err(_) => {
-            return CheckResult::skip("Cannot create UDP socket");
         }
     }
 
@@ -808,7 +804,7 @@ pub fn check_cidr_whitelist() -> CheckResult {
         }
     }
 
-    if try_tcp_connect(CLEAN_DOMAIN, 443).is_err() {
+    if try_tcp_connect_domain(CLEAN_DOMAIN, 443).is_err() {
         return CheckResult::skip("Internet connectivity issue");
     }
 
@@ -883,27 +879,20 @@ fn check_domain_http(domain: &str, num_req: usize) -> (CheckStatus, usize) {
     (status, success)
 }
 
-fn check_domain_https(domain: &str, num_req: usize) -> (CheckStatus, usize) {
-    let mut success = 0;
+fn check_domain_tls(domain: &str, num_req: usize) -> CheckStatus {
     for _ in 0..num_req {
         match try_tcp_connect_domain(domain, 443) {
             Ok(mut stream) => {
                 let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
                 let mut buf = [0u8; 1];
-                success += 1;
                 let _ = stream.read(&mut buf);
             }
             Err(_) => {
-                return (CheckStatus::Fail, success);
+                return CheckStatus::Fail;
             }
         }
     }
-    let status = if success > 0 {
-        CheckStatus::Pass
-    } else {
-        CheckStatus::Fail
-    };
-    (status, success)
+    CheckStatus::Pass
 }
 
 fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
@@ -914,28 +903,8 @@ fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
     let mut success = 0;
     for &ip in ips.iter().take(2) {
         let addr = SocketAddr::new(ip, 443);
-        if let Ok(sock) = UdpSocket::bind("0.0.0.0:0") {
-            if sock.connect(addr).is_err() {
-                continue;
-            }
-            let _ = sock.set_read_timeout(Some(Duration::from_secs(2)));
-            let probe = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
-            for _ in 0..num_req {
-                if sock.send(probe).is_err() {
-                    return (CheckStatus::Fail, success);
-                }
-                let mut buf = [0u8; 64];
-                match sock.recv(&mut buf) {
-                    Ok(n) if n > 0 => {
-                        success += 1;
-                    }
-                    _ => {
-                        return (CheckStatus::Fail, success);
-                    }
-                }
-            }
-        }
-        if success > 0 {
+        if quic::probe_quic(addr, domain, num_req.max(1), Duration::from_secs(2)) {
+            success += 1;
             break;
         }
     }
@@ -947,30 +916,35 @@ fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
     (status, success)
 }
 
-fn test_https(domain: &str, num_requests: usize) -> bool {
-    let url = format!("https://{}", domain);
+fn http_ok(code: &str) -> bool {
+    !code.is_empty() && code != "000"
+}
+
+fn null_device() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "NUL"
+    } else {
+        "/dev/null"
+    }
+}
+
+fn curl_test(url: &str, extra_args: &[&str], num_requests: usize, ok: impl Fn(&str) -> bool) -> bool {
+    if num_requests == 0 {
+        return true;
+    }
     for _ in 0..num_requests {
-        let ok = std::process::Command::new("curl")
-            .args([
-                "-s",
-                "--tlsv1.3",
-                "--connect-timeout",
-                "4",
-                "--max-time",
-                "4",
-                "-o",
-                "/dev/null",
-                "-w",
-                "%{http_code}",
-                &url,
-            ])
-            .output()
-            .map(|o| {
-                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                code.starts_with('2') || code.starts_with('3')
-            })
-            .unwrap_or(false);
-        if !ok {
+        let out = std::process::Command::new("curl")
+            .arg("-s")
+            .arg("-k")
+            .args(extra_args)
+            .args(["--connect-timeout", "4", "--max-time", "4", "-o", null_device(), "-w"])
+            .arg("%{http_code}")
+            .arg(url)
+            .output();
+        let code = out
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default();
+        if !ok(&code) {
             return false;
         }
     }
@@ -978,99 +952,29 @@ fn test_https(domain: &str, num_requests: usize) -> bool {
 }
 
 fn test_tls(domain: &str, tls_flag: &str, num_requests: usize) -> bool {
-    let url = format!("https://{}", domain);
-    for _ in 0..num_requests {
-        let ok = std::process::Command::new("curl")
-            .args([
-                "-s",
-                tls_flag,
-                "--connect-timeout",
-                "4",
-                "--max-time",
-                "4",
-                "-o",
-                "/dev/null",
-                "-w",
-                "%{http_code}",
-                &url,
-            ])
-            .output()
-            .map(|o| {
-                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                code.starts_with('2') || code.starts_with('3')
-            })
-            .unwrap_or(false);
-        if !ok {
-            return false;
-        }
-    }
-    true
+    curl_test(&format!("https://{}", domain), &[tls_flag], num_requests, http_ok)
 }
 
 fn test_quic(domain: &str, num_requests: usize) -> bool {
-    let url = format!("https://{}", domain);
-    for _ in 0..num_requests {
-        let ok = std::process::Command::new("curl")
-            .args([
-                "-s",
-                "--http3",
-                "--connect-timeout",
-                "4",
-                "--max-time",
-                "4",
-                "-o",
-                "/dev/null",
-                "-w",
-                "%{http_code}",
-                &url,
-            ])
-            .output()
-            .map(|o| {
-                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                !code.is_empty() && code != "000"
-            })
-            .unwrap_or(false);
-        if !ok {
-            return false;
-        }
+    let ips = resolve_domain(domain);
+    if ips.is_empty() {
+        return false;
     }
-    true
+    ips.iter().take(2).any(|&ip| {
+        let addr = SocketAddr::new(ip, 443);
+        quic::probe_quic(addr, domain, num_requests.max(1), Duration::from_secs(2))
+    })
 }
 
 fn test_http(domain: &str, num_requests: usize) -> bool {
-    let url = format!("http://{}", domain);
-    for _ in 0..num_requests {
-        let ok = std::process::Command::new("curl")
-            .args([
-                "-s",
-                "--connect-timeout",
-                "4",
-                "--max-time",
-                "4",
-                "-o",
-                "/dev/null",
-                "-w",
-                "%{http_code}",
-                &url,
-            ])
-            .output()
-            .map(|o| {
-                let code = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                code.starts_with('2') || code.starts_with('3')
-            })
-            .unwrap_or(false);
-        if !ok {
-            return false;
-        }
-    }
-    true
+    curl_test(&format!("http://{}", domain), &[], num_requests, http_ok)
 }
 
 pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult {
     let alive = check_domain_alive(domain);
     let detail;
 
-    let (http, https, tls12, tls13, quic, http_count, https_count, quic_count) = if alive == CheckStatus::Pass {
+    let (http, tls12, tls13, quic, http_count, quic_count) = if alive == CheckStatus::Pass {
         let mut parts = Vec::new();
 
         let (http, hc) = if config.check_http {
@@ -1081,26 +985,22 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
             (CheckStatus::Skip, 0)
         };
 
-        let (https, hsc) = if config.check_https || config.check_tls12 || config.check_tls13 {
-            let (s, c) = check_domain_https(domain, config.num_requests);
-            parts.push(format!("HTTPS:{} ({}/{})", status_char(&s), c, config.num_requests));
-            (s, c)
+        let tls = if config.check_tls12 || config.check_tls13 {
+            check_domain_tls(domain, config.num_requests)
         } else {
-            (CheckStatus::Skip, 0)
+            CheckStatus::Skip
         };
 
         let tls12 = if config.check_tls12 {
-            let (s, _) = check_domain_https(domain, config.num_requests);
-            parts.push(format!("TLS1.2:{}", status_char(&s)));
-            s
+            parts.push(format!("TLS1.2:{}", status_char(&tls)));
+            tls.clone()
         } else {
             CheckStatus::Skip
         };
 
         let tls13 = if config.check_tls13 {
-            let (s, _) = check_domain_https(domain, config.num_requests);
-            parts.push(format!("TLS1.3:{}", status_char(&s)));
-            s
+            parts.push(format!("TLS1.3:{}", status_char(&tls)));
+            tls.clone()
         } else {
             CheckStatus::Skip
         };
@@ -1114,7 +1014,7 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
         };
 
         detail = parts.join(" ");
-        (http, https, tls12, tls13, quic, hc, hsc, qc)
+        (http, tls12, tls13, quic, hc, qc)
     } else if alive == CheckStatus::Skip {
         detail = "Domain unreachable (skipped)".to_string();
         (
@@ -1122,8 +1022,6 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
             CheckStatus::Skip,
             CheckStatus::Skip,
             CheckStatus::Skip,
-            CheckStatus::Skip,
-            0,
             0,
             0,
         )
@@ -1134,16 +1032,14 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
             CheckStatus::Skip,
             CheckStatus::Skip,
             CheckStatus::Skip,
-            CheckStatus::Skip,
-            0,
             0,
             0,
         )
     };
 
-    // Baseline HTTPS test: real TLS handshake + HTTP request
+    // Baseline TLS 1.3 test: real TLS handshake + HTTP request
     let baseline_pass = if alive == CheckStatus::Pass {
-        test_https(domain, config.num_requests)
+        test_tls(domain, "--tlsv1.3", config.num_requests)
     } else {
         alive == CheckStatus::Skip
     };
@@ -1152,14 +1048,12 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
         domain: domain.to_string(),
         alive,
         http,
-        https,
         tls12,
         tls13,
         quic,
         baseline_pass,
         detail,
         http_count,
-        https_count,
         quic_count,
     }
 }
@@ -1226,58 +1120,64 @@ fn status_char(s: &CheckStatus) -> &'static str {
 }
 
 fn count_protocol_steps(config: &AutotuneConfig) -> usize {
-    let mut n = 0;
-    if config.check_http {
-        n += 1;
-    }
-    if config.check_https || config.check_tls12 || config.check_tls13 {
-        n += 1;
-    }
-    if config.check_tls12 {
-        n += 1;
-    }
-    if config.check_tls13 {
-        n += 1;
-    }
-    if config.check_quic {
-        n += 1;
-    }
-    n
+    config.check_http as usize + config.check_tls12 as usize + config.check_tls13 as usize + config.check_quic as usize
 }
 
 fn run_network_checks(block_checks: &BlockChecks) -> Vec<CheckResult> {
-    vec![
-        if block_checks.get(0) {
-            check_dns_spoof()
-        } else {
-            CheckResult::skip("Not selected")
-        },
-        if block_checks.get(1) {
-            check_tcp_rst()
-        } else {
-            CheckResult::skip("Not selected")
-        },
-        if block_checks.get(2) {
-            check_sni_block()
-        } else {
-            CheckResult::skip("Not selected")
-        },
-        if block_checks.get(3) {
-            check_siberian_block()
-        } else {
-            CheckResult::skip("Not selected")
-        },
-        if block_checks.get(4) {
-            check_quic_block()
-        } else {
-            CheckResult::skip("Not selected")
-        },
-        if block_checks.get(5) {
-            check_cidr_whitelist()
-        } else {
-            CheckResult::skip("Not selected")
-        },
-    ]
+    let checks: [fn() -> CheckResult; 6] = [
+        check_dns_spoof,
+        check_tcp_rst,
+        check_sni_block,
+        check_siberian_block,
+        check_quic_block,
+        check_cidr_whitelist,
+    ];
+    let mut handles: Vec<(usize, std::thread::JoinHandle<CheckResult>)> = Vec::new();
+    for (i, &check) in checks.iter().enumerate() {
+        if block_checks.get(i) {
+            handles.push((i, std::thread::spawn(check)));
+        }
+    }
+    let mut results: Vec<Option<CheckResult>> = vec![None; checks.len()];
+    for (i, handle) in handles {
+        results[i] = Some(handle.join().unwrap_or_else(|_| CheckResult::skip("Thread panic")));
+    }
+    results
+        .into_iter()
+        .map(|r| r.unwrap_or_else(|| CheckResult::skip("Not selected")))
+        .collect()
+}
+
+fn wait_for_nfqws(timeout: Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    let mut running = false;
+    while std::time::Instant::now() < deadline {
+        if crate::runner::nfqws_process_running() || crate::platform::is_nfqws_running() {
+            running = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    if running {
+        // Let nfqws bind its nfqueue before probing.
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    running
+}
+
+fn domain_check_error() -> DomainCheckResult {
+    DomainCheckResult {
+        domain: String::new(),
+        alive: CheckStatus::Error,
+        http: CheckStatus::Error,
+        tls12: CheckStatus::Error,
+        tls13: CheckStatus::Error,
+        quic: CheckStatus::Error,
+        baseline_pass: false,
+        detail: "check thread panicked".to_string(),
+        http_count: 0,
+        quic_count: 0,
+    }
 }
 
 pub fn run_all(
@@ -1296,28 +1196,13 @@ pub fn run_all(
 
     let proto_steps = count_protocol_steps(config);
 
-    // Calculate total steps: network checks + per-preset domain checks + per-preset strategy tests
+    // Calculate total steps: network checks + per-preset domain checks + estimated strategy tests
     let mut total = net_check_count;
-    let mut preset_domain_counts = Vec::new();
-    let mut preset_blocked_counts = Vec::new();
-
-    for &preset_idx in &config.preset_indices {
-        let domains = get_domains_for_preset(preset_idx);
-        let domain_count = domains.len();
-        let proto_checks = domain_count * (1 + proto_steps) + domain_count; // per-domain checks + baseline
-        total += proto_checks;
-        preset_domain_counts.push(domain_count);
-
-        // Estimate strategy test steps (will be refined after baseline check)
-        if !loaded.is_empty() {
-            // We'll add strategy steps after determining blocked domains
-        }
+    for &preset_idx in config.preset_indices.iter() {
+        let domain_count = get_domains_for_preset(preset_idx).len();
+        total += domain_count * (1 + proto_steps);
     }
-
-    // Strategy testing steps: for each preset with blocked domains, each strategy tests each blocked domain
-    // We don't know blocked_domains yet, but we can estimate
-    let strategy_steps_estimate = config.preset_indices.len() * strat_count * 100; // rough estimate
-    total += strategy_steps_estimate;
+    total += config.preset_indices.len() * strat_count * 100; // rough estimate for strategy tests
 
     let mut done = 0;
 
@@ -1350,21 +1235,24 @@ pub fn run_all(
 
         // === Per-domain protocol checks (without any strategy) ===
         let mut domain_checks = Vec::with_capacity(domains.len());
+        let mut handles: Vec<std::thread::JoinHandle<DomainCheckResult>> = Vec::new();
         for d in &domains {
-            let dc = check_domain(config, d);
+            let cfg = config.clone();
+            let d = d.clone();
+            handles.push(std::thread::spawn(move || check_domain(&cfg, &d)));
+        }
+        for handle in handles {
+            domain_checks.push(handle.join().unwrap_or_else(|_| domain_check_error()));
             done += 1 + proto_steps;
             progress(done, total);
-            domain_checks.push(dc);
         }
 
-        // Determine which domains are blocked (baseline HTTPS failed)
+        // Determine which domains are blocked (baseline TLS 1.3 failed)
         let blocked_domains: Vec<String> = domain_checks
             .iter()
             .filter(|dc| !dc.baseline_pass)
             .map(|dc| dc.domain.clone())
             .collect();
-        let blocked_count = blocked_domains.len();
-        preset_blocked_counts.push(blocked_count);
 
         // === Strategy testing with real nfqws ===
         let mut strategy_results: Vec<StrategyCheckResult> = Vec::new();
@@ -1378,22 +1266,9 @@ pub fn run_all(
                 done += 1;
                 progress(done, total);
 
-                if started.is_err() {
-                    println!(
-                        "    {} {}: {}",
-                        rust_i18n::t!("status_failed"),
-                        strat_name,
-                        started.unwrap_err()
-                    );
-                    let strat_res = StrategyCheckResult {
-                        strategy_name: strat_name.clone(),
-                        domains_pass: Vec::new(),
-                        domains_fail: blocked_domains.clone(),
-                        works: false,
-                        protocols_working: Vec::new(),
-                        domain_checks: Vec::new(),
-                    };
-                    strategy_results.push(strat_res);
+                if let Err(e) = started {
+                    println!("    {} {}: {}", rust_i18n::t!("status_failed"), strat_name, e);
+                    strategy_results.push(StrategyCheckResult::failed(strat_name, &blocked_domains));
                     for _ in &blocked_domains {
                         done += 1;
                         progress(done, total);
@@ -1401,9 +1276,7 @@ pub fn run_all(
                     continue;
                 }
 
-                std::thread::sleep(Duration::from_secs(3));
-
-                let nfqws_alive = crate::platform::is_nfqws_running();
+                let nfqws_alive = wait_for_nfqws(Duration::from_secs(3));
 
                 if !nfqws_alive {
                     println!(
@@ -1411,15 +1284,7 @@ pub fn run_all(
                         rust_i18n::t!("status_failed"),
                         strat_name
                     );
-                    let strat_res = StrategyCheckResult {
-                        strategy_name: strat_name.clone(),
-                        domains_pass: Vec::new(),
-                        domains_fail: blocked_domains.clone(),
-                        works: false,
-                        protocols_working: Vec::new(),
-                        domain_checks: Vec::new(),
-                    };
-                    strategy_results.push(strat_res);
+                    strategy_results.push(StrategyCheckResult::failed(strat_name, &blocked_domains));
                     crate::runner::stop_zapret(backend);
                     for _ in &blocked_domains {
                         done += 1;
@@ -1428,37 +1293,57 @@ pub fn run_all(
                     continue;
                 }
 
+                const PROTOCOLS: usize = 4; // http, tls12, tls13, quic
+                let mut handles: Vec<(usize, usize, std::thread::JoinHandle<bool>)> = Vec::new();
+                for (di, domain) in blocked_domains.iter().enumerate() {
+                    for proto in 0..PROTOCOLS {
+                        let d = domain.clone();
+                        let n = config.num_requests;
+                        handles.push((
+                            di,
+                            proto,
+                            std::thread::spawn(move || match proto {
+                                0 => test_http(&d, n),
+                                1 => test_tls(&d, "--tlsv1.2", n),
+                                2 => test_tls(&d, "--tlsv1.3", n),
+                                _ => test_quic(&d, n),
+                            }),
+                        ));
+                    }
+                }
+
+                let mut results = vec![false; blocked_domains.len() * PROTOCOLS];
+                for (di, proto, handle) in handles {
+                    results[di * PROTOCOLS + proto] = handle.join().unwrap_or(false);
+                }
+
                 let mut pass = Vec::new();
                 let mut fail = Vec::new();
                 let mut http_works = false;
-                let mut https_works = false;
                 let mut tls12_works = false;
                 let mut tls13_works = false;
                 let mut quic_works = false;
-                let mut dc_results = Vec::new();
-                for domain in &blocked_domains {
-                    let http_ok = test_http(domain, config.num_requests);
+                let mut dc_results = Vec::with_capacity(blocked_domains.len());
+                for (di, domain) in blocked_domains.iter().enumerate() {
+                    let http_ok = results[di * PROTOCOLS];
+                    let tls12_ok = results[di * PROTOCOLS + 1];
+                    let tls13_ok = results[di * PROTOCOLS + 2];
+                    let quic_ok = results[di * PROTOCOLS + 3];
                     if http_ok {
                         http_works = true;
                     }
-                    let https_ok = test_https(domain, config.num_requests);
-                    if https_ok {
-                        https_works = true;
-                    }
-                    let tls12_ok = test_tls(domain, "--tlsv1.2", config.num_requests);
                     if tls12_ok {
                         tls12_works = true;
                     }
-                    let tls13_ok = test_tls(domain, "--tlsv1.3", config.num_requests);
                     if tls13_ok {
                         tls13_works = true;
                     }
-                    let quic_ok = test_quic(domain, config.num_requests);
                     if quic_ok {
                         quic_works = true;
                     }
 
-                    let ok = https_ok || http_ok || tls12_ok || tls13_ok;
+                    // Browsers use HTTPS; plain HTTP (port 80) is not enough.
+                    let ok = tls12_ok || tls13_ok;
                     if ok {
                         pass.push(domain.clone());
                     } else {
@@ -1467,7 +1352,6 @@ pub fn run_all(
                     dc_results.push(DomainProtocolCheck {
                         domain: domain.clone(),
                         http: http_ok,
-                        https: https_ok,
                         tls12: tls12_ok,
                         tls13: tls13_ok,
                         quic: quic_ok,
@@ -1479,9 +1363,6 @@ pub fn run_all(
                 let mut protocols_working = Vec::new();
                 if http_works {
                     protocols_working.push("HTTP".to_string());
-                }
-                if https_works {
-                    protocols_working.push("HTTPS".to_string());
                 }
                 if tls12_works {
                     protocols_working.push("TLS12".to_string());
@@ -1495,7 +1376,7 @@ pub fn run_all(
 
                 crate::runner::stop_zapret(backend);
 
-                let works = pass.len() > blocked_domains.len() / 2;
+                let works = pass.len() >= blocked_domains.len() / 2;
                 if works {
                     working_names.insert(strat_name.clone());
                 }
@@ -1524,7 +1405,6 @@ pub fn run_all(
                     works: true,
                     protocols_working: vec![
                         "HTTP".to_string(),
-                        "HTTPS".to_string(),
                         "TLS12".to_string(),
                         "TLS13".to_string(),
                         "QUIC".to_string(),
@@ -1534,7 +1414,6 @@ pub fn run_all(
                         .map(|d| DomainProtocolCheck {
                             domain: d.clone(),
                             http: true,
-                            https: true,
                             tls12: true,
                             tls13: true,
                             quic: true,
@@ -1593,3 +1472,6 @@ pub fn run_all(
     save_results_file(&results);
     results
 }
+
+
+

@@ -1,7 +1,9 @@
-use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+﻿use crossterm::{
+    event::{Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen,
+    },
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -12,6 +14,7 @@ use ratatui::{
     Terminal,
 };
 use std::io::{self, Write};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 
 use crate::autotune::{CheckStatus, StrategyCheckResult};
 use crate::tui::menus;
@@ -21,14 +24,14 @@ use crate::tui::state::{
 };
 use crate::tui::theme::Theme;
 
-fn status_str(s: &CheckStatus) -> &'static str {
-    match s {
-        CheckStatus::Pass => "✅",
-        CheckStatus::Fail => "❌",
-        CheckStatus::Skip => "⏭️",
-        CheckStatus::Error => "⚠️",
+    fn status_str(s: &CheckStatus) -> &'static str {
+        match s {
+            CheckStatus::Pass => "✅",
+            CheckStatus::Fail => "❌",
+            CheckStatus::Skip => "⏩",
+            CheckStatus::Error => "🚨",
+        }
     }
-}
 
 fn status_detail(s: &CheckStatus) -> &'static str {
     match s {
@@ -39,12 +42,124 @@ fn status_detail(s: &CheckStatus) -> &'static str {
     }
 }
 
-pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
+/// Read crossterm events on a dedicated thread and forward them over a channel.
+///
+/// Exactly one reader is created for the whole process (in `main`), so at any
+/// moment only one thread waits on the console input handle. Spawning a fresh
+/// reader for every TUI session used to leak zombie reader threads that stayed
+/// blocked in `WaitForMultipleObjects` forever, and several waiters on the same
+/// input handle race for events and starve each other, which made the menu stop
+/// reacting to keys.
+pub fn spawn_event_reader() -> Receiver<Event> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || loop {
+        match crossterm::event::read() {
+            Ok(event) => {
+                if tx.send(event).is_err() {
+                    break;
+                }
+            }
+            Err(_) => {
+                // Transient console error; keep the reader alive and retry
+                // instead of dying and leaving the UI without input.
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+        }
+    });
+    rx
+}
+
+fn drain_events(rx: &Receiver<Event>) {
+    while rx.try_recv().is_ok() {}
+}
+
+fn wait_for_key(rx: &Receiver<Event>) -> Result<(), io::Error> {
+    enable_raw_mode()?;
+    drain_events(rx);
+    loop {
+        match rx.recv_timeout(std::time::Duration::from_millis(100)) {
+            Ok(Event::Key(_)) => break,
+            Ok(_) => continue,
+            Err(RecvTimeoutError::Timeout) => continue,
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+    }
+    Ok(())
+}
+
+/// On Windows keep raw mode and the alternate screen active and print into it.
+/// Toggling raw mode / alternate screen on ConPTY desyncs crossterm's event
+/// reader, which makes the menu stop reacting to keys afterwards.
+#[cfg(target_os = "windows")]
+fn begin_external_output(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), io::Error> {
+    execute!(terminal.backend_mut(), Clear(ClearType::All))?;
+    terminal.show_cursor()?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn begin_external_output(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), io::Error> {
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn end_external_output(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    rx: &Receiver<Event>,
+) -> Result<(), io::Error> {
+    enable_raw_mode()?;
+    terminal.clear()?;
+    drain_events(rx);
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn end_external_output(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    rx: &Receiver<Event>,
+) -> Result<(), io::Error> {
+    enable_raw_mode()?;
+    execute!(terminal.backend_mut(), EnterAlternateScreen)?;
+    terminal.clear()?;
+    drain_events(rx);
+    Ok(())
+}
+
+fn run_download(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    rx: &Receiver<Event>,
+    download: impl FnOnce() -> Result<(), String>,
+) -> Result<Result<(), String>, io::Error> {
+    begin_external_output(terminal)?;
+
+    let res = download();
+
+    match &res {
+        Ok(_) => println!("{}", rust_i18n::t!("msg_dl_ok")),
+        Err(err_msg) => {
+            println!("{}{}", rust_i18n::t!("msg_dl_fail"), err_msg);
+            println!("{}", rust_i18n::t!("msg_dl_key"));
+        }
+    }
+
+    wait_for_key(rx)?;
+    end_external_output(terminal, rx)?;
+
+    Ok(res)
+}
+
+pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+    // Drop events queued while the app was outside the TUI (e.g. keys pressed
+    // during a foreground zapret run) so a fresh session starts clean.
+    drain_events(rx);
 
     loop {
         terminal.draw(|f| {
@@ -75,6 +190,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 ActiveScreen::ServiceSubmenu => rust_i18n::t!("tui_title_service"),
                 ActiveScreen::ListsEditorSubmenu => rust_i18n::t!("tui_title_lists"),
                 ActiveScreen::AutotuneSubmenu => rust_i18n::t!("tui_title_autotune"),
+                ActiveScreen::AutotuneEditDomainsSubmenu => {
+                    rust_i18n::t!("tui_title_autotune_edit_domains")
+                }
                 ActiveScreen::AutotuneProtocolsSubmenu => rust_i18n::t!("tui_title_autotune_proto"),
                 ActiveScreen::AutotuneBlockChecksSubmenu => rust_i18n::t!("tui_title_autotune_bc"),
                 ActiveScreen::AutotunePresetSelectionSubmenu => rust_i18n::t!("tui_title_autotune_presets"),
@@ -120,6 +238,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                         menus::autotune_menu::render_config(app)
                     }
                 }
+                ActiveScreen::AutotuneEditDomainsSubmenu => {
+                    menus::autotune_menu::render_domain_files(app)
+                }
                 ActiveScreen::AutotuneProtocolsSubmenu => {
                     menus::autotune_menu::render_protocols(app, app.autotune_protocols_menu)
                 }
@@ -141,14 +262,16 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 .border_type(BorderType::Rounded)
                 .border_style(Theme::dim_item());
 
-            if app.active_screen == ActiveScreen::Main
-                || app.active_screen == ActiveScreen::ServiceSubmenu
-                || app.active_screen == ActiveScreen::DownloadDepsSubmenu
-                || app.active_screen == ActiveScreen::DownloadZapretSubmenu
-                || app.active_screen == ActiveScreen::DownloadStrategiesSubmenu
-                || app.active_screen == ActiveScreen::ZapretTagSelect
-                || app.active_screen == ActiveScreen::StrategyTagSelect
-            {
+            if matches!(
+                app.active_screen,
+                ActiveScreen::Main
+                    | ActiveScreen::ServiceSubmenu
+                    | ActiveScreen::DownloadDepsSubmenu
+                    | ActiveScreen::DownloadZapretSubmenu
+                    | ActiveScreen::DownloadStrategiesSubmenu
+                    | ActiveScreen::ZapretTagSelect
+                    | ActiveScreen::StrategyTagSelect
+            ) {
                 let inner_area = list_block.inner(chunks[1]);
                 let main_chunks = Layout::default()
                     .direction(Direction::Vertical)
@@ -169,7 +292,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 } else if app.service_active {
                     ("✅", Color::Green, rust_i18n::t!("status_srv_active"))
                 } else {
-                    ("⏸️", Color::Yellow, rust_i18n::t!("status_srv_stopped"))
+                    ("🟡", Color::Yellow, rust_i18n::t!("status_srv_stopped"))
                 };
 
                 let service_type_str = {
@@ -265,6 +388,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     MainMenuState::ServiceSettings => rust_i18n::t!("help_srv"),
                     MainMenuState::ListsEditor => rust_i18n::t!("help_lists"),
                     MainMenuState::Autotune => rust_i18n::t!("help_autotune"),
+                    MainMenuState::TtlAutopick => rust_i18n::t!("help_ttl"),
                     MainMenuState::FakesSettings => rust_i18n::t!("help_fakes"),
                     MainMenuState::Run => rust_i18n::t!("help_run"),
                     MainMenuState::Quit => rust_i18n::t!("help_quit"),
@@ -310,7 +434,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     AutotuneMenuState::Strategies => rust_i18n::t!("help_autotune_strat_sel"),
                     AutotuneMenuState::Protocols => rust_i18n::t!("help_autotune_proto"),
                     AutotuneMenuState::BlockChecks => rust_i18n::t!("help_autotune_blockchecks"),
-                    AutotuneMenuState::EditCustom => rust_i18n::t!("help_autotune_domains"),
+                    AutotuneMenuState::EditDomains => rust_i18n::t!("help_autotune_edit_domains"),
                     AutotuneMenuState::Results => rust_i18n::t!("help_autotune_results_sel"),
                     AutotuneMenuState::Run => rust_i18n::t!("help_autotune_run"),
                     AutotuneMenuState::Back => rust_i18n::t!("help_back"),
@@ -323,6 +447,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     AutotuneBlockChecksState::Back => rust_i18n::t!("help_back"),
                     _ => rust_i18n::t!("help_autotune_toggle"),
                 },
+                ActiveScreen::AutotuneEditDomainsSubmenu => {
+                    rust_i18n::t!("help_autotune_edit_domains")
+                }
                 ActiveScreen::AutotunePresetSelectionSubmenu => {
                     rust_i18n::t!("help_autotune_presets")
                 }
@@ -359,8 +486,8 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             f.render_widget(help, chunks[2]);
         })?;
 
-        if event::poll(std::time::Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
+        match rx.recv_timeout(std::time::Duration::from_millis(50)) {
+            Ok(Event::Key(key)) => {
                 if key.kind == KeyEventKind::Press {
                     if app.autotune_request_editing {
                         match key.code {
@@ -389,10 +516,35 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                         KeyCode::Up | KeyCode::Char('k') => app.prev_menu(),
                         KeyCode::Down | KeyCode::Char('j') => app.next_menu(),
                         KeyCode::Left | KeyCode::Char('h') => {
-                            app.cycle_current(false);
+                            if app.is_ttl_autopick_selected() {
+                                app.change_ttl(false);
+                            } else {
+                                app.cycle_current(false);
+                            }
                         }
-                        KeyCode::Right | KeyCode::Char('l') => app.cycle_current(true),
-                        KeyCode::Enter | KeyCode::Char(' ') => app.cycle_current(true),
+                        KeyCode::Right | KeyCode::Char('l') => {
+                            if app.is_ttl_autopick_selected() {
+                                app.change_ttl(true);
+                            } else {
+                                app.cycle_current(true);
+                            }
+                        }
+                        KeyCode::Enter => {
+                            if app.is_ttl_autopick_selected() {
+                                if app.check_dependencies() {
+                                    app.should_run_ttl = true;
+                                }
+                            } else {
+                                app.cycle_current(true);
+                            }
+                        }
+                        KeyCode::Char(' ') => {
+                            if app.is_ttl_autopick_selected() {
+                                app.change_ttl(true);
+                            } else {
+                                app.cycle_current(true);
+                            }
+                        }
                         KeyCode::Char('q') | KeyCode::Esc => match app.active_screen {
                             ActiveScreen::AutotuneSubmenu => {
                                 app.active_screen = ActiveScreen::Main;
@@ -401,7 +553,8 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                             | ActiveScreen::AutotuneBlockChecksSubmenu
                             | ActiveScreen::AutotunePresetSelectionSubmenu
                             | ActiveScreen::AutotuneStrategiesSubmenu
-                            | ActiveScreen::AutotuneResultsSubmenu => {
+                            | ActiveScreen::AutotuneResultsSubmenu
+                            | ActiveScreen::AutotuneEditDomainsSubmenu => {
                                 app.active_screen = ActiveScreen::AutotuneSubmenu;
                             }
                             ActiveScreen::FakesSelectSubmenu => {
@@ -432,6 +585,12 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     }
                 }
             }
+            Ok(_) => {}
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                // The reader is immortal (see spawn_event_reader), so this
+                // should never happen while the TUI is active.
+            }
         }
 
         if app.should_download_zapret {
@@ -447,32 +606,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 }
             };
 
-            disable_raw_mode()?;
-            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-            terminal.show_cursor()?;
-
-            let res = crate::download::install_dependencies(nfqws_ver, "skip");
-
-            if res.is_ok() {
-                println!("{}", rust_i18n::t!("msg_dl_ok"));
-            } else {
-                let err_msg = res.as_ref().unwrap_err();
-                println!("{}{}", rust_i18n::t!("msg_dl_fail"), err_msg);
-                println!("{}", rust_i18n::t!("msg_dl_key"));
-            }
-
-            // Wait for keypress
-            loop {
-                if let Ok(Event::Key(key)) = event::read() {
-                    if key.kind == KeyEventKind::Press {
-                        break;
-                    }
-                }
-            }
-
-            enable_raw_mode()?;
-            execute!(terminal.backend_mut(), EnterAlternateScreen)?;
-            terminal.clear()?;
+            let res = run_download(&mut terminal, rx, || {
+                crate::download::install_dependencies(nfqws_ver, "skip")
+            })?;
 
             if let Err(e) = res {
                 app.show_error(e.to_string());
@@ -496,32 +632,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 }
             };
 
-            disable_raw_mode()?;
-            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-            terminal.show_cursor()?;
-
-            let res = crate::download::install_dependencies("skip", strat_ver);
-
-            if res.is_ok() {
-                println!("{}", rust_i18n::t!("msg_dl_ok"));
-            } else {
-                let err_msg = res.as_ref().unwrap_err();
-                println!("{}{}", rust_i18n::t!("msg_dl_fail"), err_msg);
-                println!("{}", rust_i18n::t!("msg_dl_key"));
-            }
-
-            // Wait for keypress
-            loop {
-                if let Ok(Event::Key(key)) = event::read() {
-                    if key.kind == KeyEventKind::Press {
-                        break;
-                    }
-                }
-            }
-
-            enable_raw_mode()?;
-            execute!(terminal.backend_mut(), EnterAlternateScreen)?;
-            terminal.clear()?;
+            let res = run_download(&mut terminal, rx, || {
+                crate::download::install_dependencies("skip", strat_ver)
+            })?;
 
             if let Err(e) = res {
                 app.show_error(e.to_string());
@@ -536,32 +649,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
         if app.should_download_defaults {
             app.should_download_defaults = false;
 
-            disable_raw_mode()?;
-            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-            terminal.show_cursor()?;
-
-            let res = crate::download::install_dependencies(crate::download::ZAPRET_REC_VER, "recommended");
-
-            if res.is_ok() {
-                println!("{}", rust_i18n::t!("msg_dl_ok"));
-            } else {
-                let err_msg = res.as_ref().unwrap_err();
-                println!("{}{}", rust_i18n::t!("msg_dl_fail"), err_msg);
-                println!("{}", rust_i18n::t!("msg_dl_key"));
-            }
-
-            // Wait for keypress
-            loop {
-                if let Ok(Event::Key(key)) = event::read() {
-                    if key.kind == KeyEventKind::Press {
-                        break;
-                    }
-                }
-            }
-
-            enable_raw_mode()?;
-            execute!(terminal.backend_mut(), EnterAlternateScreen)?;
-            terminal.clear()?;
+            let res = run_download(&mut terminal, rx, || {
+                crate::download::install_dependencies(crate::download::ZAPRET_REC_VER, "recommended")
+            })?;
 
             if let Err(e) = res {
                 app.show_error(e.to_string());
@@ -569,19 +659,17 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 app.status_message = Some(rust_i18n::t!("msg_dl_all_ok").into_owned());
                 app.strategies = crate::strategy::get_strategies();
                 app.active_screen = ActiveScreen::DownloadDepsSubmenu;
+                app.refresh_dep_status();
             }
         }
 
         if let Some(file_path) = app.should_open_editor.take() {
-            disable_raw_mode()?;
-            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-            terminal.show_cursor()?;
+            let return_screen = app.active_screen;
+            begin_external_output(&mut terminal)?;
 
             let _ = crate::utils::open_editor(&file_path);
 
-            enable_raw_mode()?;
-            execute!(terminal.backend_mut(), EnterAlternateScreen)?;
-            terminal.clear()?;
+            end_external_output(&mut terminal, rx)?;
 
             app.status_message = Some(format!(
                 "{}{}",
@@ -591,8 +679,8 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     .unwrap_or_default()
                     .to_string_lossy()
             ));
-            if app.active_screen != ActiveScreen::AutotuneSubmenu {
-                app.active_screen = ActiveScreen::ListsEditorSubmenu;
+            app.active_screen = return_screen;
+            if return_screen == ActiveScreen::ListsEditorSubmenu {
                 app.refresh_ipset_status();
             }
         }
@@ -602,9 +690,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             app.autotune_running = true;
             app.autotune_results = None;
 
-            disable_raw_mode()?;
-            execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-            terminal.show_cursor()?;
+            begin_external_output(&mut terminal)?;
 
             println!("{}", rust_i18n::t!("autotune_running"));
             println!();
@@ -618,6 +704,7 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
             let backend: &dyn crate::firewalls::FirewallBackend = &app.selected_backend;
             #[cfg(target_os = "windows")]
             let backend: &dyn crate::firewalls::FirewallBackend = &crate::firewalls::windivert::WinDivertBackend;
+
             let results = crate::autotune::run_all(
                 config,
                 &|done, total| {
@@ -634,8 +721,8 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 backend,
                 interface,
             );
-            // Save results to file for persistence across restarts
-            crate::autotune::save_results_file(&results);
+            // Results file is saved inside run_all; just track its presence
+            app.has_autotune_results_file = true;
             println!();
             println!();
             println!("{}", rust_i18n::t!("autotune_done"));
@@ -667,14 +754,11 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                     .unwrap_or(3);
                 for dc in &pr.domain_checks {
                     println!(
-                        "  {}: alive={} HTTP:{}({}/{}) HTTPS:{}({}/{}) TLS1.2={} TLS1.3={} QUIC:{}({}/{}) baseline={}",
+                        "  {}: alive={} HTTP:{}({}/{}) TLS1.2={} TLS1.3={} QUIC:{}({}/{}) baseline={}",
                         dc.domain,
                         status_str(&dc.alive),
                         status_str(&dc.http),
                         dc.http_count,
-                        req_count,
-                        status_str(&dc.https),
-                        dc.https_count,
                         req_count,
                         status_str(&dc.tls12),
                         status_str(&dc.tls13),
@@ -708,10 +792,9 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                         );
                         for dc in &sr.domain_checks {
                             println!(
-                                "      {} HTTP:{} HTTPS:{} T12:{} T13:{} Q:{}",
+                                "      {} HTTP:{} T12:{} T13:{} Q:{}",
                                 dc.domain,
                                 if dc.http { "✅" } else { "❌" },
-                                if dc.https { "✅" } else { "❌" },
                                 if dc.tls12 { "✅" } else { "❌" },
                                 if dc.tls13 { "✅" } else { "❌" },
                                 if dc.quic { "✅" } else { "❌" },
@@ -749,23 +832,63 @@ pub fn run_tui(app: &mut AppState) -> Result<(), io::Error> {
                 println!();
             }
             println!("{}", rust_i18n::t!("msg_dl_key"));
-            println!("{}", rust_i18n::t!("msg_dl_key"));
 
-            loop {
-                if let Ok(Event::Key(key)) = event::read() {
-                    if key.kind == KeyEventKind::Press {
-                        break;
-                    }
-                }
-            }
-
-            enable_raw_mode()?;
-            execute!(terminal.backend_mut(), EnterAlternateScreen)?;
-            terminal.clear()?;
+            wait_for_key(rx)?;
+            end_external_output(&mut terminal, rx)?;
 
             app.autotune_results = Some(results);
             app.autotune_running = false;
             app.status_message = Some(rust_i18n::t!("autotune_done").into_owned());
+        }
+
+        if app.should_run_ttl {
+            app.should_run_ttl = false;
+
+            begin_external_output(&mut terminal)?;
+
+            println!("{}", rust_i18n::t!("ttl_running"));
+            println!();
+
+            let strategy = app.strategies.get(app.selected_strategy).cloned().unwrap_or_default();
+            let interface = app
+                .interfaces
+                .get(app.selected_interface)
+                .map(|s| s.as_str())
+                .unwrap_or("any");
+            #[cfg(target_os = "linux")]
+            let backend: &dyn crate::firewalls::FirewallBackend = &app.selected_backend;
+            #[cfg(target_os = "windows")]
+            let backend: &dyn crate::firewalls::FirewallBackend = &crate::firewalls::windivert::WinDivertBackend;
+
+            let result = if strategy.is_empty() {
+                Err(rust_i18n::t!("msg_no_strat").into_owned())
+            } else {
+                crate::ttl::autopick_ttl(&strategy, interface, backend)
+            };
+
+            println!();
+            match &result {
+                Ok(ttl) => {
+                    let _ = crate::config::save_ttl(Some(*ttl));
+                    println!("{} {}", rust_i18n::t!("ttl_found"), ttl);
+                }
+                Err(e) => {
+                    println!("{}{}", rust_i18n::t!("msg_err"), e);
+                }
+            }
+            println!();
+            println!("{}", rust_i18n::t!("msg_dl_key"));
+
+            wait_for_key(rx)?;
+            end_external_output(&mut terminal, rx)?;
+
+            match result {
+                Ok(ttl) => {
+                    app.dpi_desync_ttl = Some(ttl);
+                    app.status_message = Some(format!("{} {}", rust_i18n::t!("ttl_found"), ttl));
+                }
+                Err(e) => app.show_error(e),
+            }
         }
 
         if app.should_run || app.should_quit {

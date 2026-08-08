@@ -59,12 +59,12 @@ pub fn render(app: &AppState, is_zapret: bool) -> (Vec<ListItem<'static>>, Strin
     ];
 
     for (opt_ver, label) in options {
-        let is_current = match (target_ver, &opt_ver) {
-            (VersionTarget::Recommended, VersionTarget::Recommended) => true,
-            (VersionTarget::Latest, VersionTarget::Latest) => true,
-            (VersionTarget::Tag(_), VersionTarget::Tag(_)) => true,
-            _ => false,
-        };
+        let is_current = matches!(
+            (target_ver, &opt_ver),
+            (VersionTarget::Recommended, VersionTarget::Recommended)
+                | (VersionTarget::Latest, VersionTarget::Latest)
+                | (VersionTarget::Tag(_), VersionTarget::Tag(_))
+        );
 
         if is_current {
             version_spans.push(Span::styled(

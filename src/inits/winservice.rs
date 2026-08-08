@@ -2,7 +2,6 @@
 
 use crate::inits::ServiceManager;
 use std::path::Path;
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
@@ -10,9 +9,13 @@ use std::time::Duration;
 // We will use standard windows-service API when compiling on Windows
 use windows_service::{
     define_windows_service,
-    service::{ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType},
+    service::{
+        ServiceAccess, ServiceControl, ServiceControlAccept, ServiceErrorControl, ServiceExitCode,
+        ServiceInfo, ServiceStartType, ServiceState, ServiceStatus, ServiceType,
+    },
     service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle},
     service_dispatcher,
+    service_manager::{ServiceManager as Scm, ServiceManagerAccess},
 };
 
 pub struct WindowsServiceManager;
@@ -20,56 +23,38 @@ pub struct WindowsServiceManager;
 impl WindowsServiceManager {
     const SERVICE_NAME: &'static str = "zapret-rust";
 
-    fn run_sc<S: AsRef<std::ffi::OsStr>>(&self, args: &[S]) -> Result<(), String> {
-        let output = Command::new("sc")
-            .args(args)
-            .output()
-            .map_err(|e| format!("{}{}", rust_i18n::t!("err_exec_sc"), e))?;
-        if output.status.success() {
-            Ok(())
-        } else {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let cmd_str = args
-                .iter()
-                .map(|a| a.as_ref().to_string_lossy().into_owned())
-                .collect::<Vec<String>>()
-                .join(" ");
-            Err(format!(
-                "sc {} failed: {}",
-                cmd_str,
-                if stderr.is_empty() { stdout } else { stderr }
-            ))
-        }
+    fn connect_scm() -> Result<Scm, String> {
+        Scm::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_service"), e))
+    }
+
+    fn open_service(
+        &self,
+        access: ServiceAccess,
+    ) -> Result<windows_service::service::Service, String> {
+        let manager = Self::connect_scm()?;
+        manager
+            .open_service(Self::SERVICE_NAME, access)
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_service"), e))
     }
 }
 
 impl ServiceManager for WindowsServiceManager {
     fn is_installed(&self) -> bool {
-        let output = Command::new("sc").arg("query").arg(Self::SERVICE_NAME).output();
-        match output {
-            Ok(out) => {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                // If the service doesn't exist, sc query fails (often code 1060) and doesn't contain the service name
-                out.status.success() || stdout.contains("SERVICE_NAME")
-            }
+        self.open_service(ServiceAccess::QUERY_STATUS).is_ok()
+    }
+
+    fn is_active(&self) -> bool {
+        match self.open_service(ServiceAccess::QUERY_STATUS) {
+            Ok(svc) => svc
+                .query_status()
+                .map(|s| s.current_state == ServiceState::Running)
+                .unwrap_or(false),
             Err(_) => false,
         }
     }
 
-    fn is_active(&self) -> bool {
-        let output = Command::new("sc").arg("query").arg(Self::SERVICE_NAME).output();
-        match output {
-            Ok(out) if out.status.success() => {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                stdout.contains("RUNNING")
-            }
-            _ => false,
-        }
-    }
-
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
-        let exe_str = exe_path.to_str().ok_or(rust_i18n::t!("err_invalid_exe").into_owned())?;
         let config_str = config_path
             .to_str()
             .ok_or(rust_i18n::t!("err_invalid_cfg").into_owned())?;
@@ -77,44 +62,81 @@ impl ServiceManager for WindowsServiceManager {
             .to_str()
             .ok_or(rust_i18n::t!("err_invalid_cache").into_owned())?;
 
-        // Format binPath with correct arguments. SCM expects space after 'binPath=' and 'start='
-        let bin_path_arg = format!(
-            "\"{}\" --service --config \"{}\" --cache-dir \"{}\"",
-            exe_str, config_str, cache_str
-        );
+        let manager = Scm::local_computer(None::<&str>, ServiceManagerAccess::CREATE_SERVICE)
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_service"), e))?;
 
-        self.run_sc(&[
-            "create",
-            Self::SERVICE_NAME,
-            "binPath=",
-            &bin_path_arg,
-            "start=",
-            "auto",
-        ])?;
+        let service_info = ServiceInfo {
+            name: Self::SERVICE_NAME.into(),
+            display_name: Self::SERVICE_NAME.into(),
+            service_type: ServiceType::OWN_PROCESS,
+            start_type: ServiceStartType::AutoStart,
+            error_control: ServiceErrorControl::Normal,
+            executable_path: exe_path.to_path_buf(),
+            launch_arguments: vec![
+                "--service".into(),
+                "--config".into(),
+                config_str.into(),
+                "--cache-dir".into(),
+                cache_str.into(),
+            ],
+            dependencies: vec![],
+            account_name: None,
+            account_password: None,
+        };
+
+        manager
+            .create_service(&service_info, ServiceAccess::QUERY_STATUS)
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_service"), e))?;
 
         Ok(())
     }
 
     fn uninstall(&self) -> Result<(), String> {
         // Stop service first (ignore errors)
-        let _ = Command::new("sc").arg("stop").arg(Self::SERVICE_NAME).output();
-        thread::sleep(Duration::from_millis(500));
-
-        self.run_sc(&["delete", Self::SERVICE_NAME])?;
+        let _ = self.stop();
+        self.open_service(ServiceAccess::DELETE)?
+            .delete()
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_service"), e))?;
         Ok(())
     }
 
     fn start(&self) -> Result<(), String> {
-        self.run_sc(&["start", Self::SERVICE_NAME])
+        let svc = self.open_service(ServiceAccess::START | ServiceAccess::QUERY_STATUS)?;
+        svc.start(&[] as &[&str])
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_service"), e))?;
+        // Wait until the service actually reports RUNNING (like `sc start` did).
+        for _ in 0..50 {
+            if let Ok(status) = svc.query_status() {
+                match status.current_state {
+                    ServiceState::Running => return Ok(()),
+                    ServiceState::Stopped => {
+                        return Err(rust_i18n::t!("err_service_start_failed").into_owned());
+                    }
+                    _ => {}
+                }
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        Ok(())
     }
 
     fn stop(&self) -> Result<(), String> {
-        self.run_sc(&["stop", Self::SERVICE_NAME])
+        let svc = self.open_service(ServiceAccess::STOP | ServiceAccess::QUERY_STATUS)?;
+        svc.stop()
+            .map_err(|e| format!("{}{}", rust_i18n::t!("err_service"), e))?;
+        // `stop` returns as soon as the control is accepted; wait until fully stopped.
+        for _ in 0..50 {
+            match svc.query_status() {
+                Ok(status) if status.current_state == ServiceState::Stopped => return Ok(()),
+                _ => {}
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        Ok(())
     }
 
     fn restart(&self) -> Result<(), String> {
         let _ = self.stop();
-        thread::sleep(Duration::from_secs(1));
         self.start()
     }
 }

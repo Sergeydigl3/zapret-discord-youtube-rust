@@ -7,7 +7,7 @@ pub fn render(tags: &[String], selected_tag_index: usize, title: &str) -> (Vec<L
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            let prefix = if i == selected_tag_index { "➡️ " } else { "   " };
+            let prefix = if i == selected_tag_index { "👉 " } else { "   " };
             let m = format!(" {}{}", prefix, t);
             if i == selected_tag_index {
                 selected_index = i;

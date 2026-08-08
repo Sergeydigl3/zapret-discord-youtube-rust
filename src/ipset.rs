@@ -9,14 +9,15 @@ pub enum IpsetMode {
     Custom,
 }
 
-impl IpsetMode {
-    pub fn to_string(&self) -> String {
-        match self {
+impl std::fmt::Display for IpsetMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
             IpsetMode::None => rust_i18n::t!("ipset_none").into_owned(),
             IpsetMode::Any => rust_i18n::t!("ipset_any").into_owned(),
             IpsetMode::Loaded => rust_i18n::t!("ipset_loaded").into_owned(),
             IpsetMode::Custom => rust_i18n::t!("ipset_custom").into_owned(),
-        }
+        };
+        write!(f, "{}", s)
     }
 }
 

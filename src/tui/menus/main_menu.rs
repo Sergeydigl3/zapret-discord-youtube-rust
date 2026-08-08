@@ -245,6 +245,39 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         index += 1;
     }
 
+    // TtlAutopick
+    {
+        let is_sel = app.main_menu == MainMenuState::TtlAutopick;
+        if is_sel {
+            selected_index = index;
+        }
+        let ttl = app.dpi_desync_ttl;
+        let val = match ttl {
+            Some(n) => n.to_string(),
+            None => rust_i18n::t!("ttl_auto").into_owned(),
+        };
+        let spans = vec![
+            Span::styled(
+                format!(" {}: ", rust_i18n::t!("menu_main_ttl")),
+                if is_sel {
+                    Theme::selected_item()
+                } else {
+                    Theme::normal_item()
+                },
+            ),
+            Span::styled(
+                format!("< {} >", val),
+                if is_sel {
+                    Theme::selected_value()
+                } else {
+                    Theme::normal_value()
+                },
+            ),
+        ];
+        items.push(ListItem::new(Line::from(spans)));
+        index += 1;
+    }
+
     // FakesSettings
     {
         let is_sel = app.main_menu == MainMenuState::FakesSettings;

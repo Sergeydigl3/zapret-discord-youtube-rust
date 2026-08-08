@@ -109,9 +109,8 @@ pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) 
 
     let is_sel = app.autotune_menu == AutotuneMenuState::Protocols;
     let proto_status = format!(
-        "HTTP:{} HTTPS:{} TLS1.2:{} TLS1.3:{} QUIC:{}",
+        "HTTP:{} TLS1.2:{} TLS1.3:{} QUIC:{}",
         on_off(app.autotune_config.check_http),
-        on_off(app.autotune_config.check_https),
         on_off(app.autotune_config.check_tls12),
         on_off(app.autotune_config.check_tls13),
         on_off(app.autotune_config.check_quic),
@@ -163,9 +162,9 @@ pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) 
         ),
     ])));
 
-    let is_sel = app.autotune_menu == AutotuneMenuState::EditCustom;
+    let is_sel = app.autotune_menu == AutotuneMenuState::EditDomains;
     items.push(ListItem::new(Line::from(vec![Span::styled(
-        format!(" {}: ", rust_i18n::t!("menu_autotune_edit_custom")),
+        format!(" {}: ", rust_i18n::t!("menu_autotune_edit_domains")),
         if is_sel {
             Theme::selected_item()
         } else {
@@ -174,7 +173,7 @@ pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) 
     )])));
 
     let is_sel = app.autotune_menu == AutotuneMenuState::Results;
-    let has_file = crate::autotune::load_results_file().is_some();
+    let has_file = app.has_autotune_results_file;
     let results_label = if has_file {
         rust_i18n::t!("menu_autotune_view")
     } else {
@@ -230,6 +229,45 @@ pub fn render_config(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) 
     (items, rust_i18n::t!("menu_autotune_title").into_owned(), selected_index)
 }
 
+pub fn render_domain_files(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
+    let mut items: Vec<ListItem<'static>> = Vec::new();
+    let mut selected_index = 0;
+
+    for (idx, (label, _path)) in app.domain_files.iter().enumerate() {
+        let sel = idx == app.domain_files_index;
+        if sel {
+            selected_index = idx;
+        }
+        items.push(ListItem::new(Line::from(vec![Span::styled(
+            format!(" {}: ", label),
+            if sel {
+                Theme::selected_item()
+            } else {
+                Theme::normal_item()
+            },
+        )])));
+    }
+
+    let back_idx = app.domain_files.len();
+    let sel_back = app.domain_files_index >= back_idx;
+    if sel_back {
+        selected_index = back_idx;
+    }
+    items.push(
+        ListItem::new(format!(" {}", rust_i18n::t!("menu_autotune_back"))).style(if sel_back {
+            Theme::selected_item()
+        } else {
+            Theme::normal_item()
+        }),
+    );
+
+    (
+        items,
+        rust_i18n::t!("tui_title_autotune_edit_domains").into_owned(),
+        selected_index,
+    )
+}
+
 pub fn render_protocols(app: &AppState, proto_menu: AutotuneProtocolsState) -> (Vec<ListItem<'static>>, String, usize) {
     let mut items: Vec<ListItem<'static>> = Vec::new();
     let mut selected_index = 0;
@@ -239,11 +277,6 @@ pub fn render_protocols(app: &AppState, proto_menu: AutotuneProtocolsState) -> (
             AutotuneProtocolsState::Http,
             rust_i18n::t!("menu_autotune_http"),
             app.autotune_config.check_http,
-        ),
-        (
-            AutotuneProtocolsState::Https,
-            rust_i18n::t!("menu_autotune_https"),
-            app.autotune_config.check_https,
         ),
         (
             AutotuneProtocolsState::Tls12,

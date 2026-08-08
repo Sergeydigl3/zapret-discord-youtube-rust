@@ -11,6 +11,7 @@ pub struct RunConfig {
     pub backend: String,
     pub active_discord_fake: String,
     pub active_gamefilter_fake: String,
+    pub dpi_desync_ttl: Option<u8>,
 }
 
 impl Default for RunConfig {
@@ -23,6 +24,7 @@ impl Default for RunConfig {
             backend: "nftables".to_string(),
             active_discord_fake: "quic_initial_steamcommunity_com.bin".to_string(),
             active_gamefilter_fake: "quic_initial_4pda.to.bin".to_string(),
+            dpi_desync_ttl: None,
         }
     }
 }
@@ -49,6 +51,8 @@ pub fn load_config(file: &str) -> Result<RunConfig, String> {
             cfg.active_discord_fake = val.trim().to_string();
         } else if let Some(val) = line.strip_prefix("active_gamefilter_fake=") {
             cfg.active_gamefilter_fake = val.trim().to_string();
+        } else if let Some(val) = line.strip_prefix("dpi_desync_ttl=") {
+            cfg.dpi_desync_ttl = val.trim().parse::<u8>().ok();
         }
     }
 
@@ -98,6 +102,7 @@ const DEFAULT_CONFIG_LINES: &[&str] = &[
     "backend=nftables",
     "active_discord_fake=quic_initial_steamcommunity_com.bin",
     "active_gamefilter_fake=quic_initial_4pda.to.bin",
+    "dpi_desync_ttl=",
 ];
 
 pub fn config_path() -> std::path::PathBuf {
@@ -106,13 +111,29 @@ pub fn config_path() -> std::path::PathBuf {
 
 pub fn save_config(cfg: &RunConfig) -> Result<(), String> {
     let path = config_path();
+    let ttl = cfg.dpi_desync_ttl.map(|v| v.to_string()).unwrap_or_default();
     let content = format!(
-        "interface={}\nstrategy={}\ngamefiltertcp={}\ngamefilterudp={}\nbackend={}\nactive_discord_fake={}\nactive_gamefilter_fake={}\n",
+        "interface={}\nstrategy={}\ngamefiltertcp={}\ngamefilterudp={}\nbackend={}\nactive_discord_fake={}\nactive_gamefilter_fake={}\ndpi_desync_ttl={}\n",
         cfg.interface, cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp, cfg.backend,
-        cfg.active_discord_fake, cfg.active_gamefilter_fake,
+        cfg.active_discord_fake, cfg.active_gamefilter_fake, ttl,
     );
     fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     Ok(())
+}
+
+/// Load the fixed DPI TTL value, if any.
+pub fn load_ttl() -> Option<u8> {
+    load_config(&config_path().to_string_lossy())
+        .ok()
+        .and_then(|cfg| cfg.dpi_desync_ttl)
+}
+
+/// Persist the fixed DPI TTL value (None = off / autottl).
+pub fn save_ttl(ttl: Option<u8>) -> Result<(), String> {
+    let path = config_path();
+    let mut cfg = load_config(&path.to_string_lossy()).unwrap_or_default();
+    cfg.dpi_desync_ttl = ttl;
+    save_config(&cfg)
 }
 
 pub fn save_tui_state(interface: &str, strategy: &str, tcp: bool, udp: bool, backend: &str) -> Result<(), String> {
@@ -145,18 +166,19 @@ fn validate_config() -> Result<(), String> {
 
     let existing_keys: Vec<&str> = content
         .lines()
-        .filter_map(|line| line.trim().split_once('=').map(|(k, _)| k))
+        .filter_map(|line| line.trim().split_once('=').map(|(k, _)| k.trim()))
         .collect();
 
     let mut missing = Vec::new();
     for default_line in DEFAULT_CONFIG_LINES {
-        if let Some(key) = default_line.split_once('=').map(|(k, _)| k) {
+        if let Some(key) = default_line.split_once('=').map(|(k, _)| k.trim()) {
             if !existing_keys.contains(&key) {
                 missing.push(*default_line);
             }
         }
     }
 
+    let mut updated = false;
     if !missing.is_empty() {
         if !content.ends_with('\n') {
             content.push('\n');
@@ -165,7 +187,7 @@ fn validate_config() -> Result<(), String> {
             content.push_str(line);
             content.push('\n');
         }
-        fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
+        updated = true;
     }
 
     let defaults = [
@@ -173,18 +195,13 @@ fn validate_config() -> Result<(), String> {
         ("active_gamefilter_fake=", "quic_initial_4pda.to.bin"),
     ];
 
-    let mut updated = false;
     for (key, default_val) in &defaults {
-        let lines: Vec<&str> = content.lines().collect();
-        for line in &lines {
-            let trimmed = line.trim();
-            if let Some(val) = trimmed.strip_prefix(*key) {
-                if val.trim().is_empty() {
-                    content = content.replace(trimmed, &format!("{}{}", key, default_val));
-                    updated = true;
-                    break;
-                }
-            }
+        let needs_fix = content
+            .lines()
+            .any(|line| line.trim().strip_prefix(*key).is_some_and(|val| val.trim().is_empty()));
+        if needs_fix {
+            content = content.replace(*key, &format!("{}{}", key, default_val));
+            updated = true;
         }
     }
 
