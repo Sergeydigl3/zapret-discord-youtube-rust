@@ -279,28 +279,28 @@ pub fn run_all(
                 }
 
                 const PROTOCOLS: usize = 4; // http, tls12, tls13, quic
-                let mut handles: Vec<(usize, usize, std::thread::JoinHandle<bool>)> = Vec::new();
-                for (di, domain) in blocked_domains.iter().enumerate() {
-                    for proto in 0..PROTOCOLS {
-                        let d = domain.clone();
-                        let n = config.num_requests;
-                        handles.push((
-                            di,
-                            proto,
-                            std::thread::spawn(move || match proto {
-                                0 => test_http(&d, n),
-                                1 => test_tls(&d, "--tlsv1.2", n),
-                                2 => test_tls(&d, "--tlsv1.3", n),
-                                _ => test_quic(&d, n),
-                            }),
-                        ));
-                    }
-                }
-
                 let mut results = vec![false; blocked_domains.len() * PROTOCOLS];
-                for (di, proto, handle) in handles {
-                    results[di * PROTOCOLS + proto] = handle.join().unwrap_or(false);
-                }
+                let n = config.num_requests;
+
+                std::thread::scope(|s| {
+                    let mut handles = Vec::with_capacity(blocked_domains.len() * PROTOCOLS);
+                    for (di, domain) in blocked_domains.iter().enumerate() {
+                        for proto in 0..PROTOCOLS {
+                            handles.push((
+                                di * PROTOCOLS + proto,
+                                s.spawn(move || match proto {
+                                    0 => test_http(domain, n),
+                                    1 => test_tls(domain, "--tlsv1.2", n),
+                                    2 => test_tls(domain, "--tlsv1.3", n),
+                                    _ => test_quic(domain, n),
+                                }),
+                            ));
+                        }
+                    }
+                    for (idx, handle) in handles {
+                        results[idx] = handle.join().unwrap_or(false);
+                    }
+                });
 
                 let mut pass = Vec::new();
                 let mut fail = Vec::new();
