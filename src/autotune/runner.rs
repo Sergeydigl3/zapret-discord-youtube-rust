@@ -107,13 +107,12 @@ pub fn run_all(
 
     let proto_steps = count_protocol_steps(config);
 
-    // Calculate total steps: network checks + per-preset domain checks + estimated strategy tests
+    // Calculate total steps: network checks + per-preset baseline domain checks
     let mut total = net_check_count;
     for &preset_idx in config.preset_indices.iter() {
         let domain_count = get_domains_for_preset(preset_idx).len();
         total += domain_count * (1 + proto_steps);
     }
-    total += config.preset_indices.len() * strat_count * 100; // rough estimate for strategy tests
 
     let mut done = 0;
 
@@ -164,6 +163,16 @@ pub fn run_all(
             .filter(|dc| !dc.baseline_pass)
             .map(|dc| dc.domain.clone())
             .collect();
+
+        // Accurately add strategy testing steps for this preset to `total`
+        let tested_count = if !loaded.is_empty() && !blocked_domains.is_empty() {
+            blocked_domains.len()
+        } else if !loaded.is_empty() {
+            domains.len()
+        } else {
+            0
+        };
+        total += strat_count * (1 + tested_count);
 
         // === Strategy testing with real nfqws ===
         let mut strategy_results: Vec<StrategyCheckResult> = Vec::new();
