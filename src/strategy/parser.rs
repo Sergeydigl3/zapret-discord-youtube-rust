@@ -1,6 +1,12 @@
 use regex::Regex;
 use std::fs;
 use std::path::Path;
+use std::sync::OnceLock;
+
+static RE_LINE_CONTINUATION: OnceLock<Regex> = OnceLock::new();
+static RE_WF_TCP: OnceLock<Regex> = OnceLock::new();
+static RE_WF_UDP: OnceLock<Regex> = OnceLock::new();
+static RE_FILTER: OnceLock<Regex> = OnceLock::new();
 
 /// Parsed output from a strategy `.bat` script.
 #[derive(Debug, Default)]
@@ -34,10 +40,9 @@ pub fn parse_bat_file(file_path: &str, game_filter: Option<&GameFilterPorts>) ->
 
     let raw = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
     let mut content = raw.replace('\r', "");
-    content = regex::Regex::new(r"\^\s*\n")
-        .unwrap()
-        .replace_all(&content, "\n")
-        .to_string();
+    
+    let re_continuation = RE_LINE_CONTINUATION.get_or_init(|| Regex::new(r"\^\s*\n").unwrap());
+    content = re_continuation.replace_all(&content, "\n").to_string();
 
     // Replace static path placeholders.
     content = content.replace("%BIN%", "bin/");
@@ -62,8 +67,8 @@ pub fn parse_bat_file(file_path: &str, game_filter: Option<&GameFilterPorts>) ->
     }
 
     // --- port extraction -------------------------------------------------
-    let wf_tcp_re = Regex::new(r"--wf-tcp=([0-9,-]+)").unwrap();
-    let wf_udp_re = Regex::new(r"--wf-udp=([0-9,-]+)").unwrap();
+    let wf_tcp_re = RE_WF_TCP.get_or_init(|| Regex::new(r"--wf-tcp=([0-9,-]+)").unwrap());
+    let wf_udp_re = RE_WF_UDP.get_or_init(|| Regex::new(r"--wf-udp=([0-9,-]+)").unwrap());
 
     let tcp_matches: Vec<_> = wf_tcp_re.find_iter(&content).collect();
     let udp_matches: Vec<_> = wf_udp_re.find_iter(&content).collect();
@@ -82,7 +87,7 @@ pub fn parse_bat_file(file_path: &str, game_filter: Option<&GameFilterPorts>) ->
     let udp_ports = wf_udp_re.captures(&content).unwrap()[1].to_string();
 
     // --- per-filter argument extraction ----------------------------------
-    let filter_re = Regex::new(r"--filter-(tcp|udp)=([0-9,-]+)\s+([\s\S]*?--new|.*)").unwrap();
+    let filter_re = RE_FILTER.get_or_init(|| Regex::new(r"--filter-(tcp|udp)=([0-9,-]+)\s+([\s\S]*?--new|.*)").unwrap());
 
     let nfqws_params = filter_re
         .captures_iter(&content)
