@@ -737,22 +737,20 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
                 backend,
                 interface,
             );
-            // Results file is saved inside run_all; just track its presence
+            println!();
             app.has_autotune_results_file = true;
             app.dpi_desync_ttl = crate::config::load_ttl();
 
-            let total_elapsed = start_time.elapsed().as_secs();
-            let total_mins = total_elapsed / 60;
-            let total_secs = total_elapsed % 60;
+            let total_mins = results.elapsed_secs / 60;
+            let total_secs = results.elapsed_secs % 60;
             println!();
-            println!();
+            println!("{}", rust_i18n::t!("autotune_done"));
             println!(
                 "⏱  {} {:02}:{:02}",
                 rust_i18n::t!("autotune_time_elapsed"),
                 total_mins,
                 total_secs
             );
-            println!("{}", rust_i18n::t!("autotune_done"));
             println!();
             println!("{}", rust_i18n::t!("autotune_how_to_read"));
             println!();

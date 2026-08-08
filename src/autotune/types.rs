@@ -185,6 +185,7 @@ pub struct AutotuneResults {
     pub block_results: Vec<CheckResult>, // DNS, TCP RST, SNI, SIBERIAN, QUIC, CIDR
     pub preset_results: Vec<PresetResult>,
     pub common_strategies: Vec<String>, // strategies that work across ALL selected presets
+    pub elapsed_secs: u64,
 }
 
 #[allow(dead_code)]
