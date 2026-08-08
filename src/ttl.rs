@@ -65,7 +65,15 @@ fn curl_tls_ok(domain: &str) -> bool {
     std::process::Command::new("curl")
         .arg("-s")
         .arg("-k")
-        .args(["--tlsv1.3", "--connect-timeout", "3", "--max-time", "3", "-o", null_device()])
+        .args([
+            "--tlsv1.3",
+            "--connect-timeout",
+            "3",
+            "--max-time",
+            "3",
+            "-o",
+            null_device(),
+        ])
         .arg(format!("https://{}", domain))
         .output()
         .map(|o| o.status.success())

@@ -44,8 +44,8 @@ impl CheckResult {
     }
 }
 
-mod quic;
 pub mod presets;
+mod quic;
 pub use presets::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1472,6 +1472,3 @@ pub fn run_all(
     save_results_file(&results);
     results
 }
-
-
-
