@@ -91,12 +91,27 @@ fn domain_check_error() -> DomainCheckResult {
     }
 }
 
+struct TtlGuard {
+    original_ttl: Option<u8>,
+}
+
+impl Drop for TtlGuard {
+    fn drop(&mut self) {
+        let _ = crate::config::save_ttl(self.original_ttl);
+    }
+}
+
 pub fn run_all(
     config: &AutotuneConfig,
     progress: &dyn Fn(usize, usize) -> bool,
     backend: &dyn FirewallBackend,
     interface: &str,
 ) -> AutotuneResults {
+    // Temporarily set TTL to auto (None) during autotune, restoring original TTL on exit
+    let original_ttl = crate::config::load_ttl();
+    let _ttl_guard = TtlGuard { original_ttl };
+    let _ = crate::config::save_ttl(None);
+
     // Run network checks once (shared across all presets)
     let block_results = run_network_checks(&config.block_checks);
     let net_check_count = config.block_checks.count_enabled();

@@ -733,6 +733,7 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
             );
             // Results file is saved inside run_all; just track its presence
             app.has_autotune_results_file = true;
+            app.dpi_desync_ttl = crate::config::load_ttl();
             println!();
             println!();
             println!("{}", rust_i18n::t!("autotune_done"));
