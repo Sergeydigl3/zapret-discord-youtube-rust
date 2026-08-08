@@ -97,17 +97,26 @@ fn build_args(parsed: &ParsedStrategy, ttl: Option<u8>) -> Vec<String> {
     // current profile and starts a fresh one, so TTL options must be injected
     // into every group (not just at the end of the whole command line).
     for param in &parsed.nfqws_params {
+        for p in param.split_whitespace() {
+            let p = p.replace('"', "");
+            if p.is_empty() || p == "^" {
+                continue;
+            }
+            // A fixed TTL overrides any TTL/autottl settings baked into the
+            // strategy file, otherwise they would shadow our values.
+            if ttl.is_some() && (p.starts_with("--dpi-desync-ttl") || p.starts_with("--dpi-desync-autottl")) {
+                continue;
+            }
+            args.push(p.to_string());
+        }
+        // Injected at the end of the group so they win over the strategy's own
+        // params in case the filtering above missed anything (winws applies
+        // the last occurrence of a parameter).
         if let Some(ttl) = ttl {
             args.push(format!("--dpi-desync-ttl={}", ttl));
             args.push(format!("--dpi-desync-ttl6={}", ttl));
             args.push("--dpi-desync-autottl=-".to_string());
             args.push("--dpi-desync-autottl6=-".to_string());
-        }
-        for p in param.split_whitespace() {
-            let p = p.replace('"', "");
-            if !p.is_empty() && p != "^" {
-                args.push(p.to_string());
-            }
         }
     }
     args
