@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::{self, ErrorKind, Read};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream, ToSocketAddrs, UdpSocket};
+use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs, UdpSocket};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -54,10 +54,8 @@ pub fn clear_dns_cache() {
 
 fn is_sinkhole(ip: IpAddr) -> bool {
     match ip {
-        IpAddr::V4(v4) => {
-            v4 == Ipv4Addr::UNSPECIFIED || v4.is_loopback() || v4.is_private() || v4 == Ipv4Addr::new(0, 0, 0, 0)
-        }
-        IpAddr::V6(_) => false,
+        IpAddr::V4(v4) => v4.is_unspecified() || v4.is_loopback() || v4.is_private(),
+        IpAddr::V6(v6) => v6.is_unspecified() || v6.is_loopback(),
     }
 }
 
@@ -69,10 +67,14 @@ pub fn try_tcp_connect(addr: &str, port: u16) -> Result<TcpStream, io::Error> {
 }
 
 pub fn try_tcp_connect_domain(domain: &str, port: u16) -> Result<TcpStream, io::Error> {
-    let addrs = (domain, port).to_socket_addrs()?;
+    let ips = resolve_domain(domain);
+    if ips.is_empty() {
+        return Err(io::Error::new(ErrorKind::NotFound, "no addresses resolved"));
+    }
     let mut last_err = io::Error::other("no addresses");
-    for addr in addrs {
-        match TcpStream::connect_timeout(&addr, TIMEOUT) {
+    for ip in ips {
+        let socket_addr = SocketAddr::new(ip, port);
+        match TcpStream::connect_timeout(&socket_addr, TIMEOUT) {
             Ok(stream) => return Ok(stream),
             Err(e) => last_err = e,
         }
