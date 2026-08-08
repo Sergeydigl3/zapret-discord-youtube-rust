@@ -928,10 +928,33 @@ fn null_device() -> &'static str {
     }
 }
 
+fn native_http_tls_test(url: &str, num_requests: usize) -> Option<bool> {
+    if num_requests == 0 {
+        return Some(true);
+    }
+    let agent = ureq::builder()
+        .timeout(Duration::from_secs(4))
+        .build();
+
+    for _ in 0..num_requests {
+        match agent.get(url).call() {
+            Ok(_) => continue,
+            Err(ureq::Error::Status(_, _)) => continue,
+            Err(_) => return Some(false),
+        }
+    }
+    Some(true)
+}
+
 fn curl_test(url: &str, extra_args: &[&str], num_requests: usize, ok: impl Fn(&str) -> bool) -> bool {
     if num_requests == 0 {
         return true;
     }
+    // Try fast native Rust HTTP/HTTPS request first
+    if let Some(res) = native_http_tls_test(url, num_requests) {
+        return res;
+    }
+    // Fallback to curl process
     for _ in 0..num_requests {
         let out = std::process::Command::new("curl")
             .arg("-s")
