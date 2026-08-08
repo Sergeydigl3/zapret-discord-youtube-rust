@@ -67,11 +67,11 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
             running = true;
             break;
         }
-        std::thread::sleep(Duration::from_millis(200));
+        std::thread::sleep(Duration::from_millis(20));
     }
     if running {
-        // Let nfqws bind its nfqueue before probing.
-        std::thread::sleep(Duration::from_millis(500));
+        // Let nfqws bind its nfqueue/WinDivert handle before probing.
+        std::thread::sleep(Duration::from_millis(100));
     }
     running
 }
