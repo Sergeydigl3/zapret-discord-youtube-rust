@@ -67,14 +67,10 @@ pub fn try_tcp_connect(addr: &str, port: u16) -> Result<TcpStream, io::Error> {
 }
 
 pub fn try_tcp_connect_domain(domain: &str, port: u16) -> Result<TcpStream, io::Error> {
-    let ips = resolve_domain(domain);
-    if ips.is_empty() {
-        return Err(io::Error::new(ErrorKind::NotFound, "no addresses resolved"));
-    }
+    let addrs = (domain, port).to_socket_addrs()?;
     let mut last_err = io::Error::other("no addresses");
-    for ip in ips {
-        let socket_addr = SocketAddr::new(ip, port);
-        match TcpStream::connect_timeout(&socket_addr, TIMEOUT) {
+    for addr in addrs {
+        match TcpStream::connect_timeout(&addr, TIMEOUT) {
             Ok(stream) => return Ok(stream),
             Err(e) => last_err = e,
         }

@@ -107,42 +107,9 @@ pub fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
     (status, success)
 }
 
-use std::sync::OnceLock;
-
-static HTTP_AGENT: OnceLock<ureq::Agent> = OnceLock::new();
-
-fn get_http_agent() -> &'static ureq::Agent {
-    HTTP_AGENT.get_or_init(|| {
-        ureq::builder()
-            .timeout(Duration::from_secs(4))
-            .max_idle_connections(100)
-            .max_idle_connections_per_host(20)
-            .build()
-    })
-}
-
-fn native_http_tls_test(url: &str, num_requests: usize) -> Option<bool> {
-    if num_requests == 0 {
-        return Some(true);
-    }
-    let agent = get_http_agent();
-
-    for _ in 0..num_requests {
-        match agent.get(url).call() {
-            Ok(_) => continue,
-            Err(ureq::Error::Status(_, _)) => continue,
-            Err(_) => return Some(false),
-        }
-    }
-    Some(true)
-}
-
 pub fn curl_test(url: &str, extra_args: &[&str], num_requests: usize, ok: impl Fn(&str) -> bool) -> bool {
     if num_requests == 0 {
         return true;
-    }
-    if let Some(res) = native_http_tls_test(url, num_requests) {
-        return res;
     }
     for _ in 0..num_requests {
         let out = std::process::Command::new("curl")
