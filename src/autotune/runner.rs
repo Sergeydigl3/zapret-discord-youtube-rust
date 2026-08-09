@@ -63,20 +63,23 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
     let deadline = std::time::Instant::now() + timeout;
     let mut running = false;
     while std::time::Instant::now() < deadline {
+        if super::types::is_cancelled() {
+            return false;
+        }
         if crate::runner::nfqws_process_running() || crate::platform::is_nfqws_running() {
             running = true;
             break;
         }
         std::thread::sleep(Duration::from_millis(20));
     }
-    if running {
+    if running && !super::types::is_cancelled() {
         // Let nfqws bind its nfqueue/WinDivert handle before probing.
         std::thread::sleep(Duration::from_millis(100));
     }
-    running
+    running && !super::types::is_cancelled()
 }
 
-fn domain_check_error() -> DomainCheckResult {
+pub fn domain_check_error() -> DomainCheckResult {
     DomainCheckResult {
         domain: String::new(),
         alive: CheckStatus::Error,
@@ -107,6 +110,7 @@ pub fn run_all(
     backend: &dyn FirewallBackend,
     interface: &str,
 ) -> AutotuneResults {
+    super::types::reset_cancel();
     let start_instant = std::time::Instant::now();
     // Temporarily set TTL to auto (None) during autotune, restoring original TTL on exit
     let original_ttl = crate::config::load_ttl();
