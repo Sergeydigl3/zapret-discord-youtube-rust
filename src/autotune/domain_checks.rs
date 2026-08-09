@@ -108,10 +108,13 @@ pub fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
 }
 
 pub fn curl_test(url: &str, extra_args: &[&str], num_requests: usize, ok: impl Fn(&str) -> bool) -> bool {
-    if num_requests == 0 {
-        return true;
+    if num_requests == 0 || super::types::is_cancelled() {
+        return false;
     }
     for _ in 0..num_requests {
+        if super::types::is_cancelled() {
+            return false;
+        }
         let out = std::process::Command::new("curl")
             .arg("-s")
             .arg("-k")
@@ -120,6 +123,9 @@ pub fn curl_test(url: &str, extra_args: &[&str], num_requests: usize, ok: impl F
             .arg("%{http_code}")
             .arg(url)
             .output();
+        if super::types::is_cancelled() {
+            return false;
+        }
         let code = out
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
             .unwrap_or_default();
@@ -150,6 +156,9 @@ pub fn test_http(domain: &str, num_requests: usize) -> bool {
 }
 
 pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult {
+    if super::types::is_cancelled() {
+        return super::runner::domain_check_error();
+    }
     let alive = check_domain_alive(domain);
     let detail;
 

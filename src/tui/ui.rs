@@ -728,6 +728,8 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
                                 || key.code == crossterm::event::KeyCode::Char('Q')
                                 || key.code == crossterm::event::KeyCode::Esc
                             {
+                                crate::autotune::trigger_cancel();
+                                crate::runner::stop_zapret(backend);
                                 return false; // Emergency stop requested!
                             }
                         }
