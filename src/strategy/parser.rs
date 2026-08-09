@@ -40,7 +40,7 @@ pub fn parse_bat_file(file_path: &str, game_filter: Option<&GameFilterPorts>) ->
 
     let raw = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
     let mut content = raw.replace('\r', "");
-    
+
     let re_continuation = RE_LINE_CONTINUATION.get_or_init(|| Regex::new(r"\^\s*\n").unwrap());
     content = re_continuation.replace_all(&content, "\n").to_string();
 
@@ -87,7 +87,8 @@ pub fn parse_bat_file(file_path: &str, game_filter: Option<&GameFilterPorts>) ->
     let udp_ports = wf_udp_re.captures(&content).unwrap()[1].to_string();
 
     // --- per-filter argument extraction ----------------------------------
-    let filter_re = RE_FILTER.get_or_init(|| Regex::new(r"--filter-(tcp|udp)=([0-9,-]+)\s+([\s\S]*?--new|.*)").unwrap());
+    let filter_re =
+        RE_FILTER.get_or_init(|| Regex::new(r"--filter-(tcp|udp)=([0-9,-]+)\s+([\s\S]*?--new|.*)").unwrap());
 
     let nfqws_params = filter_re
         .captures_iter(&content)

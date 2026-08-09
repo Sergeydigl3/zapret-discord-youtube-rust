@@ -168,7 +168,7 @@ fn aes128gcm_encrypt(key: &[u8; 16], nonce: &[u8; 12], aad: &[u8], plaintext: &[
 /// `frames` are the unprotected payload frames; the AEAD tag is appended by
 /// the cipher. `pn_len` selects the packet number field size (1, 2, 3 or 4).
 pub fn build_initial_packet(dcid: &[u8], scid: &[u8], pn: u64, pn_len: usize, frames: &[u8]) -> Vec<u8> {
-    debug_assert!(pn_len >= 1 && pn_len <= 4);
+    debug_assert!((1..=4).contains(&pn_len));
     let keys = derive_initial_keys(dcid);
 
     let mut header = Vec::new();
