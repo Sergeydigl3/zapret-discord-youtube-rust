@@ -6,12 +6,10 @@ use crate::firewalls::FirewallBackend;
 use super::domain_checks::{check_domain, test_http, test_quic, test_tls};
 use super::net_checks::run_network_checks;
 use super::presets::PRESETS;
-use super::storage::{
-    get_domains_for_preset, restore_ipset, save_ipset, save_results_file, set_ipset_any,
-};
+use super::storage::{get_domains_for_preset, restore_ipset, save_ipset, save_results_file, set_ipset_any};
 use super::types::{
-    AutotuneConfig, AutotuneResults, CheckStatus, DomainCheckResult, DomainProtocolCheck,
-    PresetResult, StrategyCheckResult,
+    AutotuneConfig, AutotuneResults, CheckStatus, DomainCheckResult, DomainProtocolCheck, PresetResult,
+    StrategyCheckResult,
 };
 
 fn get_strategy_name(name: &str) -> String {
@@ -53,10 +51,7 @@ fn load_strategy_files(indices: &[usize], all_strategies: &[String]) -> Vec<(Str
 }
 
 fn count_protocol_steps(config: &AutotuneConfig) -> usize {
-    config.check_http as usize
-        + config.check_tls12 as usize
-        + config.check_tls13 as usize
-        + config.check_quic as usize
+    config.check_http as usize + config.check_tls12 as usize + config.check_tls13 as usize + config.check_quic as usize
 }
 
 fn wait_for_nfqws(timeout: Duration) -> bool {
