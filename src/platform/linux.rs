@@ -5,13 +5,7 @@ use std::os::unix::process::CommandExt;
 /// Ensures that the current process is running with root privileges.
 /// If not, it attempts to escalate privileges using pkexec or sudo.
 pub fn ensure_admin() {
-    let not_root = std::process::Command::new("id")
-        .arg("-u")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim() != "0")
-        .unwrap_or(true);
+    let not_root = !is_elevated::is_elevated();
 
     if not_root {
         println!("{}", rust_i18n::t!("root_req"));
@@ -35,10 +29,8 @@ pub fn ensure_admin() {
 }
 
 pub fn is_nfqws_running() -> bool {
-    std::process::Command::new("pgrep")
-        .arg("-x")
-        .arg("nfqws")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    let mut sys = sysinfo::System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    let is_running = sys.processes_by_exact_name(std::ffi::OsStr::new("nfqws")).next().is_some();
+    is_running
 }

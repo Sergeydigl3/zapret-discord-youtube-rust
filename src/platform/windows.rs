@@ -3,16 +3,7 @@
 /// Ensures that the current process is running with elevated (Administrator) privileges.
 /// If not, it requests UAC elevation by spawning a new PowerShell process and exits the current process.
 pub fn ensure_admin() {
-    let output = std::process::Command::new("fsutil")
-        .arg("dirty")
-        .arg("query")
-        .arg(std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_string()))
-        .output();
-
-    let is_elevated = match output {
-        Ok(out) => out.status.success(),
-        Err(_) => false,
-    };
+    let is_elevated = is_elevated::is_elevated();
 
     if !is_elevated {
         println!("Requesting Administrator privileges...");
@@ -37,10 +28,8 @@ pub fn ensure_admin() {
 }
 
 pub fn is_nfqws_running() -> bool {
-    let out = std::process::Command::new("tasklist")
-        .args(["/FI", "IMAGENAME eq winws.exe", "/NH"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-        .unwrap_or_default();
-    out.contains("winws.exe")
+    let mut sys = sysinfo::System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    let is_running = sys.processes_by_exact_name(std::ffi::OsStr::new("winws.exe")).next().is_some();
+    is_running
 }
