@@ -25,6 +25,7 @@ pub fn ensure_admin() {
 
         // If we reach here, pkexec is not installed or failed to execute. Fall back to sudo.
         let err2 = std::process::Command::new("sudo")
+            .arg("-E")
             .arg(std::env::current_exe().unwrap_or_default())
             .args(std::env::args().skip(1))
             .exec();
