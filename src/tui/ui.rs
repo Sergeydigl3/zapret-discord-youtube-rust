@@ -381,6 +381,8 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
                     MainMenuState::GamefilterSettings => rust_i18n::t!("help_gf"),
                     #[cfg(target_os = "linux")]
                     MainMenuState::BackendSettings => rust_i18n::t!("help_backend"),
+                    #[cfg(target_os = "linux")]
+                    MainMenuState::RouterMode => rust_i18n::t!("help_router_mode"),
                     MainMenuState::ServiceSettings => rust_i18n::t!("help_srv"),
                     MainMenuState::ListsEditor => rust_i18n::t!("help_lists"),
                     MainMenuState::Autotune => rust_i18n::t!("help_autotune"),

@@ -139,7 +139,14 @@ fn set_cap(bin_path: &Path) -> bool {
 }
 
 /// Run the zapret firewall rule setup and spawn the nfqws daemon.
-pub fn run_zapret(strategy_file: &str, interface: &str, use_tcp: bool, use_udp: bool, backend: &dyn FirewallBackend) {
+pub fn run_zapret(
+    strategy_file: &str,
+    interface: &str,
+    use_tcp: bool,
+    use_udp: bool,
+    router_mode: bool,
+    backend: &dyn FirewallBackend,
+) {
     let mut term: Vec<String> = Vec::new();
 
     let repo_path = repo_path();
@@ -154,8 +161,12 @@ pub fn run_zapret(strategy_file: &str, interface: &str, use_tcp: bool, use_udp: 
     };
 
     // Setup firewall
-    if let Err(e) = backend.setup(&parsed.tcp_ports, &parsed.udp_ports, interface) {
+    if let Err(e) = backend.setup(&parsed.tcp_ports, &parsed.udp_ports, interface, router_mode) {
         println!("{}{}", rust_i18n::t!("msg_err_firewall"), e);
+    }
+
+    if router_mode {
+        crate::platform::enable_ip_forward();
     }
 
     // Kill any leftover nfqws processes from previous runs
@@ -293,7 +304,7 @@ fn run_zapret_silent_impl(
     )
     .map_err(|e| format!("parse error: {}", e))?;
 
-    if let Err(e) = backend.setup(&parsed.tcp_ports, &parsed.udp_ports, interface) {
+    if let Err(e) = backend.setup(&parsed.tcp_ports, &parsed.udp_ports, interface, false) {
         return Err(format!("firewall setup error: {}", e));
     }
 
@@ -345,6 +356,7 @@ pub fn stop_zapret(backend: &dyn FirewallBackend) {
     }
 
     let _ = backend.clear();
+    crate::platform::disable_ip_forward();
 
     let msg = rust_i18n::t!("msg_zapret_clear").to_string();
     term.push(msg.clone());

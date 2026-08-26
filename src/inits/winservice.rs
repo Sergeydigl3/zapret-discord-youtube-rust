@@ -219,6 +219,7 @@ fn my_service_main(_arguments: Vec<std::ffi::OsString>) {
         &cfg.interface,
         cfg.gamefilter_tcp,
         cfg.gamefilter_udp,
+        cfg.router_mode,
         &backend,
     );
 

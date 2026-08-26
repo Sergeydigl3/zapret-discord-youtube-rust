@@ -42,3 +42,20 @@ pub fn is_nfqws_running() -> bool {
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
+
+const SYSCTL_FILE: &str = "/etc/sysctl.d/99-zapret-rust.conf";
+
+pub fn enable_ip_forward() {
+    let _ = std::fs::write(SYSCTL_FILE, "net.ipv4.ip_forward=1\n");
+    let _ = std::process::Command::new("sysctl")
+        .args(["-w", "net.ipv4.ip_forward=1"])
+        .output();
+    let _ = std::process::Command::new("sysctl").arg("--system").output();
+}
+
+pub fn disable_ip_forward() {
+    if std::path::Path::new(SYSCTL_FILE).exists() {
+        let _ = std::fs::remove_file(SYSCTL_FILE);
+        let _ = std::process::Command::new("sysctl").arg("--system").output();
+    }
+}

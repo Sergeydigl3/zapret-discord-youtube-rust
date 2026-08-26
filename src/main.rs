@@ -62,6 +62,9 @@ struct Cli {
     #[arg(long = "gamefilterudp", short = 'u', help = "Enable gamefilterudp")]
     gamefilterudp: bool,
 
+    #[arg(long = "router-mode", short = 'r', help = "Enable router mode (NAT/Forward)")]
+    router_mode: bool,
+
     #[arg(
         long = "cache-dir",
         short = 'd',
@@ -82,6 +85,7 @@ fn show_help() {
     println!("{}", rust_i18n::t!("cli_opt_i"));
     println!("{}", rust_i18n::t!("cli_opt_t"));
     println!("{}", rust_i18n::t!("cli_opt_u"));
+    println!("{}", rust_i18n::t!("cli_opt_r"));
     println!("{}", rust_i18n::t!("cli_opt_d"));
     println!("{}", rust_i18n::t!("cli_opt_h"));
     println!("{}", rust_i18n::t!("cli_modes"));
@@ -126,6 +130,7 @@ fn main() {
     let mut use_strategy = args.strategy.clone();
     let mut use_gamefilter_tcp = args.gamefiltertcp;
     let mut use_gamefilter_udp = args.gamefilterudp;
+    let mut use_router_mode = args.router_mode;
     #[cfg(target_os = "linux")]
     let mut use_backend: LinuxBackend = LinuxBackend::Nftables;
     let mut is_interactive = true;
@@ -138,6 +143,7 @@ fn main() {
                 use_strategy = Some(cfg.strategy);
                 use_gamefilter_tcp = cfg.gamefilter_tcp;
                 use_gamefilter_udp = cfg.gamefilter_udp;
+                use_router_mode = cfg.router_mode;
                 #[cfg(target_os = "linux")]
                 {
                     use_backend = LinuxBackend::from_config(&cfg.backend);
@@ -199,6 +205,7 @@ fn main() {
             use_strategy = app.strategies.get(app.selected_strategy).cloned();
             use_gamefilter_tcp = app.tcp_gamefilter;
             use_gamefilter_udp = app.udp_gamefilter;
+            use_router_mode = app.router_mode;
             #[cfg(target_os = "linux")]
             {
                 use_backend = app.selected_backend;
@@ -252,12 +259,13 @@ fn main() {
         let backend_info = String::new();
 
         println!(
-            "{}{}, interface={}, gamefiltertcp={}, gamefilterudp={}{}",
+            "{}{}, interface={}, gamefiltertcp={}, gamefilterudp={}, router_mode={}{}",
             rust_i18n::t!("msg_run_params"),
             strategy_file,
             use_interface,
             use_gamefilter_tcp,
             use_gamefilter_udp,
+            use_router_mode,
             backend_info
         );
 
@@ -266,6 +274,7 @@ fn main() {
             &use_interface,
             use_gamefilter_tcp,
             use_gamefilter_udp,
+            use_router_mode,
             &backend,
         );
 
