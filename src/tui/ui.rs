@@ -1,7 +1,11 @@
+#[cfg(target_os = "windows")]
+use crossterm::terminal::Clear;
+#[cfg(target_os = "windows")]
+use crossterm::terminal::ClearType;
 use crossterm::{
     event::{Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -12,7 +16,9 @@ use ratatui::{
     Terminal,
 };
 use std::io::{self, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::Arc;
 
 use crate::autotune::{CheckStatus, StrategyCheckResult};
 use crate::tui::menus;
@@ -48,23 +54,74 @@ fn status_detail(s: &CheckStatus) -> &'static str {
 /// blocked in `WaitForMultipleObjects` forever, and several waiters on the same
 /// input handle race for events and starve each other, which made the menu stop
 /// reacting to keys.
-pub fn spawn_event_reader() -> Receiver<Event> {
+///
+/// The reader can be paused while an external program (e.g. the text editor)
+/// reads the terminal itself. While paused it stops polling the console, so the
+/// child process gets every keystroke instead of racing this thread for input.
+pub fn spawn_event_reader() -> EventReader {
     let (tx, rx) = mpsc::channel();
+    let paused = Arc::new(AtomicBool::new(false));
+    let paused_reader = Arc::clone(&paused);
     std::thread::spawn(move || loop {
-        match crossterm::event::read() {
-            Ok(event) => {
-                if tx.send(event).is_err() {
-                    break;
+        if paused_reader.load(Ordering::SeqCst) {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            continue;
+        }
+
+        match crossterm::event::poll(std::time::Duration::from_millis(50)) {
+            Ok(true) => match crossterm::event::read() {
+                Ok(event) => {
+                    if tx.send(event).is_err() {
+                        break;
+                    }
                 }
-            }
+                Err(_) => {
+                    // Transient console error; keep the reader alive and retry
+                    // instead of dying and leaving the UI without input.
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+            },
+            Ok(false) => {}
             Err(_) => {
-                // Transient console error; keep the reader alive and retry
-                // instead of dying and leaving the UI without input.
+                // Transient console error; retry like above.
                 std::thread::sleep(std::time::Duration::from_millis(20));
             }
         }
     });
-    rx
+    EventReader { rx, paused }
+}
+
+/// Handle for the process-wide event reader: the channel the reader thread
+/// forwards keystrokes into, plus the ability to pause it from touching the
+/// console while a child program needs exclusive access to stdin.
+pub struct EventReader {
+    rx: Receiver<Event>,
+    paused: Arc<AtomicBool>,
+}
+
+impl EventReader {
+    /// The channel the reader thread forwards console events into. The TUI
+    /// draws and reacts to keys by receiving from here.
+    pub fn rx(&self) -> &Receiver<Event> {
+        &self.rx
+    }
+
+    /// Stop the reader from polling the terminal so a child process (editor,
+    /// prompt, ...) can read stdin without racing this thread for input.
+    ///
+    /// Blocks briefly until the reader thread is guaranteed to be off the
+    /// console handle. The caller must balance every `pause` with a `resume`.
+    pub fn pause(&self) {
+        self.paused.store(true, Ordering::SeqCst);
+        // Polling has a 50 ms timeout, so give the thread a moment to notice
+        // the flag before returning to the caller.
+        std::thread::sleep(std::time::Duration::from_millis(150));
+    }
+
+    /// Allow the reader to poll the terminal again after a [`EventReader::pause`].
+    pub fn resume(&self) {
+        self.paused.store(false, Ordering::SeqCst);
+    }
 }
 
 fn drain_events(rx: &Receiver<Event>) {
@@ -149,7 +206,8 @@ fn run_download(
     Ok(res)
 }
 
-pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error> {
+pub fn run_tui(app: &mut AppState, reader: &EventReader) -> Result<(), io::Error> {
+    let rx = reader.rx();
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -661,11 +719,18 @@ pub fn run_tui(app: &mut AppState, rx: &Receiver<Event>) -> Result<(), io::Error
 
         if let Some(file_path) = app.should_open_editor.take() {
             let return_screen = app.active_screen;
+            // Nano and the background event reader share stdin, so the editor
+            // must get exclusive access to the console while it runs, otherwise
+            // the two readers fight over keystrokes and nano misses keys.
+            reader.pause();
+
             begin_external_output(&mut terminal)?;
 
             let _ = crate::utils::open_editor(&file_path);
 
             end_external_output(&mut terminal, rx)?;
+            reader.resume();
+            drain_events(rx);
 
             app.status_message = Some(format!(
                 "{}{}",

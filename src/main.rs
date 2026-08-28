@@ -177,7 +177,7 @@ fn main() {
     // after each "Run" must reuse this reader: spawning a new one per session
     // leaks threads that stay blocked on the console input handle and starve
     // the live reader of events.
-    let rx = tui::spawn_event_reader();
+    let reader = tui::spawn_event_reader();
 
     loop {
         if is_interactive {
@@ -185,7 +185,7 @@ fn main() {
             let strategies = strategy::get_strategies();
             let mut app = tui::AppState::new(interfaces, strategies);
 
-            let res = tui::run_tui(&mut app, &rx);
+            let res = tui::run_tui(&mut app, &reader);
             if let Err(e) = res {
                 println!("{}{}", rust_i18n::t!("err_tui"), e);
                 exit(1);
