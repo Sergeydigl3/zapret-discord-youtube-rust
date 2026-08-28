@@ -20,14 +20,18 @@ pub fn nfqws_process_running() -> bool {
         .any(|p| p.try_wait().map(|s| s.is_none()).unwrap_or(false))
 }
 
-#[cfg(target_os = "linux")]
 fn kill_stale_zapret() {
-    let _ = Command::new("pkill").arg("-9").arg("nfqws").output();
-}
-
-#[cfg(target_os = "windows")]
-fn kill_stale_zapret() {
-    let _ = Command::new("taskkill").args(["/F", "/IM", "winws.exe"]).output();
+    let mut sys = sysinfo::System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    
+    #[cfg(target_os = "windows")]
+    let bin_name = "winws.exe";
+    #[cfg(not(target_os = "windows"))]
+    let bin_name = "nfqws";
+    
+    for process in sys.processes_by_exact_name(std::ffi::OsStr::new(bin_name)) {
+        process.kill();
+    }
 }
 
 fn repo_path() -> PathBuf {

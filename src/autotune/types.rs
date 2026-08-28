@@ -16,21 +16,16 @@ pub fn trigger_cancel() {
 }
 
 pub fn kill_active_curls() {
+    let mut sys = sysinfo::System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+    
     #[cfg(target_os = "windows")]
-    {
-        let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/IM", "curl.exe", "/T"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
-    }
+    let bin_name = "curl.exe";
     #[cfg(not(target_os = "windows"))]
-    {
-        let _ = std::process::Command::new("pkill")
-            .args(["-9", "curl"])
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status();
+    let bin_name = "curl";
+    
+    for process in sys.processes_by_exact_name(std::ffi::OsStr::new(bin_name)) {
+        process.kill();
     }
 }
 
