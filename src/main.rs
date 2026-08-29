@@ -117,6 +117,12 @@ fn main() {
         std::env::set_var("ZAPRET_CACHE_DIR", d);
     }
 
+    // Make sure the bundled custom strategies are present in the
+    // `custom-strategies` folder so they can be picked from the strategy menu.
+    if let Err(e) = strategy::ensure_custom_strategies() {
+        println!("{}{}", rust_i18n::t!("err_custom_strategies"), e);
+    }
+
     if args.help {
         show_help();
         return;

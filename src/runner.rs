@@ -40,9 +40,15 @@ fn repo_path() -> PathBuf {
 }
 
 fn strategy_file_path(repo_path: &Path, strategy_file: &str) -> PathBuf {
-    let custom = repo_path.join("custom-strategies").join(strategy_file);
-    if custom.exists() {
-        custom
+    let cache_custom = crate::config::get_cache_dir()
+        .join("custom-strategies")
+        .join(strategy_file);
+    if cache_custom.exists() {
+        return cache_custom;
+    }
+    let repo_custom = repo_path.join("custom-strategies").join(strategy_file);
+    if repo_custom.exists() {
+        repo_custom
     } else {
         repo_path.join(strategy_file)
     }
