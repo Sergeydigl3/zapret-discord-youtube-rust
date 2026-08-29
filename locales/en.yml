@@ -178,6 +178,7 @@ cli_mode3: "\n    3. Direct parameters:\n       run -s discord -i eth0 -t\n     
 msg_load_cfg: "Loading configuration from: "
 
 err_parse_strat: "Parsing strategy: "
+err_custom_strategies: "Error creating custom strategies: "
 msg_start_nfqws: "Starting nfqws..."
 err_bin_miss: "Binary not found: {:?}. Please install dependencies first."
 err_setcap: " (failed to setcap cap_net_admin+ep, root may be required)"

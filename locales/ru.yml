@@ -178,6 +178,7 @@ cli_mode3: "\n    3. Прямые параметры:\n       run -s discord -i 
 msg_load_cfg: "Загрузка конфигурации из: "
 
 err_parse_strat: "Парсинга стратегии: "
+err_custom_strategies: "Ошибка при создании кастомных стратегий: "
 msg_start_nfqws: "Запуск nfqws..."
 err_bin_miss: "Бинарник не найден: {:?}. Сначала выполните установку зависимостей."
 err_setcap: " (не удалось setcap cap_net_admin+ep, может потребоваться root)"
