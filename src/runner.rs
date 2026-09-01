@@ -57,9 +57,9 @@ fn strategy_file_path(repo_path: &Path, strategy_file: &str) -> PathBuf {
 fn game_filter(use_tcp: bool, use_udp: bool) -> Option<GameFilterPorts> {
     if use_tcp || use_udp {
         Some(GameFilterPorts {
-            ports: "50000-50100".to_string(),
-            tcp_ports: "50000-50100".to_string(),
-            udp_ports: "50000-50100".to_string(),
+            ports: "1024-65535".to_string(),
+            tcp_ports: "1024-65535".to_string(),
+            udp_ports: "1024-65535".to_string(),
         })
     } else {
         None
