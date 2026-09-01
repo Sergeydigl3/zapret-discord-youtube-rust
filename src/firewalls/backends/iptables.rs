@@ -15,6 +15,8 @@ pub fn is_available() -> bool {
 
 const CHAIN_POST: &str = "zapret_post";
 const CHAIN_PRE: &str = "zapret_pre";
+const CHAIN_NAT: &str = "zapret_nat";
+const CHAIN_FWD: &str = "zapret_fwd";
 
 fn normalize_ports(ports: &str) -> String {
     ports.split(',')
@@ -45,12 +47,32 @@ impl FirewallBackend for IptablesBackend {
             .status();
 
         let _ = Command::new("iptables")
+            .args(["-t", "nat", "-D", "POSTROUTING", "-j", CHAIN_NAT])
+            .stderr(Stdio::null())
+            .status();
+
+        let _ = Command::new("iptables")
+            .args(["-D", "FORWARD", "-j", CHAIN_FWD])
+            .stderr(Stdio::null())
+            .status();
+
+        let _ = Command::new("iptables")
             .args(["-t", "mangle", "-F", CHAIN_POST])
             .stderr(Stdio::null())
             .status();
 
         let _ = Command::new("iptables")
             .args(["-t", "mangle", "-F", CHAIN_PRE])
+            .stderr(Stdio::null())
+            .status();
+
+        let _ = Command::new("iptables")
+            .args(["-t", "nat", "-F", CHAIN_NAT])
+            .stderr(Stdio::null())
+            .status();
+
+        let _ = Command::new("iptables")
+            .args(["-F", CHAIN_FWD])
             .stderr(Stdio::null())
             .status();
 
@@ -64,10 +86,31 @@ impl FirewallBackend for IptablesBackend {
             .stderr(Stdio::null())
             .status();
 
+        let _ = Command::new("iptables")
+            .args(["-t", "nat", "-X", CHAIN_NAT])
+            .stderr(Stdio::null())
+            .status();
+
+        // mangle FORWARD chain for router mode DPI
+        let _ = Command::new("iptables")
+            .args(["-t", "mangle", "-D", "FORWARD", "-j", CHAIN_FWD])
+            .stderr(Stdio::null())
+            .status();
+
+        let _ = Command::new("iptables")
+            .args(["-t", "mangle", "-F", CHAIN_FWD])
+            .stderr(Stdio::null())
+            .status();
+
+        let _ = Command::new("iptables")
+            .args(["-t", "mangle", "-X", CHAIN_FWD])
+            .stderr(Stdio::null())
+            .status();
+
         Ok(())
     }
 
-    fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str) -> Result<(), String> {
+    fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str, router_mode: bool) -> Result<(), String> {
         let _ = self.clear();
 
         println!("{}", rust_i18n::t!("msg_setup_iptables"));
@@ -138,6 +181,70 @@ impl FirewallBackend for IptablesBackend {
                 "-j", "NFQUEUE", "--queue-num", "200", "--queue-bypass",
             ]);
             Command::new("iptables").args(&args).stderr(Stdio::null()).status().ok();
+        }
+
+        if router_mode {
+            // DPI for forwarded traffic: intercept at mangle FORWARD (not postrouting),
+            // so nfqws has input interface context and can correctly reinject packets.
+            let _ = Command::new("iptables")
+                .args(["-t", "mangle", "-N", CHAIN_FWD])
+                .stderr(Stdio::null())
+                .status();
+
+            let _ = Command::new("iptables")
+                .args(["-t", "mangle", "-I", "FORWARD", "-j", CHAIN_FWD])
+                .stderr(Stdio::null())
+                .status();
+
+            if !tcp_ports.is_empty() {
+                let ports = normalize_ports(&tcp_ports.replace(" ", ""));
+                let mut args = vec!["-t", "mangle", "-A", CHAIN_FWD];
+                if !interface.is_empty() && interface != "any" {
+                    args.extend(["-o", interface]);
+                }
+                args.extend([
+                    "-p", "tcp",
+                    "-m", "multiport", "--dports", &ports,
+                    "-m", "connbytes", "--connbytes-dir=original", "--connbytes-mode=packets", "--connbytes", "1:6",
+                    "-m", "mark", "!", "--mark", "0x40000000/0x40000000",
+                    "-j", "NFQUEUE", "--queue-num", "200", "--queue-bypass",
+                ]);
+                Command::new("iptables").args(&args).stderr(Stdio::null()).status().ok();
+            }
+
+            if !udp_ports.is_empty() {
+                let ports = normalize_ports(&udp_ports.replace(" ", ""));
+                let mut args = vec!["-t", "mangle", "-A", CHAIN_FWD];
+                if !interface.is_empty() && interface != "any" {
+                    args.extend(["-o", interface]);
+                }
+                args.extend([
+                    "-p", "udp",
+                    "-m", "multiport", "--dports", &ports,
+                    "-m", "connbytes", "--connbytes-dir=original", "--connbytes-mode=packets", "--connbytes", "1:6",
+                    "-m", "mark", "!", "--mark", "0x40000000/0x40000000",
+                    "-j", "NFQUEUE", "--queue-num", "200", "--queue-bypass",
+                ]);
+                Command::new("iptables").args(&args).stderr(Stdio::null()).status().ok();
+            }
+
+            // NAT: masquerade outgoing traffic
+            let _ = Command::new("iptables")
+                .args(["-t", "nat", "-N", CHAIN_NAT])
+                .stderr(Stdio::null())
+                .status();
+
+            let _ = Command::new("iptables")
+                .args(["-t", "nat", "-I", "POSTROUTING", "-j", CHAIN_NAT])
+                .stderr(Stdio::null())
+                .status();
+
+            let mut nat_args = vec!["-t", "nat", "-A", CHAIN_NAT];
+            if !interface.is_empty() && interface != "any" {
+                nat_args.extend(["-o", interface]);
+            }
+            nat_args.extend(["-j", "MASQUERADE"]);
+            let _ = Command::new("iptables").args(&nat_args).stderr(Stdio::null()).status();
         }
 
         Ok(())
