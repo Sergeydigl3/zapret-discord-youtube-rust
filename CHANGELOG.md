@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.1.0](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/compare/zapret-rust-v2.0.0...zapret-rust-v2.1.0) (2026-09-01)
+
+
+### 🚀 Новые функции
+
+* **strategy:** добавить кастомные стратегии ([78d9a3a](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/78d9a3ac5d4200628bfc6b16d72b42bb7553d8f3))
+
+
+### 🐛 Исправления ошибок
+
+* **gamefilter:** Фикс заменение портов геймфильтра на неправильные ([6cff785](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/6cff78517a44e8059d11d0b0a618e99cb3c8838f))
+* **tui:** исправление неотзывчивого ввода в nano при редактировании листов ([5915109](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/59151098f942d574d6018a49b4a5bb0eef7dde18))
+
+
+### 🔧 Обслуживание и зависимости
+
+* **custom-strategies:** обновление кастомных стратегий под страндарт flowseal ([af40a34](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/af40a342da7312c1729a36d1a228c8766b24358e))
+
 ## [2.0.0](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/compare/zapret-rust-v1.1.0...zapret-rust-v2.0.0) (2026-08-10)
 
 
