@@ -61,22 +61,14 @@ fn collect_system_info() -> Vec<String> {
 
     #[cfg(target_os = "linux")]
     {
-        if let Ok(output) = Command::new("uname").arg("-r").output() {
-            if let Ok(s) = String::from_utf8(output.stdout) {
-                let v = s.trim();
-                if !v.is_empty() {
-                    info.push(format!("Kernel: {}", v));
-                }
-            }
+        if let Some(v) = sysinfo::System::kernel_version() {
+            info.push(format!("Kernel: {}", v));
         }
 
-        if let Ok(content) = fs::read_to_string("/etc/os-release") {
-            for line in content.lines() {
-                if let Some(val) = line.strip_prefix("PRETTY_NAME=") {
-                    info.push(format!("Distro: {}", val.trim_matches('"')));
-                    break;
-                }
-            }
+        if let Some(name) = sysinfo::System::long_os_version() {
+            info.push(format!("Distro: {}", name));
+        } else if let Some(name) = sysinfo::System::name() {
+            info.push(format!("Distro: {}", name));
         }
 
         let modules_raw = fs::read_to_string("/proc/modules").unwrap_or_default();
@@ -117,10 +109,10 @@ fn collect_system_info() -> Vec<String> {
 
     #[cfg(target_os = "windows")]
     {
-        if let Ok(output) = Command::new("cmd").args(["/c", "ver"]).output() {
-            if let Ok(s) = String::from_utf8(output.stdout) {
-                info.push(format!("Windows: {}", s.trim()));
-            }
+        if let Some(v) = sysinfo::System::long_os_version() {
+            info.push(format!("Windows: {}", v));
+        } else if let Some(name) = sysinfo::System::name() {
+            info.push(format!("Windows: {}", name));
         }
     }
 
@@ -234,67 +226,16 @@ pub fn log_stop(stop_output: &[String]) {
 }
 
 fn timestamp() -> String {
-    #[cfg(target_os = "linux")]
-    if let Ok(output) = Command::new("date").args(["+%Y-%m-%d %H:%M:%S"]).output() {
-        if let Ok(s) = String::from_utf8(output.stdout) {
-            let t = s.trim().to_string();
-            if !t.is_empty() {
-                return t;
-            }
-        }
+    chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_sysinfo_output() {
+        println!("SysInfo: {:#?}", collect_system_info());
+        println!("Timestamp: {}", timestamp());
     }
-
-    #[cfg(target_os = "windows")]
-    if let Ok(output) = Command::new("cmd").args(["/c", "echo %DATE% %TIME%"]).output() {
-        if let Ok(s) = String::from_utf8(output.stdout) {
-            let t = s.trim().to_string();
-            if !t.is_empty() {
-                return t;
-            }
-        }
-    }
-
-    let dur = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    let total_secs = dur.as_secs();
-
-    let days = total_secs / 86400;
-    let time = total_secs % 86400;
-    let hours = time / 3600;
-    let minutes = (time % 3600) / 60;
-    let seconds = time % 60;
-
-    fn is_leap(year: u64) -> bool {
-        (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
-    }
-
-    let mut y = 1970i64;
-    let mut remaining = days as i64;
-    loop {
-        let days_in_year = if is_leap(y as u64) { 366 } else { 365 };
-        if remaining < days_in_year {
-            break;
-        }
-        remaining -= days_in_year;
-        y += 1;
-    }
-
-    let month_days: &[i64] = if is_leap(y as u64) {
-        &[31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    } else {
-        &[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    };
-
-    let mut m = 0u32;
-    for (i, &days_in_m) in month_days.iter().enumerate() {
-        if remaining < days_in_m {
-            m = (i + 1) as u32;
-            break;
-        }
-        remaining -= days_in_m;
-    }
-    let d = remaining + 1;
-
-    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", y, m, d, hours, minutes, seconds)
 }
