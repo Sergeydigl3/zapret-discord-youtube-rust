@@ -314,7 +314,7 @@ nix develop .
 3. Из списка доступных .bin-файлов выберите нужный
 4. Файл скопируется в ACTIVE_DISCORD_UDP.bin / ACTIVE_GAME_UDP.bin
 
-Выбранные фейки сохраняются в conf.env и автоматически подставляются при следующем запуске. При первом запуске используются фейки по умолчанию: quic_initial_steamcommunity_com.bin для Discord и quic_initial_4pda.to.bin для GameFilter.
+Выбранные фейки сохраняются в conf.env и автоматически подставляются при следующем запуске. При первом запуске используются фейки по умолчанию: quic_initial_steamcommunity_com.bin для Discord и quic_initial_4pda_to.bin для GameFilter.
 
 ---
 

@@ -23,7 +23,7 @@ impl Default for RunConfig {
             gamefilter_udp: false,
             backend: "nftables".to_string(),
             active_discord_fake: "quic_initial_steamcommunity_com.bin".to_string(),
-            active_gamefilter_fake: "quic_initial_4pda.to.bin".to_string(),
+            active_gamefilter_fake: "quic_initial_4pda_to.bin".to_string(),
             dpi_desync_ttl: None,
         }
     }
@@ -101,7 +101,7 @@ const DEFAULT_CONFIG_LINES: &[&str] = &[
     "gamefilterudp=false",
     "backend=nftables",
     "active_discord_fake=quic_initial_steamcommunity_com.bin",
-    "active_gamefilter_fake=quic_initial_4pda.to.bin",
+    "active_gamefilter_fake=quic_initial_4pda_to.bin",
     "dpi_desync_ttl=",
 ];
 
@@ -192,7 +192,7 @@ fn validate_config() -> Result<(), String> {
 
     let defaults = [
         ("active_discord_fake=", "quic_initial_steamcommunity_com.bin"),
-        ("active_gamefilter_fake=", "quic_initial_4pda.to.bin"),
+        ("active_gamefilter_fake=", "quic_initial_4pda_to.bin"),
     ];
 
     for (key, default_val) in &defaults {
@@ -203,6 +203,17 @@ fn validate_config() -> Result<(), String> {
             content = content.replace(*key, &format!("{}{}", key, default_val));
             updated = true;
         }
+    }
+
+    // Migrate configs written before the GameFilter default fake filename was
+    // corrected (dot in "quic_initial_4pda.to.bin" -> underscore on disk).
+    let legacy_gamefilter_fake = "active_gamefilter_fake=quic_initial_4pda.to.bin";
+    if content.contains(legacy_gamefilter_fake) {
+        content = content.replace(
+            legacy_gamefilter_fake,
+            "active_gamefilter_fake=quic_initial_4pda_to.bin",
+        );
+        updated = true;
     }
 
     if updated {
