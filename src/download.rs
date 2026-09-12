@@ -32,6 +32,13 @@ fn detect_platform_dir() -> Result<&'static str, String> {
     }
 }
 
+pub fn http_agent() -> ureq::Agent {
+    ureq::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .try_proxy_from_env(true)
+        .build()
+}
+
 pub fn download_nfqws(version: &str) -> Result<(), String> {
     if version == "skip" {
         return Ok(());
@@ -45,10 +52,13 @@ pub fn download_nfqws(version: &str) -> Result<(), String> {
     let platform = detect_platform_dir()?;
     println!("{}{}", rust_i18n::t!("msg_det_plat"), platform);
 
+    let agent = http_agent();
+
     let tag = if version == "latest" {
         println!("{}", rust_i18n::t!("msg_fetch_rel"));
         let latest_url = format!("https://api.github.com/repos/{}/releases/latest", ZAPRET_REPO);
-        let req = ureq::get(&latest_url)
+        let req = agent
+            .get(&latest_url)
             .set("User-Agent", "zapret-rust")
             .call()
             .map_err(|e| format!("{}{}", rust_i18n::t!("err_fetch_rel"), e))?;
@@ -78,7 +88,8 @@ pub fn download_nfqws(version: &str) -> Result<(), String> {
     let tmp_archive = tmp_dir.join(&archive);
 
     println!("{}{}", rust_i18n::t!("msg_dl_arc"), url);
-    let mut response = ureq::get(&url)
+    let mut response = agent
+        .get(&url)
         .call()
         .map_err(|e| format!("{}{}", rust_i18n::t!("err_dl_arc"), e))?
         .into_reader();
@@ -168,7 +179,8 @@ pub fn download_strategies(version: &str) -> Result<(), String> {
     };
 
     println!("{}", rust_i18n::t!("msg_dl_strat"));
-    let req = ureq::get(&url)
+    let req = http_agent()
+        .get(&url)
         .call()
         .map_err(|e| format!("{}{}", rust_i18n::t!("err_dl_strat_zip"), e))?;
     let mut body = req.into_reader();
@@ -295,7 +307,8 @@ pub fn check_strategies_installed() -> bool {
 
 pub fn fetch_repo_tags(repo: &str) -> Result<Vec<String>, String> {
     let url = format!("https://api.github.com/repos/{}/tags", repo);
-    let req = ureq::get(&url)
+    let req = http_agent()
+        .get(&url)
         .set("User-Agent", "zapret-rust-tui")
         .call()
         .map_err(|e| format!("{}{}: {}", rust_i18n::t!("err_fetch_tags"), repo, e))?;
@@ -316,4 +329,14 @@ pub fn fetch_repo_tags(repo: &str) -> Result<Vec<String>, String> {
     }
 
     Ok(tags)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_http_agent_creates_successfully() {
+        let _agent = http_agent();
+    }
 }

@@ -36,6 +36,8 @@ pub enum MainMenuState {
     GamefilterSettings,
     #[cfg(target_os = "linux")]
     BackendSettings,
+    #[cfg(target_os = "linux")]
+    RouterMode,
     IpsetMode,
     ListsEditor,
     Autotune,
@@ -57,7 +59,9 @@ impl MainMenuState {
             #[cfg(target_os = "linux")]
             Self::GamefilterSettings => Self::BackendSettings,
             #[cfg(target_os = "linux")]
-            Self::BackendSettings => Self::IpsetMode,
+            Self::BackendSettings => Self::RouterMode,
+            #[cfg(target_os = "linux")]
+            Self::RouterMode => Self::IpsetMode,
             #[cfg(not(target_os = "linux"))]
             Self::GamefilterSettings => Self::IpsetMode,
             Self::IpsetMode => Self::ListsEditor,
@@ -88,7 +92,9 @@ impl MainMenuState {
             #[cfg(target_os = "linux")]
             Self::BackendSettings => Self::GamefilterSettings,
             #[cfg(target_os = "linux")]
-            Self::IpsetMode => Self::BackendSettings,
+            Self::RouterMode => Self::BackendSettings,
+            #[cfg(target_os = "linux")]
+            Self::IpsetMode => Self::RouterMode,
             #[cfg(not(target_os = "linux"))]
             Self::IpsetMode => Self::GamefilterSettings,
             Self::ListsEditor => Self::IpsetMode,
@@ -373,6 +379,7 @@ pub struct AppState {
 
     pub tcp_gamefilter: bool,
     pub udp_gamefilter: bool,
+    pub router_mode: bool,
 
     pub active_screen: ActiveScreen,
     pub main_menu: MainMenuState,
@@ -478,6 +485,7 @@ impl AppState {
             .map_or(0, |cfg| strategies.iter().position(|s| s == &cfg.strategy).unwrap_or(0));
         let tcp_gamefilter = saved_cfg.as_ref().is_some_and(|cfg| cfg.gamefilter_tcp);
         let udp_gamefilter = saved_cfg.as_ref().is_some_and(|cfg| cfg.gamefilter_udp);
+        let router_mode = saved_cfg.as_ref().is_some_and(|cfg| cfg.router_mode);
 
         #[cfg(target_os = "linux")]
         let selected_backend = saved_cfg.as_ref().map_or_else(
@@ -504,6 +512,7 @@ impl AppState {
             strategy_menu_index: selected_strategy,
             tcp_gamefilter,
             udp_gamefilter,
+            router_mode,
             active_screen: ActiveScreen::Main,
 
             #[cfg(target_os = "windows")]
@@ -638,7 +647,14 @@ impl AppState {
         let backend = self.selected_backend.to_config();
         #[cfg(not(target_os = "linux"))]
         let backend = "nftables";
-        let _ = crate::config::save_tui_state(interface, strategy, self.tcp_gamefilter, self.udp_gamefilter, backend);
+        let _ = crate::config::save_tui_state(
+            interface,
+            strategy,
+            self.tcp_gamefilter,
+            self.udp_gamefilter,
+            self.router_mode,
+            backend,
+        );
     }
 
     pub fn get_service_menu_count(&self) -> usize {
@@ -872,6 +888,11 @@ impl AppState {
                         self.selected_backend = backends[new_idx];
                         self.save_current_config();
                     }
+                }
+                #[cfg(target_os = "linux")]
+                MainMenuState::RouterMode => {
+                    self.router_mode = !self.router_mode;
+                    self.save_current_config();
                 }
                 MainMenuState::IpsetMode => {
                     if !self.available_ipset_modes.is_empty() {
@@ -1444,6 +1465,11 @@ impl AppState {
                         self.selected_backend = backends[new_idx];
                         self.save_current_config();
                     }
+                }
+                #[cfg(target_os = "linux")]
+                MainMenuState::RouterMode => {
+                    self.router_mode = !self.router_mode;
+                    self.save_current_config();
                 }
                 MainMenuState::IpsetMode => {
                     if !self.available_ipset_modes.is_empty() {

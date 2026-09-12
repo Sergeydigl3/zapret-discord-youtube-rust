@@ -8,7 +8,7 @@ impl FirewallBackend for WinDivertBackend {
         Ok(())
     }
 
-    fn setup(&self, _tcp_ports: &str, _udp_ports: &str, _interface: &str) -> Result<(), String> {
+    fn setup(&self, _tcp_ports: &str, _udp_ports: &str, _interface: &str, _router_mode: bool) -> Result<(), String> {
         println!("{}", rust_i18n::t!("msg_setup_windivert"));
         Ok(())
     }
