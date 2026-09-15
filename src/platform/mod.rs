@@ -15,6 +15,12 @@ pub use linux::ensure_admin;
 pub fn ensure_admin() {}
 
 #[cfg(target_os = "windows")]
+pub use windows::setup_console;
+
+#[cfg(not(target_os = "windows"))]
+pub fn setup_console() {}
+
+#[cfg(target_os = "windows")]
 pub use windows::is_nfqws_running;
 
 #[cfg(target_os = "linux")]
