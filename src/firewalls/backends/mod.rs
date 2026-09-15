@@ -56,9 +56,9 @@ macro_rules! define_backends {
         }
 
         impl FirewallBackend for LinuxBackend {
-            fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str) -> Result<(), String> {
+            fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str, router_mode: bool) -> Result<(), String> {
                 match self {
-                    $(LinuxBackend::$variant => $module::$struct.setup(tcp_ports, udp_ports, interface)),+
+                    $(LinuxBackend::$variant => $module::$struct.setup(tcp_ports, udp_ports, interface, router_mode)),+
                 }
             }
 
