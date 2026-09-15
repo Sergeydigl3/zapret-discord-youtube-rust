@@ -109,6 +109,7 @@ fn main() {
         }
     }
 
+    platform::setup_console();
     platform::ensure_admin();
 
     let args = Cli::parse();
