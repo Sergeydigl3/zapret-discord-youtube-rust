@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.1.1](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/compare/zapret-rust-v2.1.0...zapret-rust-v2.1.1) (2026-09-15)
+
+
+### 🐛 Исправления ошибок
+
+* **config:** исправить дефолтный фейк GameFilter UDP ([62d2f25](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/62d2f254bc9cc88bd0961ef4a41fbbaff7c5958a))
+* **windows:** TUI в Windows Terminal, цветные эмодзи и UTF-8 ([76540dc](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/76540dcc38ffde5b7ef6a1526ac5cbdd3265b963))
+
+
+### 📝 Документация
+
+* add NixOS module usage documentation to README ([bde98cd](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/bde98cdb385f132aaf716dbddf0542ae059e917f))
+
+
+### 🔧 Обслуживание и зависимости
+
+* add background service support for NixOS ([0847893](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/084789359e8967a6c0e1397c9aa74efc1510f0b2))
+
 ## [2.1.0](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/compare/zapret-rust-v2.0.0...zapret-rust-v2.1.0) (2026-09-01)
 
 
