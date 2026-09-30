@@ -6,9 +6,9 @@ use ratatui::Terminal;
 use std::io;
 use std::io::Write;
 use std::sync::mpsc::Receiver;
-use zapret_core::autotune::{self, cancel, CheckStatus, StrategyCheckResult};
 use zapret_core::firewall::FirewallBackend;
-use zapret_core::run;
+use zapret_wrapper::autotune::{self, cancel, CheckStatus, StrategyCheckResult};
+use zapret_wrapper::run;
 
 use crate::event::{drain_events, wait_for_key};
 use crate::screen::{begin_external_output, end_external_output};
@@ -95,7 +95,7 @@ pub fn run_autotune(
     );
     println!();
     app.has_autotune_results_file = true;
-    app.dpi_desync_ttl = zapret_core::config::load_ttl();
+    app.dpi_desync_ttl = zapret_wrapper::config::load_ttl();
 
     let total_mins = results.elapsed_secs / 60;
     let total_secs = results.elapsed_secs % 60;

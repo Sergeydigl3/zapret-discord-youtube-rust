@@ -5,9 +5,9 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io;
 use std::sync::mpsc::Receiver;
-use zapret_core::config;
-use zapret_core::domains::ttl;
 use zapret_core::firewall::FirewallBackend;
+use zapret_wrapper::config;
+use zapret_wrapper::domains::ttl;
 
 use crate::event::wait_for_key;
 use crate::screen::{begin_external_output, end_external_output};

@@ -3,9 +3,10 @@
 //! Depends on `domains` for the domain list file only. The autotune feature is
 //! not involved, which is what keeps the two features from forming a cycle.
 
-use crate::firewall::FirewallBackend;
 use std::io::Write;
 use std::time::Duration;
+
+use zapret_core::firewall::FirewallBackend;
 
 /// TTL sweep range (DPI hop numbers are typically 3-20).
 pub const TTL_MIN: u8 = 1;
@@ -72,7 +73,7 @@ fn curl_tls_ok(domain: &str) -> bool {
             "--max-time",
             "3",
             "-o",
-            crate::process::null_device(),
+            crate::platform::null_device(),
         ])
         .arg(format!("https://{}", domain))
         .output()
@@ -84,7 +85,7 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
     let deadline = std::time::Instant::now() + timeout;
     let mut running = false;
     while std::time::Instant::now() < deadline {
-        if crate::daemon::is_running() || crate::platform::is_nfqws_running() {
+        if zapret_core::daemon::is_running() || crate::platform::is_nfqws_running() {
             running = true;
             break;
         }

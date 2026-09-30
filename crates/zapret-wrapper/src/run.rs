@@ -1,16 +1,17 @@
 //! Running zapret with a console and a log file attached.
 //!
-//! [`crate::daemon`] knows how to start the process; this module is the framing
-//! around it: it turns a [`RunRequest`] into a plan, runs it, and reports what
-//! happened in the user's language and in `<cache>/logs/zapret.log`.
+//! `zapret_core::daemon` knows how to start the process; this module is the
+//! framing around it: it turns a [`RunRequest`] into a plan, runs it, and
+//! reports what happened in the user's language and in
+//! `<cache>/logs/zapret.log`.
 //!
 //! Everything here is presentation. Nothing here belongs in the kernel, and the
 //! kernel knows nothing about it.
 
-use crate::daemon::{self, LaunchOutcome};
-use crate::error::ZResult;
-use crate::firewall::FirewallBackend;
 use crate::plan::RunRequest;
+use zapret_core::daemon::{self, LaunchError, LaunchOutcome};
+use zapret_core::error::ZResult;
+use zapret_core::firewall::FirewallBackend;
 
 /// Run zapret in the foreground, printing progress and writing the launch log.
 ///
@@ -50,7 +51,7 @@ pub fn run_foreground(req: &RunRequest, backend: &dyn FirewallBackend) {
             let _ = backend.clear();
             // A refused spawn still reached the log before this was split in
             // two; a missing binary or an unwritable scratch file did not.
-            if matches!(e, crate::daemon::LaunchError::Spawn(_)) {
+            if matches!(e, LaunchError::Spawn(_)) {
                 crate::diagnose::log_launch(&plan, &term);
             }
             return;
@@ -107,15 +108,13 @@ pub fn stop(backend: &dyn FirewallBackend) {
     crate::diagnose::log_stop(&term);
 }
 
-fn describe_launch_error(e: &crate::daemon::LaunchError) -> String {
+fn describe_launch_error(e: &LaunchError) -> String {
     match e {
-        crate::daemon::LaunchError::BinaryMissing(p) => {
-            rust_i18n::t!("err_bin_miss").replace("{:?}", &format!("{:?}", p))
-        }
-        crate::daemon::LaunchError::CaptureFile(_, _) => "failed to create temp log file".to_string(),
-        crate::daemon::LaunchError::Spawn(e) => format!("{}{}", rust_i18n::t!("err_start_nfqws"), e),
+        LaunchError::BinaryMissing(p) => rust_i18n::t!("err_bin_miss").replace("{:?}", &format!("{:?}", p)),
+        LaunchError::CaptureFile(_, _) => "failed to create temp log file".to_string(),
+        LaunchError::Spawn(e) => format!("{}{}", rust_i18n::t!("err_start_nfqws"), e),
         // Unreachable through run_foreground, which uses launch(): a refused
         // firewall is a warning there. Handled so the match stays exhaustive.
-        crate::daemon::LaunchError::Firewall(e) => format!("{}{}", rust_i18n::t!("msg_err_firewall"), e),
+        LaunchError::Firewall(e) => format!("{}{}", rust_i18n::t!("msg_err_firewall"), e),
     }
 }

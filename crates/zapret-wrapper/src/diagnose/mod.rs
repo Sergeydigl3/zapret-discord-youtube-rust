@@ -1,7 +1,8 @@
 mod date;
 mod facts;
 
-use crate::daemon::LaunchPlan;
+use zapret_core::daemon::LaunchPlan;
+
 use date::timestamp;
 use facts::collect_system_info;
 use std::fs::{self, OpenOptions};

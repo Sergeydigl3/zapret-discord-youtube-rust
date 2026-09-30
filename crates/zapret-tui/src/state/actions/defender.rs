@@ -1,6 +1,6 @@
 //! The Windows Defender exclusion screen.
 
-use zapret_core::defender;
+use zapret_wrapper::defender;
 
 use crate::state::screens::{ActiveScreen, DefenderMenuState};
 use crate::state::AppState;

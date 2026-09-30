@@ -8,18 +8,6 @@
 use std::path::Path;
 use std::process::Command;
 
-/// Device that swallows output, spelled per platform.
-///
-/// Not a launch concern: it is the sink the network probes redirect stdout
-/// into, and it leaves with them.
-pub fn null_device() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "NUL"
-    } else {
-        "/dev/null"
-    }
-}
-
 /// Grant `CAP_NET_ADMIN` to the daemon binary so it can use nfqueue.
 ///
 /// Returns `true` when the capability is set, and on non-Linux platforms, where

@@ -7,11 +7,11 @@
 pub mod actions;
 pub mod screens;
 
-use zapret_core::autotune::{AutotuneConfig, AutotuneResults};
-use zapret_core::config;
-use zapret_core::domains;
-use zapret_core::fakes::FakesState;
-use zapret_core::lists::IpsetMode;
+use zapret_wrapper::autotune::{AutotuneConfig, AutotuneResults};
+use zapret_wrapper::config;
+use zapret_wrapper::domains;
+use zapret_wrapper::fakes::FakesState;
+use zapret_wrapper::lists::IpsetMode;
 
 pub use screens::{
     ActiveScreen, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState, DownloadDepsMenuState,
@@ -133,7 +133,7 @@ impl AppState {
             files
         };
 
-        let saved_cfg = config::load_config(&zapret_core::paths::config_path().to_string_lossy()).ok();
+        let saved_cfg = config::load_config(&zapret_wrapper::paths::config_path().to_string_lossy()).ok();
 
         let selected_interface = saved_cfg.as_ref().map_or(0, |cfg| {
             interfaces.iter().position(|i| i == &cfg.interface).unwrap_or(0)
@@ -150,8 +150,8 @@ impl AppState {
             |cfg| LinuxBackend::from_config(&cfg.backend),
         );
 
-        let available_ipset_modes = zapret_core::lists::get_available_modes();
-        let current_ipset_mode = zapret_core::lists::determine_current_mode();
+        let available_ipset_modes = zapret_wrapper::lists::get_available_modes();
+        let current_ipset_mode = zapret_wrapper::lists::determine_current_mode();
         let selected_ipset_mode = available_ipset_modes
             .iter()
             .position(|m| m == &current_ipset_mode)
@@ -179,13 +179,13 @@ impl AppState {
             #[cfg(target_os = "windows")]
             defender_menu: DefenderMenuState::Add,
             #[cfg(target_os = "windows")]
-            defender_status_cache: zapret_core::defender::check_defender_exclusion().ok(),
+            defender_status_cache: zapret_wrapper::defender::check_defender_exclusion().ok(),
 
             download_deps_menu: DownloadDepsMenuState::ZapretDownloader,
             download_zapret_menu: DownloadSubmenuState::Version,
             download_strategies_menu: DownloadSubmenuState::Version,
             gamefilter_menu: GamefilterMenuState::Tcp,
-            fakes_state: zapret_core::fakes::load_fakes_state(),
+            fakes_state: zapret_wrapper::fakes::load_fakes_state(),
             fakes_menu: FakesMenuState::DiscordUdp,
             fakes_select_index: 0,
             fakes_select_for: FakesSelectTarget::DiscordUdp,
@@ -204,8 +204,8 @@ impl AppState {
             should_download_defaults: false,
             status_message: None,
 
-            nfqws_installed: zapret_core::paths::nfqws_installed(),
-            strategies_installed: zapret_core::paths::strategies_installed(),
+            nfqws_installed: zapret_wrapper::paths::nfqws_installed(),
+            strategies_installed: zapret_wrapper::paths::strategies_installed(),
 
             service_installed: false,
             service_active: false,
@@ -219,7 +219,7 @@ impl AppState {
 
             autotune_config: AutotuneConfig::default(),
             autotune_results: None,
-            has_autotune_results_file: zapret_core::autotune::load_results_file().is_some(),
+            has_autotune_results_file: zapret_wrapper::autotune::load_results_file().is_some(),
             autotune_menu: AutotuneMenuState::PresetSelection,
             autotune_menu_index: 0,
             autotune_protocols_menu: AutotuneProtocolsState::Http,
@@ -239,19 +239,19 @@ impl AppState {
     }
 
     pub fn refresh_dep_status(&mut self) {
-        self.nfqws_installed = zapret_core::paths::nfqws_installed();
-        self.strategies_installed = zapret_core::paths::strategies_installed();
+        self.nfqws_installed = zapret_wrapper::paths::nfqws_installed();
+        self.strategies_installed = zapret_wrapper::paths::strategies_installed();
     }
 
     #[cfg(target_os = "windows")]
     pub fn refresh_defender_status(&mut self) {
-        self.defender_status_cache = zapret_core::defender::check_defender_exclusion().ok();
+        self.defender_status_cache = zapret_wrapper::defender::check_defender_exclusion().ok();
     }
 
     pub fn refresh_service_status(&mut self) {
         #[cfg(target_os = "linux")]
         {
-            if let Some(mgr) = zapret_core::service::get_detected_manager() {
+            if let Some(mgr) = zapret_wrapper::service::get_detected_manager() {
                 self.service_installed = mgr.is_installed();
                 self.service_active = mgr.is_active();
             } else {
@@ -261,8 +261,8 @@ impl AppState {
         }
         #[cfg(target_os = "windows")]
         {
-            use zapret_core::service::ServiceManager;
-            let mgr = zapret_core::service::windows::WindowsServiceManager;
+            use zapret_wrapper::service::ServiceManager;
+            let mgr = zapret_wrapper::service::windows::WindowsServiceManager;
             self.service_installed = mgr.is_installed();
             self.service_active = mgr.is_active();
         }
@@ -279,8 +279,8 @@ impl AppState {
     }
 
     pub fn refresh_ipset_status(&mut self) {
-        self.available_ipset_modes = zapret_core::lists::get_available_modes();
-        let current_ipset_mode = zapret_core::lists::determine_current_mode();
+        self.available_ipset_modes = zapret_wrapper::lists::get_available_modes();
+        let current_ipset_mode = zapret_wrapper::lists::determine_current_mode();
         self.selected_ipset_mode = self
             .available_ipset_modes
             .iter()
@@ -380,7 +380,7 @@ impl AppState {
             }
             n += 1; // back
             n
-        } else if let Some(cached) = zapret_core::autotune::load_results_file() {
+        } else if let Some(cached) = zapret_wrapper::autotune::load_results_file() {
             cached.lines().count() + 1 // lines + back
         } else {
             2 // "no data" line + back

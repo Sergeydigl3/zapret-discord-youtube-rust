@@ -478,7 +478,7 @@ impl AppState {
                 };
             }
             ActiveScreen::AutotunePresetSelectionSubmenu => {
-                let total = zapret_core::domains::PRESETS.len() + 1;
+                let total = zapret_wrapper::domains::PRESETS.len() + 1;
                 if total > 0 {
                     self.autotune_preset_index = Self::cycle_index(self.autotune_preset_index, total, forward);
                 }

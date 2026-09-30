@@ -14,11 +14,13 @@ repository = "https://github.com/Sergeydigl3/zapret-discord-youtube-rust"
 zapret-core = { path = "crates/zapret-core" }
 zapret-fetch = { path = "crates/zapret-fetch" }
 zapret-tui = { path = "crates/zapret-tui" }
+zapret-wrapper = { path = "crates/zapret-wrapper" }
 clap = { version = "4.4", features = ["derive"] }
 inquire = "0.6"
 ctrlc = "3.4"
 nix = { version = "0.27", features = ["signal", "user"] }
 rust-i18n = "4.1.0"
+sys-locale = "0.3.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-service = "0.6.0"

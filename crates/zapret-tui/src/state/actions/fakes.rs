@@ -1,6 +1,6 @@
 //! The fake-payload screens: pick a target, then pick a `.bin` file for it.
 
-use zapret_core::fakes;
+use zapret_wrapper::fakes;
 
 use crate::state::screens::{ActiveScreen, FakesMenuState, FakesSelectTarget};
 use crate::state::AppState;

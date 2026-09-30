@@ -4,8 +4,8 @@
 //! running, which is why the handler branches on both before it looks at the
 //! cursor.
 
-use zapret_core::paths;
-use zapret_core::service;
+use zapret_wrapper::paths;
+use zapret_wrapper::service;
 
 use crate::state::screens::ActiveScreen;
 use crate::state::AppState;
