@@ -31,6 +31,7 @@ menu_main_run: "🚀 Run"
 menu_main_quit: "🚪 Quit"
 
 menu_extended_title: "Advanced Settings"
+menu_extended_router: "🌐 Router Mode"
 menu_extended_back: "🔙 Back"
 
 menu_group_setup: "Setup"
@@ -126,6 +127,7 @@ help_dl_start: "💡 Action: download and install the selected version."
 help_gf_tcp: "💡 Toggle: intercept TCP ports for game traffic. ←/→ or ENTER."
 help_gf_udp: "💡 Toggle: intercept UDP ports for game traffic. ←/→ or ENTER."
 help_fakes: "💡 Submenu: replace the active fake payload files for Discord and GameFilter."
+help_router: "💡 Route another device's traffic through this machine. Needs the uplink interface."
 help_fakes_sel: "💡 Select: which fake to replace (Discord or GameFilter)."
 help_fakes_select: "💡 Select: pick a .bin file. ENTER applies it, ESC cancels."
 
@@ -145,6 +147,7 @@ msg_zapret_started: "\nzapret is running. Press Ctrl+C to stop..."
 msg_zapret_stop: "\nStopping nfqws..."
 msg_zapret_clear: "Cleanup finished."
 msg_err_firewall: "Configuring firewall: "
+msg_err_router: "Router mode: "
 
 msg_dl_ok: "\n✅ Download completed successfully. Press any key..."
 msg_dl_fail: "\n❌ Download failed: "

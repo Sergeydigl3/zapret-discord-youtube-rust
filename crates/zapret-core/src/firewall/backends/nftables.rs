@@ -7,6 +7,8 @@ use std::process::{Command, Stdio};
 const NFT_TABLE: &str = "zapret";
 const NFT_CHAIN_POST: &str = "zapret_post";
 const NFT_CHAIN_PRE: &str = "zapret_pre";
+const NFT_TABLE_NAT: &str = "zapret_nat";
+const NFT_CHAIN_PNAT: &str = "zapret_pnat";
 
 pub struct NftablesBackend;
 
@@ -36,14 +38,29 @@ fn parse_ports(ports: &str) -> Vec<Value> {
         .collect()
 }
 
-fn has_zapret_table(current_ruleset: &Nftables) -> bool {
-    for obj in current_ruleset.objects.iter() {
-        let s = serde_json::to_string(obj).unwrap_or_default();
-        if s.contains(NFT_TABLE) {
-            return true;
-        }
+/// Whether the ruleset holds anything under this name. A batch naming an
+/// object that is not there is refused as a whole, so teardown asks first.
+fn has_object(current_ruleset: &Nftables, name: &str) -> bool {
+    current_ruleset
+        .objects
+        .iter()
+        .any(|obj| serde_json::to_string(obj).unwrap_or_default().contains(name))
+}
+
+/// The NAT objects that hide a routed device's address from the internet.
+/// A separate table because `masquerade` is only valid in an `ip` NAT chain.
+fn router_rules(interface: &str) -> Vec<Value> {
+    let mut exprs = Vec::new();
+    if !interface.is_empty() && interface != "any" {
+        exprs.push(json!({ "match": { "op": "==", "left": { "meta": { "key": "oifname" } }, "right": interface } }));
     }
-    false
+    exprs.push(json!({ "masquerade": null }));
+
+    vec![
+        json!({ "add": { "table": { "family": "ip", "name": NFT_TABLE_NAT } } }),
+        json!({ "add": { "chain": { "family": "ip", "table": NFT_TABLE_NAT, "name": NFT_CHAIN_PNAT, "type": "nat", "hook": "postrouting", "prio": 100 } } }),
+        json!({ "add": { "rule": { "family": "ip", "table": NFT_TABLE_NAT, "chain": NFT_CHAIN_PNAT, "expr": exprs, "comment": "zapret-rust-rule-masquerade" } } }),
+    ]
 }
 
 impl FirewallBackend for NftablesBackend {
@@ -52,16 +69,20 @@ impl FirewallBackend for NftablesBackend {
 
         let current_ruleset = get_current_ruleset().map_err(|e| format!("Failed to get current ruleset: {:?}", e))?;
 
-        if has_zapret_table(&current_ruleset) {
-            let clear_payload = json!({
-                "nftables": [
-                    { "flush": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_POST } } },
-                    { "flush": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_PRE } } },
-                    { "delete": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_POST } } },
-                    { "delete": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_PRE } } },
-                    { "delete": { "table": { "family": "inet", "name": NFT_TABLE } } }
-                ]
-            });
+        if has_object(&current_ruleset, NFT_TABLE) {
+            let mut cmds = vec![
+                json!({ "flush": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_POST } } }),
+                json!({ "flush": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_PRE } } }),
+                json!({ "delete": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_POST } } }),
+                json!({ "delete": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_PRE } } }),
+                json!({ "delete": { "table": { "family": "inet", "name": NFT_TABLE } } }),
+            ];
+
+            if has_object(&current_ruleset, NFT_TABLE_NAT) {
+                cmds.push(json!({ "delete": { "table": { "family": "ip", "name": NFT_TABLE_NAT } } }));
+            }
+
+            let clear_payload = json!({ "nftables": cmds });
 
             let n = serde_json::from_value::<Nftables>(clear_payload).map_err(|e| e.to_string())?;
             apply_ruleset(&n).map_err(|e| format!("Failed to apply ruleset during clear: {:?}", e))?;
@@ -70,7 +91,7 @@ impl FirewallBackend for NftablesBackend {
         Ok(())
     }
 
-    fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str) -> Result<(), String> {
+    fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str, router: bool) -> Result<(), String> {
         let _ = self.clear();
 
         notice(&rust_i18n::t!("msg_setup_nftables"));
@@ -80,6 +101,10 @@ impl FirewallBackend for NftablesBackend {
             json!({ "add": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_POST, "type": "filter", "hook": "postrouting", "prio": -150 } } }),
             json!({ "add": { "chain": { "family": "inet", "table": NFT_TABLE, "name": NFT_CHAIN_PRE, "type": "filter", "hook": "prerouting", "prio": 0 } } }),
         ];
+
+        if router {
+            rules.extend(router_rules(interface));
+        }
 
         if !tcp_ports.is_empty() {
             let mut exprs = vec![

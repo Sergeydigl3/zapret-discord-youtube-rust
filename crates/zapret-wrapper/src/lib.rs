@@ -16,7 +16,7 @@
 //! L4  autotune
 //! L3  run, plan, service, diagnose
 //! L2  lists, strategy
-//! L1  config, defender, domains, fakes, platform
+//! L1  config, defender, domains, fakes, platform, router
 //! L0  paths
 //! ```
 //!
@@ -37,6 +37,9 @@ pub mod defender;
 pub mod domains;
 pub mod fakes;
 pub mod platform;
+
+#[cfg(target_os = "linux")]
+pub mod router;
 
 // L2 — how zapret describes the network on disk.
 pub mod lists;

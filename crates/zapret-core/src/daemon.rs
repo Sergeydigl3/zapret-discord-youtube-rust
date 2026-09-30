@@ -142,6 +142,7 @@ impl LaunchPlan {
     pub fn launch(
         &self,
         #[cfg(target_os = "linux")] interface: &str,
+        #[cfg(target_os = "linux")] router: bool,
         backend: &dyn FirewallBackend,
         capture: &Path,
     ) -> Result<LaunchOutcome, LaunchError> {
@@ -154,6 +155,8 @@ impl LaunchPlan {
             backend,
             #[cfg(target_os = "linux")]
             interface,
+            #[cfg(target_os = "linux")]
+            router,
         ) {
             outcome.firewall_error = Some(e);
         }
@@ -211,6 +214,7 @@ impl LaunchPlan {
     pub fn launch_quiet(
         &self,
         #[cfg(target_os = "linux")] interface: &str,
+        #[cfg(target_os = "linux")] router: bool,
         backend: &dyn FirewallBackend,
         capture: &Path,
     ) -> Result<LaunchOutcome, LaunchError> {
@@ -218,6 +222,8 @@ impl LaunchPlan {
             backend,
             #[cfg(target_os = "linux")]
             interface,
+            #[cfg(target_os = "linux")]
+            router,
         )
         .map_err(LaunchError::Firewall)?;
 
@@ -264,12 +270,15 @@ impl LaunchPlan {
         &self,
         backend: &dyn FirewallBackend,
         #[cfg(target_os = "linux")] interface: &str,
+        #[cfg(target_os = "linux")] router: bool,
     ) -> Result<(), String> {
         backend.setup(
             &self.tcp_ports,
             &self.udp_ports,
             #[cfg(target_os = "linux")]
             interface,
+            #[cfg(target_os = "linux")]
+            router,
         )
     }
 }

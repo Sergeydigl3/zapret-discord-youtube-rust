@@ -15,6 +15,13 @@ pub fn activate(app: &mut AppState) {
             app.open(ActiveScreen::FakesSubmenu);
             app.fakes_menu = FakesMenuState::DiscordUdp;
         }
+        #[cfg(target_os = "linux")]
+        ExtendedMenuState::Router => {
+            app.router_mode = !app.router_mode;
+            if let Err(e) = zapret_wrapper::config::save_router(app.router_mode) {
+                app.show_error(e);
+            }
+        }
         ExtendedMenuState::Back => {
             app.back();
         }

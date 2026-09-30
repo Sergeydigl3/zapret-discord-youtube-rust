@@ -67,7 +67,7 @@ impl FirewallBackend for IptablesBackend {
         Ok(())
     }
 
-    fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str) -> Result<(), String> {
+    fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str, _router: bool) -> Result<(), String> {
         let _ = self.clear();
 
         notice(&rust_i18n::t!("msg_setup_iptables"));

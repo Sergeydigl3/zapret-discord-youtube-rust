@@ -39,6 +39,11 @@ pub struct AppState {
     #[cfg(target_os = "linux")]
     pub selected_backend: LinuxBackend,
 
+    /// Whether router mode is switched on: this machine forwards and
+    /// masquerades another device's traffic. Linux-only.
+    #[cfg(target_os = "linux")]
+    pub router_mode: bool,
+
     pub available_ipset_modes: Vec<IpsetMode>,
     pub selected_ipset_mode: usize,
 
@@ -175,6 +180,9 @@ impl AppState {
             |cfg| LinuxBackend::from_config(&cfg.backend),
         );
 
+        #[cfg(target_os = "linux")]
+        let router_mode = saved_cfg.as_ref().is_some_and(|cfg| cfg.router);
+
         let available_ipset_modes = zapret_wrapper::lists::get_available_modes();
         let current_ipset_mode = zapret_wrapper::lists::determine_current_mode();
         let selected_ipset_mode = available_ipset_modes
@@ -189,6 +197,8 @@ impl AppState {
             selected_interface,
             #[cfg(target_os = "linux")]
             selected_backend,
+            #[cfg(target_os = "linux")]
+            router_mode,
             available_ipset_modes,
             selected_ipset_mode,
             strategies,

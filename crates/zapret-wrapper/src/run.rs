@@ -107,7 +107,11 @@ fn launch(
 ) -> Result<LaunchOutcome, LaunchError> {
     #[cfg(target_os = "linux")]
     {
-        plan.launch(&req.interface, backend, capture)
+        let router = crate::router::enabled();
+        if router {
+            report_router(crate::router::enable());
+        }
+        plan.launch(&req.interface, router, backend, capture)
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -124,12 +128,23 @@ fn launch_quiet(
 ) -> Result<LaunchOutcome, LaunchError> {
     #[cfg(target_os = "linux")]
     {
-        plan.launch_quiet(&req.interface, backend, capture)
+        let router = crate::router::enabled();
+        if router {
+            let _ = crate::router::enable();
+        }
+        plan.launch_quiet(&req.interface, router, backend, capture)
     }
     #[cfg(not(target_os = "linux"))]
     {
         let _ = req;
         plan.launch_quiet(backend, capture)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn report_router(result: Result<(), String>) {
+    if let Err(e) = result {
+        println!("{}{}", rust_i18n::t!("msg_err_router"), e);
     }
 }
 
@@ -163,6 +178,7 @@ pub fn stop(backend: &dyn FirewallBackend) {
         println!("{}", msg);
     }
     daemon::stop(backend);
+    stop_router();
     crate::diagnose::log_stop(&terms);
 }
 
@@ -174,8 +190,20 @@ pub fn stop(backend: &dyn FirewallBackend) {
 pub fn stop_quiet(backend: &dyn FirewallBackend) {
     let terms = stop_terms();
     daemon::stop(backend);
+    stop_router();
     crate::diagnose::log_stop(&terms);
 }
+
+/// Hand the network back the way it was found. No-op without router mode.
+#[cfg(target_os = "linux")]
+fn stop_router() {
+    if crate::router::enabled() {
+        crate::router::disable();
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn stop_router() {}
 
 fn describe_launch_error(e: &LaunchError) -> String {
     match e {

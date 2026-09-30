@@ -376,6 +376,8 @@ fn help_key(app: &AppState) -> &'static str {
         ActiveScreen::ExtendedSubmenu => match app.extended_menu {
             ExtendedMenuState::Ttl => "help_ttl",
             ExtendedMenuState::Fakes => "help_fakes",
+            #[cfg(target_os = "linux")]
+            ExtendedMenuState::Router => "help_router",
             ExtendedMenuState::Back => "help_back",
         },
         ActiveScreen::DownloadDepsSubmenu => match app.download_deps_menu {
