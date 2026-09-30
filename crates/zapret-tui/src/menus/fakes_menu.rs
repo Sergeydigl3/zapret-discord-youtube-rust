@@ -1,4 +1,4 @@
-use zapret_core::fakes::FakesState;
+use zapret_wrapper::fakes::FakesState;
 
 use crate::state::screens::{FakesMenuState, FakesSelectTarget};
 use crate::state::AppState;

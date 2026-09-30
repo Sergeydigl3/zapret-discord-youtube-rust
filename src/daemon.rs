@@ -3,9 +3,9 @@
 //! The binary's second entry point: when the SCM starts the process with
 //! `--service`, this hands control to the dispatcher and then boots the whole
 //! application (config load, WinDivert backend, zapret loop) instead of the
-//! TUI. It lives in the binary rather than in `zapret-core`'s service layer
-//! because it is a process entry point, not a service manager - the SCM client
-//! in `zapret_core::service::windows` is the other half of the same service.
+//! TUI. It lives in the binary rather than in `zapret_wrapper::service` because
+//! it is a process entry point, not a service manager - the SCM client there is
+//! the other half of the same service.
 
 #![cfg(target_os = "windows")]
 
@@ -19,7 +19,7 @@ use windows_service::{
     service_control_handler::{self, ServiceControlHandlerResult, ServiceStatusHandle},
     service_dispatcher,
 };
-use zapret_core::service::windows::WindowsServiceManager;
+use zapret_wrapper::service::windows::WindowsServiceManager;
 
 // Windows Service Runtime Implementation
 static RUNNING: AtomicBool = AtomicBool::new(true);
@@ -86,7 +86,7 @@ fn my_service_main(_arguments: Vec<std::ffi::OsString>) {
     }
 
     // Load Configuration
-    let cfg = match zapret_core::config::load_config(&config_file) {
+    let cfg = match zapret_wrapper::config::load_config(&config_file) {
         Ok(c) => c,
         Err(_) => {
             report_stopped(&status_handle, 2);
@@ -97,8 +97,9 @@ fn my_service_main(_arguments: Vec<std::ffi::OsString>) {
     // Run Zapret background loop
     let backend = zapret_core::firewall::windivert::WinDivertBackend;
 
-    let req = zapret_core::plan::RunRequest::new(&cfg.strategy, &cfg.interface, cfg.gamefilter_tcp, cfg.gamefilter_udp);
-    zapret_core::run::run_foreground(&req, &backend);
+    let req =
+        zapret_wrapper::plan::RunRequest::new(&cfg.strategy, &cfg.interface, cfg.gamefilter_tcp, cfg.gamefilter_udp);
+    zapret_wrapper::run::run_foreground(&req, &backend);
 
     // Main service loop
     while RUNNING.load(Ordering::SeqCst) {
@@ -116,7 +117,7 @@ fn my_service_main(_arguments: Vec<std::ffi::OsString>) {
         process_id: None,
     });
 
-    zapret_core::run::stop(&backend);
+    zapret_wrapper::run::stop(&backend);
 
     report_stopped(&status_handle, 0);
 }

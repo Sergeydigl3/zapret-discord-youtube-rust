@@ -3,12 +3,14 @@
 //! This binary is only bootstrap: pick the locale, decide whether we are the
 //! Windows service or the interactive program, prepare the terminal, parse the
 //! command line, and hand over to [`app::run`]. Everything else lives in
-//! `zapret-core` (domain) and `zapret-tui` (interface).
+//! `zapret-wrapper` (the framing), `zapret-core` (the launch kernel) and
+//! `zapret-tui` (the interface).
 
 mod app;
 mod cli;
 #[cfg(target_os = "windows")]
 mod daemon;
+mod locale;
 
 use clap::Parser;
 
@@ -22,7 +24,7 @@ rust_i18n::i18n!("locales", fallback = "en");
 fn main() {
     // One language for the whole process: every crate has its own translation
     // table, so they are all set to the locale detected here.
-    let locale = zapret_core::i18n::detect_locale();
+    let locale = locale::detect();
     rust_i18n::set_locale(locale);
     zapret_tui::i18n::init(locale);
 
@@ -38,7 +40,7 @@ fn main() {
     }
 
     zapret_tui::setup_console();
-    zapret_core::platform::ensure_admin();
+    zapret_wrapper::platform::ensure_admin();
 
     let args = Cli::parse();
 
@@ -48,7 +50,7 @@ fn main() {
 
     // Make sure the bundled custom strategies are present in the
     // `custom-strategies` folder so they can be picked from the strategy menu.
-    if let Err(e) = zapret_core::strategy::ensure_custom_strategies() {
+    if let Err(e) = zapret_wrapper::strategy::ensure_custom_strategies() {
         println!("{}{}", rust_i18n::t!("err_custom_strategies"), e);
     }
 

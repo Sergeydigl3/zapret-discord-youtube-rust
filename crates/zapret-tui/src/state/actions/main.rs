@@ -1,6 +1,6 @@
 //! The main menu.
 
-use zapret_core::lists;
+use zapret_wrapper::lists;
 
 #[cfg(target_os = "linux")]
 use zapret_core::firewall::LinuxBackend;
@@ -69,7 +69,7 @@ pub fn activate(app: &mut AppState) {
             app.status_message = None;
         }
         MainMenuState::ListsEditor => {
-            if !zapret_core::paths::strategies_installed() {
+            if !zapret_wrapper::paths::strategies_installed() {
                 app.show_error(rust_i18n::t!("err_no_strats").into_owned());
             } else {
                 app.lists_files = lists::get_lists_files();
@@ -82,11 +82,11 @@ pub fn activate(app: &mut AppState) {
             app.active_screen = ActiveScreen::AutotuneSubmenu;
             app.autotune_menu_index = 0;
             app.autotune_menu = AutotuneMenuState::PresetSelection;
-            app.has_autotune_results_file = zapret_core::autotune::load_results_file().is_some();
+            app.has_autotune_results_file = zapret_wrapper::autotune::load_results_file().is_some();
             app.status_message = None;
         }
         MainMenuState::FakesSettings => {
-            app.fakes_state = zapret_core::fakes::load_fakes_state();
+            app.fakes_state = zapret_wrapper::fakes::load_fakes_state();
             app.active_screen = ActiveScreen::FakesSubmenu;
             app.fakes_menu = FakesMenuState::DiscordUdp;
             app.status_message = None;

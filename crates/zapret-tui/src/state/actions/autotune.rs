@@ -1,8 +1,8 @@
 //! The autotune screens: the menu, the domain-file editor, the protocol and
 //! block-check toggles, the preset and strategy multi-selects, and the results.
 
-use zapret_core::domains::PRESETS;
-use zapret_core::platform;
+use zapret_wrapper::domains::PRESETS;
+use zapret_wrapper::platform;
 
 use crate::state::screens::{ActiveScreen, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState};
 use crate::state::AppState;

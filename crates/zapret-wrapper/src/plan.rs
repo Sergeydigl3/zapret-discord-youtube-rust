@@ -1,13 +1,13 @@
 //! Resolving a request into something the daemon can be started with.
 //!
 //! This is where the knowledge of zapret file formats stops and the plain
-//! process lifecycle in [`crate::daemon`] begins. A [`RunRequest`] names a
+//! process lifecycle in `zapret_core::daemon` begins. A [`RunRequest`] names a
 //! strategy and a few switches; a [`LaunchPlan`] is a binary, a working
 //! directory, an argument vector and two port ranges, and nothing else.
 
-use crate::daemon::LaunchPlan;
 use crate::strategy;
 use crate::strategy::args::{build_args, game_filter};
+use zapret_core::daemon::LaunchPlan;
 
 /// What the user asked to run.
 #[derive(Clone, Debug)]

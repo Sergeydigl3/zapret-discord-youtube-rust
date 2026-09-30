@@ -1,3 +1,7 @@
+/// Talking to the operating system: privilege escalation, process detection,
+/// interface enumeration, and the platform-specific spellings of the paths that
+/// a child process needs.
+
 #[cfg(target_os = "linux")]
 pub mod linux;
 
@@ -41,4 +45,16 @@ pub fn get_interfaces() -> Vec<String> {
     }
 
     interfaces
+}
+
+/// Device that swallows output, spelled per platform.
+///
+/// The single owner of this name: the network probes redirect a child's stdout
+/// into it, and the name differs on Windows.
+pub fn null_device() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "NUL"
+    } else {
+        "/dev/null"
+    }
 }

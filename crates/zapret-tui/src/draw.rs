@@ -193,7 +193,7 @@ fn service_type_str() -> String {
     }
     #[cfg(target_os = "linux")]
     {
-        zapret_core::service::detect_init_system()
+        zapret_wrapper::service::detect_init_system()
             .map(|t| t.as_str().to_string())
             .unwrap_or_else(|| rust_i18n::t!("status_srv_unknown").into_owned())
     }

@@ -1,4 +1,4 @@
-use zapret_core::domains::PRESETS;
+use zapret_wrapper::domains::PRESETS;
 
 use crate::state::screens::{AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState};
 use crate::state::AppState;
@@ -351,7 +351,7 @@ pub fn render_blockchecks(
     app: &AppState,
     bc_menu: AutotuneBlockChecksState,
 ) -> (Vec<ListItem<'static>>, String, usize) {
-    use zapret_core::autotune::BlockCheckType;
+    use zapret_wrapper::autotune::BlockCheckType;
     let mut items: Vec<ListItem<'static>> = Vec::new();
     let mut selected_index = 0;
 
@@ -525,7 +525,7 @@ pub fn render_strategies(app: &AppState, selected: usize) -> (Vec<ListItem<'stat
 pub fn render_results(_app: &AppState, scroll: usize) -> (Vec<ListItem<'static>>, String, usize) {
     let mut items: Vec<ListItem<'static>> = Vec::new();
 
-    if let Some(cached) = zapret_core::autotune::load_results_file() {
+    if let Some(cached) = zapret_wrapper::autotune::load_results_file() {
         for line in cached.lines() {
             items.push(ListItem::new(Line::from(Span::raw(format!(" {}", line)))));
         }

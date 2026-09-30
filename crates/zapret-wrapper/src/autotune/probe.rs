@@ -4,14 +4,6 @@ use std::time::Duration;
 use super::dns::resolve_domain;
 use super::quic;
 
-fn null_device() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "NUL"
-    } else {
-        "/dev/null"
-    }
-}
-
 fn http_ok(code: &str) -> bool {
     !code.is_empty() && code != "000"
 }
@@ -28,7 +20,15 @@ pub fn curl_test(url: &str, extra_args: &[&str], num_requests: usize, ok: impl F
             .arg("-s")
             .arg("-k")
             .args(extra_args)
-            .args(["--connect-timeout", "4", "--max-time", "4", "-o", null_device(), "-w"])
+            .args([
+                "--connect-timeout",
+                "4",
+                "--max-time",
+                "4",
+                "-o",
+                crate::platform::null_device(),
+                "-w",
+            ])
             .arg("%{http_code}")
             .arg(url)
             .output();

@@ -1,0 +1,20 @@
+[package]
+name = "zapret-wrapper"
+version = "2.1.0"
+edition = "2021"
+license = "MIT"
+description = "Framing of zapret-rust: everything that knows what a zapret strategy, alias and list is, and that turns a request into a command line for the launch kernel in zapret-core."
+
+[dependencies]
+zapret-core = { path = "../zapret-core" }
+zapret-fetch = { path = "../zapret-fetch" }
+nix = { version = "0.27", features = ["signal", "user"] }
+regex = "1.10.2"
+rust-i18n = "4.1.0"
+aes = "0.8"
+aes-gcm = "0.10"
+hmac = "0.12"
+sha2 = "0.10"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-service = "0.6.0"

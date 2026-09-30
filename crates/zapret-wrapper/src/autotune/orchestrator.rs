@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use super::cancel::{is_cancelled, reset_cancel};
 use crate::domains::{get_domains_for_preset, PRESETS};
-use crate::firewall::FirewallBackend;
+use zapret_core::firewall::FirewallBackend;
 
 use super::checks_domain::{check_domain, domain_check_error};
 use super::checks_network::run_network_checks;
@@ -57,7 +57,7 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
         if is_cancelled() {
             return false;
         }
-        if crate::daemon::is_running() || crate::platform::is_nfqws_running() {
+        if zapret_core::daemon::is_running() || crate::platform::is_nfqws_running() {
             running = true;
             break;
         }

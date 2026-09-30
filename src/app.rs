@@ -12,11 +12,11 @@ use std::time::Duration;
 #[cfg(not(target_os = "windows"))]
 use nix::sys::signal::{self, SaFlags, SigAction, SigHandler, Signal};
 
-use zapret_core::config;
-use zapret_core::paths;
-use zapret_core::platform;
-use zapret_core::run;
-use zapret_core::strategy;
+use zapret_wrapper::config;
+use zapret_wrapper::paths;
+use zapret_wrapper::platform;
+use zapret_wrapper::run;
+use zapret_wrapper::strategy;
 
 use zapret_tui::{spawn_event_reader, AppState};
 
@@ -152,8 +152,12 @@ pub fn run(args: Cli) {
             backend_info
         );
 
-        let req =
-            zapret_core::plan::RunRequest::new(&strategy_file, &use_interface, use_gamefilter_tcp, use_gamefilter_udp);
+        let req = zapret_wrapper::plan::RunRequest::new(
+            &strategy_file,
+            &use_interface,
+            use_gamefilter_tcp,
+            use_gamefilter_udp,
+        );
         run::run_foreground(&req, &backend);
 
         thread::sleep(Duration::from_millis(100));
