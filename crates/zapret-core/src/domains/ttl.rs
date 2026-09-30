@@ -84,7 +84,7 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
     let deadline = std::time::Instant::now() + timeout;
     let mut running = false;
     while std::time::Instant::now() < deadline {
-        if crate::run::nfqws_process_running() || crate::platform::is_nfqws_running() {
+        if crate::daemon::is_running() || crate::platform::is_nfqws_running() {
             running = true;
             break;
         }
@@ -108,14 +108,15 @@ pub fn autopick_ttl(strategy_file: &str, interface: &str, backend: &dyn Firewall
         println!("{} {}", rust_i18n::t!("ttl_testing"), ttl);
         let _ = std::io::stdout().flush();
 
-        if let Err(e) = crate::run::run_zapret_silent_ttl(strategy_file, interface, false, false, backend, ttl) {
+        let req = crate::plan::RunRequest::new(strategy_file, interface, false, false).with_ttl(ttl);
+        if let Err(e) = crate::run::run_quiet(&req, backend) {
             println!("  ❌ {}", e);
             continue;
         }
 
         if !wait_for_nfqws(Duration::from_secs(3)) {
             println!("  {}", rust_i18n::t!("ttl_nfqws_failed"));
-            crate::run::stop_zapret(backend);
+            crate::run::stop(backend);
             continue;
         }
 
@@ -130,7 +131,7 @@ pub fn autopick_ttl(strategy_file: &str, interface: &str, backend: &dyn Firewall
             }
         }
 
-        crate::run::stop_zapret(backend);
+        crate::run::stop(backend);
 
         if all_ok {
             return Ok(ttl);

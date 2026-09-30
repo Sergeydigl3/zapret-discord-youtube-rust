@@ -97,13 +97,8 @@ fn my_service_main(_arguments: Vec<std::ffi::OsString>) {
     // Run Zapret background loop
     let backend = zapret_core::firewall::windivert::WinDivertBackend;
 
-    zapret_core::run::run_zapret(
-        &cfg.strategy,
-        &cfg.interface,
-        cfg.gamefilter_tcp,
-        cfg.gamefilter_udp,
-        &backend,
-    );
+    let req = zapret_core::plan::RunRequest::new(&cfg.strategy, &cfg.interface, cfg.gamefilter_tcp, cfg.gamefilter_udp);
+    zapret_core::run::run_foreground(&req, &backend);
 
     // Main service loop
     while RUNNING.load(Ordering::SeqCst) {
@@ -121,7 +116,7 @@ fn my_service_main(_arguments: Vec<std::ffi::OsString>) {
         process_id: None,
     });
 
-    zapret_core::run::stop_zapret(&backend);
+    zapret_core::run::stop(&backend);
 
     report_stopped(&status_handle, 0);
 }

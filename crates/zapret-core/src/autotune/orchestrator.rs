@@ -57,7 +57,7 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
         if is_cancelled() {
             return false;
         }
-        if crate::run::nfqws_process_running() || crate::platform::is_nfqws_running() {
+        if crate::daemon::is_running() || crate::platform::is_nfqws_running() {
             running = true;
             break;
         }
@@ -193,11 +193,14 @@ pub fn run_all(
             for (strat_name, strat_path) in &loaded {
                 println!("  {} {}", rust_i18n::t!("autotune_testing"), strat_name);
 
-                let started = crate::run::run_zapret_silent(strat_path, interface, false, false, backend);
+                let started = {
+                    let req = crate::plan::RunRequest::new(strat_path, interface, false, false);
+                    crate::run::run_quiet(&req, backend)
+                };
                 done += 1;
                 if !progress(done, total) {
                     println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
-                    crate::run::stop_zapret(backend);
+                    crate::run::stop(backend);
                     if let Some(ref saved) = saved_ipset {
                         restore_ipset(saved);
                     }
@@ -239,7 +242,7 @@ pub fn run_all(
                         strat_name
                     );
                     strategy_results.push(StrategyCheckResult::failed(strat_name, &blocked_domains));
-                    crate::run::stop_zapret(backend);
+                    crate::run::stop(backend);
                     for _ in 0..domains.len() {
                         done += 1;
                         if !progress(done, total) {
@@ -324,7 +327,7 @@ pub fn run_all(
                     done += 1;
                     if !progress(done, total) {
                         println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
-                        crate::run::stop_zapret(backend);
+                        crate::run::stop(backend);
                         if let Some(ref saved) = saved_ipset {
                             restore_ipset(saved);
                         }
@@ -343,7 +346,7 @@ pub fn run_all(
                     done += 1;
                     if !progress(done, total) {
                         println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
-                        crate::run::stop_zapret(backend);
+                        crate::run::stop(backend);
                         if let Some(ref saved) = saved_ipset {
                             restore_ipset(saved);
                         }
@@ -370,7 +373,7 @@ pub fn run_all(
                     protocols_working.push("QUIC".to_string());
                 }
 
-                crate::run::stop_zapret(backend);
+                crate::run::stop(backend);
 
                 let works = pass.len() >= blocked_domains.len() / 2;
                 if works {

@@ -2679,7 +2679,6 @@ version = "2.1.0"
 dependencies = [
  "aes 0.8.4",
  "aes-gcm",
- "flate2",
  "hmac 0.12.1",
  "nftables",
  "nix 0.27.1",
@@ -2688,9 +2687,18 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "sys-locale",
+ "windows-service",
+]
+
+[[package]]
+name = "zapret-fetch"
+version = "2.1.0"
+dependencies = [
+ "flate2",
+ "rust-i18n",
+ "serde_json",
  "tar",
  "ureq",
- "windows-service",
  "zip",
 ]
 
@@ -2705,6 +2713,7 @@ dependencies = [
  "rust-i18n",
  "windows-service",
  "zapret-core",
+ "zapret-fetch",
  "zapret-tui",
 ]
 
@@ -2716,6 +2725,7 @@ dependencies = [
  "ratatui",
  "rust-i18n",
  "zapret-core",
+ "zapret-fetch",
 ]
 
 [[package]]

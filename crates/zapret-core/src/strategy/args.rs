@@ -1,31 +1,13 @@
 //! Turning a parsed strategy into a command line for the daemon.
 //!
-//! The path lookup, the game-filter defaults and the argument list are kept
-//! together so the spawn side of the runner only deals with process lifecycle.
+//! The game-filter defaults and the argument list live together because they are
+//! the two halves of the same conversion: the parser needs to know which
+//! placeholders to expand, and the expansion needs the platform head.
 
-use crate::paths;
-use crate::strategy::{GameFilterPorts, ParsedStrategy};
-use std::path::{Path, PathBuf};
-
-/// Resolve a strategy file name to the file that should actually be parsed.
-///
-/// A custom strategy in the cache directory wins over one shipped in the
-/// repository, so user overrides survive a repository re-download.
-pub(crate) fn strategy_file_path(repo_path: &Path, strategy_file: &str) -> PathBuf {
-    let cache_custom = paths::custom_strategies_dir().join(strategy_file);
-    if cache_custom.exists() {
-        return cache_custom;
-    }
-    let repo_custom = repo_path.join("custom-strategies").join(strategy_file);
-    if repo_custom.exists() {
-        repo_custom
-    } else {
-        repo_path.join(strategy_file)
-    }
-}
+use super::parser::{GameFilterPorts, ParsedStrategy};
 
 /// Build the game filter ports block, or `None` when game filtering is off.
-pub(crate) fn game_filter(use_tcp: bool, use_udp: bool) -> Option<GameFilterPorts> {
+pub fn game_filter(use_tcp: bool, use_udp: bool) -> Option<GameFilterPorts> {
     if use_tcp || use_udp {
         Some(GameFilterPorts {
             ports: "1024-65535".to_string(),
@@ -38,7 +20,7 @@ pub(crate) fn game_filter(use_tcp: bool, use_udp: bool) -> Option<GameFilterPort
 }
 
 /// Render the daemon arguments for a parsed strategy.
-pub(crate) fn build_args(parsed: &ParsedStrategy, ttl: Option<u8>) -> Vec<String> {
+pub fn build_args(parsed: &ParsedStrategy, ttl: Option<u8>) -> Vec<String> {
     #[cfg(target_os = "linux")]
     let mut args = vec!["--dpi-desync-fwmark=0x40000000".to_string(), "--qnum=200".to_string()];
 

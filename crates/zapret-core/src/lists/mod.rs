@@ -31,6 +31,27 @@ pub fn get_ipset_dir() -> PathBuf {
     crate::paths::exe_relative_lists_dir()
 }
 
+/// Create the three user list files the original shell scripts create empty
+/// before every run, so a strategy that references them does not fail.
+///
+/// These are the files a user edits by hand, which is why they live in the
+/// downloaded repository rather than in the cache: the repository is where the
+/// rest of the lists are, and the strategies read them from their working
+/// directory.
+pub fn ensure_user_lists() {
+    let lists_dir = crate::paths::repo_lists_dir();
+    for name in &[
+        "list-general-user.txt",
+        "list-exclude-user.txt",
+        "ipset-exclude-user.txt",
+    ] {
+        let path = lists_dir.join(name);
+        if !path.exists() {
+            let _ = fs::write(&path, "");
+        }
+    }
+}
+
 pub fn get_ipset_all_path() -> PathBuf {
     get_ipset_dir().join("ipset-all.txt")
 }
