@@ -317,7 +317,7 @@ impl ProgressView {
     }
 
     fn render_log(&self, f: &mut Frame, area: Rect) {
-        let block = frame(Some(Span::styled(rust_i18n::t!("atv_log"), Theme::block_title())));
+        let block = frame(Some(Span::styled(rust_i18n::t!("atv_log"), Theme::title())));
         let inner = block.inner(area);
         // The log always shows its newest line: the interesting end is the one
         // the sweep is still writing to.
@@ -452,7 +452,7 @@ mod tests {
         assert_eq!(view.ratio(), 0.0);
 
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-        terminal.draw(|f| view.render(f, f.size())).unwrap();
+        terminal.draw(|f| view.render(f, f.area())).unwrap();
     }
 
     /// The frame has to be repaintable on a timer with no new event at all:
@@ -465,9 +465,9 @@ mod tests {
             view
         };
         let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-        terminal.draw(|f| view.render(f, f.size())).unwrap();
+        terminal.draw(|f| view.render(f, f.area())).unwrap();
         let first = format!("{:?}", terminal.backend().buffer());
-        terminal.draw(|f| view.render(f, f.size())).unwrap();
+        terminal.draw(|f| view.render(f, f.area())).unwrap();
         let second = format!("{:?}", terminal.backend().buffer());
         assert_eq!(first, second, "a repaint with no event changed nothing");
     }

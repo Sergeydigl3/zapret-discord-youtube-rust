@@ -1,151 +1,59 @@
-use zapret_wrapper::fakes::FakesState;
-
+use crate::menus::{Menu, Row};
 use crate::state::screens::{FakesMenuState, FakesSelectTarget};
 use crate::state::AppState;
 use crate::theme::Theme;
-use ratatui::{
-    text::{Line, Span},
-    widgets::ListItem,
-};
+use zapret_wrapper::fakes::FakesState;
 
-pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
-    let mut selected_index = 0;
-    let mut items = vec![];
-    let mut index = 0;
-
+pub fn render(app: &AppState) -> Menu {
     let none_label = rust_i18n::t!("menu_fakes_none").into_owned();
 
-    // Discord UDP
-    {
-        let is_sel = app.fakes_menu == FakesMenuState::DiscordUdp;
-        if is_sel {
-            selected_index = index;
-        }
-        let label_style = if is_sel {
-            Theme::selected_item()
-        } else {
-            Theme::normal_item()
-        };
-        let val_style = if is_sel {
-            Theme::selected_value()
-        } else {
-            Theme::normal_value()
-        };
+    let rows = vec![
+        Row::value(
+            rust_i18n::t!("menu_fakes_discord"),
+            app.fakes_state
+                .discord_active
+                .as_deref()
+                .unwrap_or(&none_label)
+                .to_string(),
+        )
+        .styled_value(Theme::value()),
+        Row::value(
+            rust_i18n::t!("menu_fakes_game"),
+            app.fakes_state
+                .game_active
+                .as_deref()
+                .unwrap_or(&none_label)
+                .to_string(),
+        )
+        .styled_value(Theme::value()),
+        Row::new(rust_i18n::t!("menu_fakes_back")),
+    ];
 
-        let current = app.fakes_state.discord_active.as_deref().unwrap_or(&none_label);
-        let spans = vec![
-            Span::styled(format!(" {}: ", rust_i18n::t!("menu_fakes_discord")), label_style),
-            Span::styled(format!("< {} >", current), val_style),
-        ];
-        items.push(ListItem::new(Line::from(spans)));
-        index += 1;
-    }
-
-    // GameFilter UDP
-    {
-        let is_sel = app.fakes_menu == FakesMenuState::GameUdp;
-        if is_sel {
-            selected_index = index;
-        }
-        let label_style = if is_sel {
-            Theme::selected_item()
-        } else {
-            Theme::normal_item()
-        };
-        let val_style = if is_sel {
-            Theme::selected_value()
-        } else {
-            Theme::normal_value()
-        };
-
-        let current = app.fakes_state.game_active.as_deref().unwrap_or(&none_label);
-        let spans = vec![
-            Span::styled(format!(" {}: ", rust_i18n::t!("menu_fakes_game")), label_style),
-            Span::styled(format!("< {} >", current), val_style),
-        ];
-        items.push(ListItem::new(Line::from(spans)));
-        index += 1;
-    }
-
-    // Back
-    {
-        let is_sel = app.fakes_menu == FakesMenuState::Back;
-        if is_sel {
-            selected_index = index;
-        }
-        let style = if is_sel {
-            Theme::selected_item()
-        } else {
-            Theme::normal_item()
-        };
-        items.push(ListItem::new(format!(" {}", rust_i18n::t!("menu_fakes_back"))).style(style));
-    }
-
-    (items, rust_i18n::t!("menu_fakes_title").into_owned(), selected_index)
-}
-
-pub fn render_select(
-    state: &FakesState,
-    target: &FakesSelectTarget,
-    selected_index: usize,
-) -> (Vec<ListItem<'static>>, String, usize) {
-    let mut items = vec![];
-    let mut index = 0;
-
-    let none_label = rust_i18n::t!("menu_fakes_none").into_owned();
-    let current_label = match target {
-        FakesSelectTarget::DiscordUdp => state.discord_active.as_deref().unwrap_or(&none_label),
-        FakesSelectTarget::GameUdp => state.game_active.as_deref().unwrap_or(&none_label),
+    let index = match app.fakes_menu {
+        FakesMenuState::DiscordUdp => 0,
+        FakesMenuState::GameUdp => 1,
+        FakesMenuState::Back => 2,
     };
 
-    // Header: Current value (index 0, not selectable as a file)
-    {
-        let is_sel = index == selected_index;
-        let current_spans = vec![
-            Span::styled(
-                format!(" {}: ", rust_i18n::t!("menu_fakes_current")),
-                if is_sel {
-                    Theme::selected_item()
-                } else {
-                    Theme::dim_item()
-                },
-            ),
-            Span::styled(
-                current_label.to_string(),
-                if is_sel {
-                    Theme::selected_value()
-                } else {
-                    Theme::normal_value()
-                },
-            ),
-        ];
-        items.push(ListItem::new(Line::from(current_spans)));
-        index += 1;
-    }
+    Menu::new(rust_i18n::t!("menu_fakes_title"), rows).at(index)
+}
 
-    // Available .bin files
-    for fake in &state.available {
-        let is_sel = index == selected_index;
-        items.push(ListItem::new(format!("   {}", fake.filename)).style(if is_sel {
-            Theme::selected_item()
-        } else {
-            Theme::normal_item()
-        }));
-        index += 1;
+pub fn render_select(state: &FakesState, target: &FakesSelectTarget, selected_index: usize) -> Menu {
+    let none_label = rust_i18n::t!("menu_fakes_none").into_owned();
+    let current = match target {
+        FakesSelectTarget::DiscordUdp => state.discord_active.as_deref(),
+        FakesSelectTarget::GameUdp => state.game_active.as_deref(),
     }
+    .unwrap_or(&none_label);
 
-    // Back
-    {
-        let is_sel = index == selected_index;
-        items.push(
-            ListItem::new(format!(" {}", rust_i18n::t!("menu_fakes_back"))).style(if is_sel {
-                Theme::selected_item()
-            } else {
-                Theme::normal_item()
-            }),
-        );
-    }
+    // Row 0 is what is in use right now, not a file, so it is scenery above the
+    // list rather than something the cursor can land on. The cursor starts past
+    // it, on the first file.
+    let mut rows =
+        vec![Row::value(rust_i18n::t!("menu_fakes_current"), current.to_string()).styled_value(Theme::muted())];
 
-    let title = rust_i18n::t!("menu_fakes_select_title").into_owned();
-    (items, title, selected_index)
+    rows.extend(state.available.iter().map(|fake| Row::new(fake.filename.clone())));
+    rows.push(Row::new(rust_i18n::t!("menu_fakes_back")));
+
+    Menu::new(rust_i18n::t!("menu_fakes_select_title"), rows).at(selected_index)
 }

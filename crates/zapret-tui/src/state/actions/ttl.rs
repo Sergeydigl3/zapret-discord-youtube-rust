@@ -3,7 +3,7 @@
 use zapret_wrapper::config;
 use zapret_wrapper::domains::ttl;
 
-use crate::state::screens::{ActiveScreen, TtlMenuState};
+use crate::state::screens::TtlMenuState;
 use crate::state::AppState;
 
 /// Enter / Space on the TTL submenu.
@@ -14,9 +14,9 @@ pub fn activate(app: &mut AppState) {
             app.status_message = Some(rust_i18n::t!("ttl_set_off").into_owned());
         }
         TtlMenuState::SetValue => {
-            // The arrows already set it; there is nothing to confirm.
-            app.active_screen = ActiveScreen::Main;
-            app.status_message = None;
+            // The arrows already set it; there is nothing to confirm, so the row
+            // just gives the way back.
+            app.back();
         }
         TtlMenuState::Autopick => {
             if app.strategies.is_empty() {
@@ -28,8 +28,7 @@ pub fn activate(app: &mut AppState) {
             }
         }
         TtlMenuState::Back => {
-            app.active_screen = ActiveScreen::Main;
-            app.status_message = None;
+            app.back();
         }
     }
 }

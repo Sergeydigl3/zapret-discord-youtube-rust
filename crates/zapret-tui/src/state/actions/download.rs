@@ -9,21 +9,18 @@ pub fn activate(app: &mut AppState) {
     match app.active_screen {
         ActiveScreen::DownloadDepsSubmenu => match app.download_deps_menu {
             DownloadDepsMenuState::ZapretDownloader => {
-                app.active_screen = ActiveScreen::DownloadZapretSubmenu;
                 app.download_zapret_menu = DownloadSubmenuState::Version;
-                app.status_message = None;
+                app.open(ActiveScreen::DownloadZapretSubmenu);
             }
             DownloadDepsMenuState::StrategiesDownloader => {
-                app.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
                 app.download_strategies_menu = DownloadSubmenuState::Version;
-                app.status_message = None;
+                app.open(ActiveScreen::DownloadStrategiesSubmenu);
             }
             DownloadDepsMenuState::DownloadDefaults => {
                 app.should_download_defaults = true;
             }
             DownloadDepsMenuState::Back => {
-                app.active_screen = ActiveScreen::Main;
-                app.status_message = None;
+                app.back();
             }
         },
         ActiveScreen::DownloadZapretSubmenu => match app.download_zapret_menu {
@@ -36,8 +33,7 @@ pub fn activate(app: &mut AppState) {
                     Ok(tags) => {
                         app.available_nfqws_tags = tags;
                         app.nfqws_tag_index = 0;
-                        app.active_screen = ActiveScreen::ZapretTagSelect;
-                        app.status_message = None;
+                        app.open(ActiveScreen::ZapretTagSelect);
                     }
                     Err(e) => {
                         app.show_error(format!("{}{}", rust_i18n::t!("msg_err_fetch_tags"), e));
@@ -48,8 +44,7 @@ pub fn activate(app: &mut AppState) {
                 app.should_download_zapret = true;
             }
             DownloadSubmenuState::Back => {
-                app.active_screen = ActiveScreen::DownloadDepsSubmenu;
-                app.status_message = None;
+                app.back();
             }
         },
         ActiveScreen::DownloadStrategiesSubmenu => match app.download_strategies_menu {
@@ -62,8 +57,7 @@ pub fn activate(app: &mut AppState) {
                     Ok(tags) => {
                         app.available_strat_tags = tags;
                         app.strat_tag_index = 0;
-                        app.active_screen = ActiveScreen::StrategyTagSelect;
-                        app.status_message = None;
+                        app.open(ActiveScreen::StrategyTagSelect);
                     }
                     Err(e) => {
                         app.show_error(format!("{}{}", rust_i18n::t!("msg_err_fetch_tags"), e));
@@ -74,31 +68,22 @@ pub fn activate(app: &mut AppState) {
                 app.should_download_strategies = true;
             }
             DownloadSubmenuState::Back => {
-                app.active_screen = ActiveScreen::DownloadDepsSubmenu;
-                app.status_message = None;
+                app.back();
             }
         },
         ActiveScreen::ZapretTagSelect => {
-            if app.nfqws_tag_index < app.available_nfqws_tags.len() {
-                let selected = app.available_nfqws_tags[app.nfqws_tag_index].clone();
-                app.nfqws_target = VersionTarget::Tag(selected);
-                app.active_screen = ActiveScreen::DownloadZapretSubmenu;
+            if let Some(selected) = app.available_nfqws_tags.get(app.nfqws_tag_index) {
+                app.nfqws_target = VersionTarget::Tag(selected.clone());
                 app.status_message = Some(rust_i18n::t!("msg_zapret_tag_sel").into_owned());
-            } else {
-                app.active_screen = ActiveScreen::DownloadZapretSubmenu;
-                app.status_message = None;
             }
+            app.back();
         }
         ActiveScreen::StrategyTagSelect => {
-            if app.strat_tag_index < app.available_strat_tags.len() {
-                let selected = app.available_strat_tags[app.strat_tag_index].clone();
-                app.strat_target = VersionTarget::Tag(selected);
-                app.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
+            if let Some(selected) = app.available_strat_tags.get(app.strat_tag_index) {
+                app.strat_target = VersionTarget::Tag(selected.clone());
                 app.status_message = Some(rust_i18n::t!("msg_strat_tag_sel").into_owned());
-            } else {
-                app.active_screen = ActiveScreen::DownloadStrategiesSubmenu;
-                app.status_message = None;
             }
+            app.back();
         }
         _ => unreachable!("download screens only"),
     }

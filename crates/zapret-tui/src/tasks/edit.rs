@@ -4,8 +4,8 @@
 //! be paused for the duration, otherwise the two fight over keystrokes and the
 //! editor misses keys.
 
-use crossterm::event::Event;
 use ratatui::backend::CrosstermBackend;
+use ratatui::crossterm::event::Event;
 use ratatui::Terminal;
 use std::io;
 use std::sync::mpsc::Receiver;

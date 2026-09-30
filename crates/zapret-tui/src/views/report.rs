@@ -53,7 +53,6 @@ type Cell = (String, Style);
 /// A rule is one cell wide; a table that measured it wrong would be ragged.
 const RULE: Style = Style::new().fg(Color::DarkGray);
 const EDGE: Style = Style::new().fg(Color::Yellow);
-
 /// The width the flexible columns share, after the fixed ones and the vertical
 /// rules have taken their share of the terminal.
 fn room(reserved: u16, columns: u16, width: u16) -> u16 {
@@ -147,7 +146,7 @@ fn table(caption: String, cols: &[Column], rows: Vec<Vec<Cell>>) -> Vec<Line<'st
     let headings: Vec<Cell> = cols.iter().map(|c| (c.title.clone(), Style::default())).collect();
 
     let mut lines = vec![
-        Line::from(Span::styled(format!(" {}", caption), Theme::header_style())),
+        Line::from(Span::styled(format!(" {}", caption), Theme::title())),
         rule('┌', '┬', '┐', cols),
         row(cols, &headings, true),
         rule('├', '┼', '┤', cols),
@@ -433,7 +432,7 @@ fn build_summary(results: &AutotuneResults, width: u16) -> Vec<Line<'static>> {
 
     lines.push(Line::from(Span::styled(
         format!(" {}", rust_i18n::t!("atv_section_common")),
-        Theme::header_style(),
+        Theme::title(),
     )));
     lines.push(Line::from(""));
     if results.common_strategies.is_empty() {
@@ -889,7 +888,7 @@ mod tests {
         let results = sample();
         let mut scroll = 9999;
         terminal
-            .draw(|f| render(f, f.size(), &results, AutotuneReportTab::Details, &mut scroll))
+            .draw(|f| render(f, f.area(), &results, AutotuneReportTab::Details, &mut scroll))
             .unwrap();
 
         let lines = build(&results, AutotuneReportTab::Details, 58);

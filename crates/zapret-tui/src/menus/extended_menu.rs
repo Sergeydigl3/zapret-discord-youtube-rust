@@ -1,0 +1,22 @@
+//! The Extended submenu: the settings that are real but not part of the
+//! everyday run.
+//!
+//! These two used to be rows on the main menu. They are not things you touch
+//! while setting up a run, and having them there meant the main menu was long
+//! enough that the rows you did use every time were the ones hardest to reach.
+
+use crate::menus::{Menu, Row};
+use crate::state::AppState;
+
+pub fn render(app: &AppState) -> Menu {
+    let rows = vec![
+        Row::value(
+            rust_i18n::t!("menu_main_ttl"),
+            crate::menus::ttl_menu::current_label(app),
+        ),
+        Row::new(rust_i18n::t!("menu_main_fakes")),
+        Row::new(rust_i18n::t!("menu_extended_back")),
+    ];
+
+    Menu::new(rust_i18n::t!("menu_extended_title"), rows).at(app.extended_menu.index())
+}

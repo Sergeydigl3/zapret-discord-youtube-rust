@@ -83,7 +83,7 @@ pub fn run_all(
     config: &AutotuneConfig,
     on_event: &mut dyn FnMut(SweepEvent) -> bool,
     backend: &dyn FirewallBackend,
-    interface: &str,
+    #[cfg(target_os = "linux")] interface: &str,
 ) -> AutotuneResults {
     reset_cancel();
     let start_instant = std::time::Instant::now();
@@ -222,7 +222,9 @@ pub fn run_all(
                 report.phase(rust_i18n::t!("autotune_testing").replace("{}", strat_name));
 
                 let started = {
-                    let req = crate::plan::RunRequest::new(strat_file, interface, false, false);
+                    let req = crate::plan::RunRequest::new(strat_file, false, false);
+                    #[cfg(target_os = "linux")]
+                    let req = req.with_interface(interface);
                     crate::run::run_quiet(&req, backend, &crate::paths::nfqws_output_log())
                 };
                 done += 1;

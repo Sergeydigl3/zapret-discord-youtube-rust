@@ -11,48 +11,46 @@ pub fn activate(app: &mut AppState) {
     match app.active_screen {
         ActiveScreen::FakesSubmenu => match app.fakes_menu {
             FakesMenuState::DiscordUdp => {
-                app.fakes_select_for = FakesSelectTarget::DiscordUdp;
-                app.fakes_select_index = if app.fakes_state.available.is_empty() { 0 } else { 1 };
-                app.active_screen = ActiveScreen::FakesSelectSubmenu;
-                app.status_message = None;
+                open_file_list(app, FakesSelectTarget::DiscordUdp);
             }
             FakesMenuState::GameUdp => {
-                app.fakes_select_for = FakesSelectTarget::GameUdp;
-                app.fakes_select_index = if app.fakes_state.available.is_empty() { 0 } else { 1 };
-                app.active_screen = ActiveScreen::FakesSelectSubmenu;
-                app.status_message = None;
+                open_file_list(app, FakesSelectTarget::GameUdp);
             }
             FakesMenuState::Back => {
-                app.active_screen = ActiveScreen::Main;
-                app.status_message = None;
+                app.back();
             }
         },
         ActiveScreen::FakesSelectSubmenu => {
+            // Row 0 is the header showing what is in use, so the first file is
+            // row 1 and the back row is one past the last file.
             let file_count = app.fakes_state.available.len();
             if app.fakes_select_index >= 1 && app.fakes_select_index <= file_count {
-                let source_idx = app.fakes_select_index - 1;
-                let source = app.fakes_state.available[source_idx].clone();
-                let target: fakes::FakeTarget = match app.fakes_select_for {
+                let source = app.fakes_state.available[app.fakes_select_index - 1].clone();
+                let target = match app.fakes_select_for {
                     FakesSelectTarget::DiscordUdp => fakes::FakeTarget::DiscordUdp,
                     FakesSelectTarget::GameUdp => fakes::FakeTarget::GameUdp,
                 };
                 match fakes::replace_active_fake(&app.fakes_state, &target, &source) {
                     Ok(()) => {
                         app.fakes_state = fakes::load_fakes_state();
-                        app.active_screen = ActiveScreen::FakesSubmenu;
+                        app.back();
                         app.status_message = Some(rust_i18n::t!("msg_fakes_replaced").into_owned());
                     }
-                    Err(e) => {
-                        app.show_error(e);
-                    }
+                    Err(e) => app.show_error(e),
                 }
             } else {
-                app.active_screen = ActiveScreen::FakesSubmenu;
-                app.status_message = None;
+                app.back();
             }
         }
         _ => unreachable!("fakes screens only"),
     }
+}
+
+/// Land on the first file rather than on the header above it.
+fn open_file_list(app: &mut AppState, for_target: FakesSelectTarget) {
+    app.fakes_select_for = for_target;
+    app.fakes_select_index = usize::from(app.fakes_state.available.is_empty());
+    app.open(ActiveScreen::FakesSelectSubmenu);
 }
 
 pub fn cycle(app: &mut AppState, forward: bool) {

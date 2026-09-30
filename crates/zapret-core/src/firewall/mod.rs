@@ -72,8 +72,18 @@ pub(crate) fn notice(msg: &str) {
 /// must keep drawing while the sweep works, so the backend reference has to
 /// cross a thread boundary. Every backend is a unit struct or a fieldless enum
 /// with its state outside the process, so this costs nothing.
+///
+/// `interface` is a Linux-only parameter and is compiled out everywhere else.
+/// nftables and iptables can bind rules to one output device; WinDivert filters
+/// the whole system and has no equivalent knob, so on Windows there is no
+/// interface to pass and none is offered.
 pub trait FirewallBackend: Send + Sync {
-    fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str) -> Result<(), String>;
+    fn setup(
+        &self,
+        tcp_ports: &str,
+        udp_ports: &str,
+        #[cfg(target_os = "linux")] interface: &str,
+    ) -> Result<(), String>;
     fn clear(&self) -> Result<(), String>;
 }
 

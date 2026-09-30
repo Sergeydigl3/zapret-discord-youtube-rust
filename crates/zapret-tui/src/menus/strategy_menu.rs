@@ -1,36 +1,25 @@
+use crate::menus::{Menu, Row};
 use crate::state::AppState;
-use crate::theme::Theme;
-use ratatui::widgets::ListItem;
 
-pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
-    let mut selected_index = 0;
-    let mut items: Vec<ListItem> = app
+pub fn render(app: &AppState) -> Menu {
+    let mut rows: Vec<Row> = app
         .strategies
         .iter()
         .enumerate()
-        .map(|(i, s)| {
-            let prefix = if i == app.selected_strategy { "✅ " } else { "   " };
-            let m = format!(" {}{}", prefix, s);
-            if i == app.strategy_menu_index {
-                selected_index = i;
-                ListItem::new(m).style(Theme::selected_item())
+        .map(|(i, name)| {
+            let row = Row::new(name.clone());
+            if i == app.selected_strategy {
+                row.mark()
             } else {
-                ListItem::new(m).style(Theme::normal_item())
+                row
             }
         })
         .collect();
+    rows.push(Row::new(rust_i18n::t!("menu_subdl_back")));
 
-    let back_selected = app.strategy_menu_index == app.strategies.len();
-    if back_selected {
-        selected_index = app.strategies.len();
-    }
+    // The bound is `len + 1` rather than `len`, because the last row is the way
+    // out and the cursor has to be able to sit on it.
+    let index = app.strategy_menu_index.min(app.strategies.len());
 
-    let back_item = if back_selected {
-        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::selected_item())
-    } else {
-        ListItem::new(format!(" {}", rust_i18n::t!("menu_subdl_back"))).style(Theme::normal_item())
-    };
-
-    items.push(back_item);
-    (items, rust_i18n::t!("tui_title_strategy").into_owned(), selected_index)
+    Menu::new(rust_i18n::t!("tui_title_strategy"), rows).at(index)
 }

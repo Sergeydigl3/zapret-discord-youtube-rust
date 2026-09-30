@@ -28,13 +28,15 @@ pub fn is_nfqws_running() -> bool {
     zapret_core::process::is_daemon_running()
 }
 
-/// Return available network interfaces.
-/// On Windows and macOS there is no `/sys/class/net`, so only "any" is returned.
+/// The network interfaces a firewall rule can be bound to.
+///
+/// Only Linux has this choice: nftables and iptables match on the output
+/// device, while WinDivert filters the whole system. Everywhere else the list
+/// is empty rather than a single meaningless `"any"` entry, so nothing
+/// downstream can offer a setting that would do nothing.
+#[cfg(target_os = "linux")]
 pub fn get_interfaces() -> Vec<String> {
-    #[allow(unused_mut)]
     let mut interfaces = vec!["any".to_string()];
-
-    #[cfg(target_os = "linux")]
     if let Ok(entries) = std::fs::read_dir("/sys/class/net") {
         for entry in entries.flatten() {
             if let Ok(name) = entry.file_name().into_string() {
@@ -42,8 +44,12 @@ pub fn get_interfaces() -> Vec<String> {
             }
         }
     }
-
     interfaces
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn get_interfaces() -> Vec<String> {
+    Vec::new()
 }
 
 /// Device that swallows output, spelled per platform.

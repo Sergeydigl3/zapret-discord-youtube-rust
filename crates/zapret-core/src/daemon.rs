@@ -136,9 +136,12 @@ impl LaunchPlan {
     /// [`LaunchOutcome::firewall_error`] instead of aborting: the rules may
     /// already be in place from an earlier run, and the daemon is worth starting
     /// either way.
+    ///
+    /// `interface` is Linux-only and is compiled out elsewhere: see
+    /// [`FirewallBackend::setup`].
     pub fn launch(
         &self,
-        interface: &str,
+        #[cfg(target_os = "linux")] interface: &str,
         backend: &dyn FirewallBackend,
         capture: &Path,
     ) -> Result<LaunchOutcome, LaunchError> {
@@ -147,7 +150,11 @@ impl LaunchPlan {
             ..Default::default()
         };
 
-        if let Err(e) = backend.setup(&self.tcp_ports, &self.udp_ports, interface) {
+        if let Err(e) = self.setup_firewall(
+            backend,
+            #[cfg(target_os = "linux")]
+            interface,
+        ) {
             outcome.firewall_error = Some(e);
         }
 
@@ -203,13 +210,16 @@ impl LaunchPlan {
     /// whatever wait it does anyway.
     pub fn launch_quiet(
         &self,
-        interface: &str,
+        #[cfg(target_os = "linux")] interface: &str,
         backend: &dyn FirewallBackend,
         capture: &Path,
     ) -> Result<LaunchOutcome, LaunchError> {
-        backend
-            .setup(&self.tcp_ports, &self.udp_ports, interface)
-            .map_err(LaunchError::Firewall)?;
+        self.setup_firewall(
+            backend,
+            #[cfg(target_os = "linux")]
+            interface,
+        )
+        .map_err(LaunchError::Firewall)?;
 
         free_queue();
 
@@ -243,6 +253,24 @@ impl LaunchPlan {
             command: self.command(),
             ..Default::default()
         })
+    }
+
+    /// Push this plan's port ranges into the firewall.
+    ///
+    /// The one place the platform difference lives, so neither launch path has
+    /// to spell it out: on Linux the rules are bound to one interface, and
+    /// everywhere else the backend takes only the ports.
+    fn setup_firewall(
+        &self,
+        backend: &dyn FirewallBackend,
+        #[cfg(target_os = "linux")] interface: &str,
+    ) -> Result<(), String> {
+        backend.setup(
+            &self.tcp_ports,
+            &self.udp_ports,
+            #[cfg(target_os = "linux")]
+            interface,
+        )
     }
 }
 

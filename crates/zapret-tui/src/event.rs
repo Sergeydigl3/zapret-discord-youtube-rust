@@ -1,8 +1,8 @@
 //! Console input: one reader thread for the whole process, plus the helpers
 //! that drain it and wait for a key.
 
-use crossterm::event::Event;
-use crossterm::terminal::enable_raw_mode;
+use ratatui::crossterm::event::Event;
+use ratatui::crossterm::terminal::enable_raw_mode;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
@@ -30,8 +30,8 @@ pub fn spawn_event_reader() -> EventReader {
             continue;
         }
 
-        match crossterm::event::poll(std::time::Duration::from_millis(50)) {
-            Ok(true) => match crossterm::event::read() {
+        match ratatui::crossterm::event::poll(std::time::Duration::from_millis(50)) {
+            Ok(true) => match ratatui::crossterm::event::read() {
                 Ok(event) => {
                     if tx.send(event).is_err() {
                         break;

@@ -15,8 +15,8 @@ use zapret_wrapper::lists::IpsetMode;
 
 pub use screens::{
     ActiveScreen, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState, AutotuneReportTab,
-    DownloadDepsMenuState, DownloadSubmenuState, FakesMenuState, FakesSelectTarget, GamefilterMenuState, MainMenuState,
-    TtlMenuState, VersionTarget,
+    DownloadDepsMenuState, DownloadSubmenuState, ExtendedMenuState, FakesMenuState, FakesSelectTarget,
+    GamefilterMenuState, History, MainMenuState, TtlMenuState, VersionTarget,
 };
 
 #[cfg(target_os = "windows")]
@@ -26,7 +26,14 @@ pub use screens::DefenderMenuState;
 use zapret_core::firewall::LinuxBackend;
 
 pub struct AppState {
+    /// The interfaces the rules can be bound to, and the one that is.
+    ///
+    /// Linux-only. nftables and iptables match on the output device, WinDivert
+    /// filters the whole system, so on Windows there is no such choice and the
+    /// menu row that offered one is compiled out with it.
+    #[cfg(target_os = "linux")]
     pub interfaces: Vec<String>,
+    #[cfg(target_os = "linux")]
     pub selected_interface: usize,
 
     #[cfg(target_os = "linux")]
@@ -43,7 +50,11 @@ pub struct AppState {
     pub udp_gamefilter: bool,
 
     pub active_screen: ActiveScreen,
+    /// The screens behind the current one, oldest first. Esc walks it backwards
+    /// and the breadcrumb reads it forwards.
+    pub history: History,
     pub main_menu: MainMenuState,
+    pub extended_menu: ExtendedMenuState,
 
     #[cfg(target_os = "windows")]
     pub defender_menu: DefenderMenuState,
@@ -115,7 +126,7 @@ impl AppState {
         self.status_message = Some(format!("{}{}", rust_i18n::t!("msg_err"), msg));
     }
 
-    pub fn new(interfaces: Vec<String>, strategies: Vec<String>) -> Self {
+    pub fn new(strategies: Vec<String>) -> Self {
         let _ = config::ensure_default_config();
         let _ = domains::ensure_domain_files();
 
@@ -142,9 +153,13 @@ impl AppState {
 
         let saved_cfg = config::load_config(&zapret_wrapper::paths::config_path().to_string_lossy()).ok();
 
+        #[cfg(target_os = "linux")]
+        let interfaces = zapret_wrapper::platform::get_interfaces();
+        #[cfg(target_os = "linux")]
         let selected_interface = saved_cfg.as_ref().map_or(0, |cfg| {
             interfaces.iter().position(|i| i == &cfg.interface).unwrap_or(0)
         });
+
         let selected_strategy = saved_cfg
             .as_ref()
             .map_or(0, |cfg| strategies.iter().position(|s| s == &cfg.strategy).unwrap_or(0));
@@ -165,7 +180,9 @@ impl AppState {
             .unwrap_or(0);
 
         let mut app = Self {
+            #[cfg(target_os = "linux")]
             interfaces,
+            #[cfg(target_os = "linux")]
             selected_interface,
             #[cfg(target_os = "linux")]
             selected_backend,
@@ -177,11 +194,11 @@ impl AppState {
             tcp_gamefilter,
             udp_gamefilter,
             active_screen: ActiveScreen::Main,
+            history: History::default(),
 
-            #[cfg(target_os = "windows")]
-            main_menu: MainMenuState::DefenderSettings,
-            #[cfg(not(target_os = "windows"))]
-            main_menu: MainMenuState::DownloadDeps,
+            // The top of the menu, whichever row that is on this platform.
+            main_menu: MainMenuState::first(),
+            extended_menu: ExtendedMenuState::Ttl,
 
             #[cfg(target_os = "windows")]
             defender_menu: DefenderMenuState::Add,
@@ -318,11 +335,6 @@ impl AppState {
     }
 
     pub(crate) fn save_current_config(&self) {
-        let interface = self
-            .interfaces
-            .get(self.selected_interface)
-            .map(|s| s.as_str())
-            .unwrap_or("any");
         let strategy = self
             .strategies
             .get(self.selected_strategy)
@@ -332,7 +344,17 @@ impl AppState {
         let backend = self.selected_backend.to_config();
         #[cfg(not(target_os = "linux"))]
         let backend = "nftables";
-        let _ = config::save_tui_state(interface, strategy, self.tcp_gamefilter, self.udp_gamefilter, backend);
+        let _ = config::save_tui_state(
+            #[cfg(target_os = "linux")]
+            self.interfaces
+                .get(self.selected_interface)
+                .map(|s| s.as_str())
+                .unwrap_or("any"),
+            strategy,
+            self.tcp_gamefilter,
+            self.udp_gamefilter,
+            backend,
+        );
     }
 
     pub fn get_service_menu_count(&self) -> usize {
@@ -360,6 +382,18 @@ impl AppState {
         } else {
             true
         }
+    }
+
+    /// The interface the rules should be bound to.
+    ///
+    /// Linux only. Everywhere else the rules go on every interface and there is
+    /// nothing for a sweep or a run to be told.
+    #[cfg(target_os = "linux")]
+    pub fn interface(&self) -> &str {
+        self.interfaces
+            .get(self.selected_interface)
+            .map(|s| s.as_str())
+            .unwrap_or("any")
     }
 
     pub(crate) fn toggle_block_check(&mut self, index: usize) {
