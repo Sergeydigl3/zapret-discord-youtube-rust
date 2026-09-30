@@ -22,6 +22,7 @@ mod lists;
 mod main;
 mod service;
 mod strategy;
+mod ttl;
 
 #[cfg(target_os = "windows")]
 mod defender;
@@ -52,6 +53,7 @@ pub fn on_activate(app: &mut AppState) {
         | ActiveScreen::AutotunePresetSelectionSubmenu
         | ActiveScreen::AutotuneStrategiesSubmenu
         | ActiveScreen::AutotuneResultsSubmenu => autotune::activate(app),
+        ActiveScreen::TtlSubmenu => ttl::activate(app),
     }
 }
 
@@ -88,6 +90,7 @@ pub fn on_cycle(app: &mut AppState, forward: bool) {
         | ActiveScreen::AutotunePresetSelectionSubmenu
         | ActiveScreen::AutotuneStrategiesSubmenu
         | ActiveScreen::AutotuneResultsSubmenu => autotune::cycle(app, forward),
+        ActiveScreen::TtlSubmenu => ttl::cycle(app, forward),
         #[cfg(target_os = "windows")]
         ActiveScreen::DefenderSubmenu => {
             if forward {
@@ -113,6 +116,9 @@ pub fn on_back(app: &mut AppState) {
         }
         ActiveScreen::FakesSelectSubmenu => {
             app.active_screen = ActiveScreen::FakesSubmenu;
+        }
+        ActiveScreen::TtlSubmenu => {
+            app.active_screen = ActiveScreen::Main;
         }
         ActiveScreen::Main => {
             app.should_quit = true;

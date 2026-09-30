@@ -1,10 +1,8 @@
-//! Long-running interactive jobs.
+﻿//! Long-running jobs that hand the terminal to a child program.
 //!
-//! Each of these takes the terminal over for a while, prints its own output and
-//! gives the terminal back. The session loop only decides *when* one of them
-//! runs, by checking the `should_*` flags on [`crate::state::AppState`].
+//! These are the ones a sweep is *not*: a download, the text editor, a `git`
+//! invocation. They own the console for a while and give it back, which is the
+//! opposite of what the sweeps do — see [`crate::jobs`].
 
-pub mod autotune;
 pub mod download;
 pub mod edit;
-pub mod ttl_run;

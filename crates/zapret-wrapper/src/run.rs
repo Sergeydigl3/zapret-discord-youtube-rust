@@ -85,10 +85,20 @@ pub fn run_foreground(req: &RunRequest, backend: &dyn FirewallBackend) {
 /// Run zapret without any output of its own, for the sweeps.
 ///
 /// The caller reports progress; this only reports failure through `Err`.
-pub fn run_quiet(req: &RunRequest, backend: &dyn FirewallBackend) -> ZResult<LaunchOutcome> {
+///
+/// The daemon's output is left in `capture` rather than thrown away. A sweep
+/// that finds nothing has to be able to say *why* — and when winws rejects an
+/// argument it prints one line and exits, which is the whole explanation.
+pub fn run_quiet(req: &RunRequest, backend: &dyn FirewallBackend, capture: &std::path::Path) -> ZResult<LaunchOutcome> {
     let plan = crate::plan::plan(req).map_err(|e| format!("parse error: {}", e))?;
     crate::lists::ensure_user_lists();
-    plan.launch_quiet(&req.interface, backend).map_err(|e| e.to_string())
+    plan.launch_quiet(&req.interface, backend, capture)
+        .map_err(|e| e.to_string())
+}
+
+/// Whatever the daemon wrote while starting up, for a sweep to show or log.
+pub fn read_launch_output(capture: &std::path::Path) -> String {
+    std::fs::read_to_string(capture).unwrap_or_default()
 }
 
 /// True when something already holds the queue, so a launch would fight it.
@@ -101,21 +111,33 @@ pub fn queue_in_use() -> bool {
     daemon::is_running() || crate::platform::is_nfqws_running()
 }
 
+/// The two lines a stop produces, in the order they are produced.
+fn stop_terms() -> Vec<String> {
+    vec![
+        rust_i18n::t!("msg_zapret_stop").to_string(),
+        rust_i18n::t!("msg_zapret_clear").to_string(),
+    ]
+}
+
 /// Stop the daemon, reporting it on the console and in the log.
 pub fn stop(backend: &dyn FirewallBackend) {
-    let mut term: Vec<String> = Vec::new();
-
-    let msg = rust_i18n::t!("msg_zapret_stop").to_string();
-    term.push(msg.clone());
-    println!("{}", msg);
-
+    let terms = stop_terms();
+    for msg in &terms {
+        println!("{}", msg);
+    }
     daemon::stop(backend);
+    crate::diagnose::log_stop(&terms);
+}
 
-    let msg = rust_i18n::t!("msg_zapret_clear").to_string();
-    term.push(msg.clone());
-    println!("{}", msg);
-
-    crate::diagnose::log_stop(&term);
+/// Stop the daemon without saying so, for the sweeps.
+///
+/// The counterpart of [`run_quiet`]: a sweep paints its own progress and the
+/// console is not where it reports, so a stop in the middle of one has to stay
+/// quiet or it lands on top of the bar.
+pub fn stop_quiet(backend: &dyn FirewallBackend) {
+    let terms = stop_terms();
+    daemon::stop(backend);
+    crate::diagnose::log_stop(&terms);
 }
 
 fn describe_launch_error(e: &LaunchError) -> String {

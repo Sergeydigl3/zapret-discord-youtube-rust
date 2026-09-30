@@ -11,8 +11,12 @@
 //!                                        └──▶ actions::<screen>  (one file per screen)
 //!
 //!   a screen that starts a long job only sets a should_* flag on AppState;
-//!   session then calls tasks::<job>, which takes the terminal over.
+//!   session then calls tasks::<job>.
 //! ```
+//!
+//! A job that runs a child program hands the terminal over; a job that runs
+//! in-process work — the autotune sweep — keeps it and paints frames, which is
+//! why `views` exists alongside `draw`.
 
 // The macro joins this path onto CARGO_MANIFEST_DIR, so `../..` reaches the
 // workspace-level locale directory shared with `zapret-core` and the binary.
@@ -23,6 +27,7 @@ rust_i18n::i18n!("../../locales", fallback = "en");
 pub mod i18n;
 
 pub mod event;
+pub mod jobs;
 pub mod screen;
 pub mod session;
 pub mod tasks;
@@ -32,6 +37,7 @@ pub mod editor;
 pub mod menus;
 pub mod state;
 pub mod theme;
+pub mod views;
 
 pub use event::{spawn_event_reader, EventReader};
 pub use screen::setup_console;

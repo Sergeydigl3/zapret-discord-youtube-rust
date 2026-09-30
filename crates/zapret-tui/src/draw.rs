@@ -4,7 +4,7 @@
 //! title, a list of items and a help line, and the three status lines are
 //! shared by the screens that show them.
 
-use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, List, Paragraph};
@@ -16,6 +16,7 @@ use crate::state::{
     DownloadSubmenuState, FakesMenuState, GamefilterMenuState, MainMenuState,
 };
 use crate::theme::Theme;
+use crate::views;
 
 /// Screens that render the service and dependency status lines under the list.
 fn shows_status_lines(screen: ActiveScreen) -> bool {
@@ -54,6 +55,7 @@ fn title_text(screen: ActiveScreen) -> String {
         ActiveScreen::AutotunePresetSelectionSubmenu => rust_i18n::t!("tui_title_autotune_presets").to_string(),
         ActiveScreen::AutotuneStrategiesSubmenu => rust_i18n::t!("tui_title_autotune_strat").to_string(),
         ActiveScreen::AutotuneResultsSubmenu => rust_i18n::t!("tui_title_autotune_results").to_string(),
+        ActiveScreen::TtlSubmenu => rust_i18n::t!("tui_title_ttl").to_string(),
     }
 }
 
@@ -102,6 +104,7 @@ fn menu_items<'a>(app: &'a AppState) -> (Vec<ratatui::widgets::ListItem<'a>>, St
             menus::autotune_menu::render_strategies(app, app.autotune_strat_index)
         }
         ActiveScreen::AutotuneResultsSubmenu => menus::autotune_menu::render_results(app, app.autotune_results_index),
+        ActiveScreen::TtlSubmenu => menus::ttl_menu::render(app),
     }
 }
 
@@ -183,6 +186,11 @@ fn help_text(app: &AppState) -> String {
         ActiveScreen::AutotunePresetSelectionSubmenu => rust_i18n::t!("help_autotune_presets").to_string(),
         ActiveScreen::AutotuneStrategiesSubmenu => rust_i18n::t!("help_autotune_strat").to_string(),
         ActiveScreen::AutotuneResultsSubmenu => rust_i18n::t!("help_autotune_results").to_string(),
+        ActiveScreen::TtlSubmenu => match app.ttl_menu {
+            crate::state::TtlMenuState::SetValue => rust_i18n::t!("help_ttl_value").to_string(),
+            crate::state::TtlMenuState::Autopick => rust_i18n::t!("help_ttl_autopick").to_string(),
+            _ => rust_i18n::t!("help_ttl").to_string(),
+        },
     }
 }
 
@@ -203,7 +211,7 @@ fn service_type_str() -> String {
     }
 }
 
-pub fn draw(f: &mut Frame, app: &AppState) {
+pub fn draw(f: &mut Frame, app: &mut AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(3)
@@ -224,6 +232,53 @@ pub fn draw(f: &mut Frame, app: &AppState) {
 
     f.render_widget(title, chunks[0]);
 
+    // The report owns the middle band: it is tables, not rows, and it scrolls
+    // by a pixel rather than by a selection.
+    if app.active_screen == ActiveScreen::AutotuneResultsSubmenu {
+        if let Some(ref results) = app.autotune_results {
+            views::report::render(
+                f,
+                chunks[1],
+                results,
+                app.autotune_report_tab,
+                &mut app.autotune_results_index,
+            );
+        } else {
+            draw_list(f, app, chunks[1]);
+        }
+    } else {
+        draw_list(f, app, chunks[1]);
+    }
+
+    let dynamic_help = help_text(app);
+
+    let help_text = if let Some(ref msg) = app.status_message {
+        msg.clone()
+    } else {
+        dynamic_help
+    };
+
+    let help_block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Theme::dim_item());
+
+    let help = Paragraph::new(Span::styled(
+        help_text,
+        Style::default().fg(if app.status_message.is_some() {
+            Color::Cyan
+        } else {
+            Color::Gray
+        }),
+    ))
+    .alignment(Alignment::Center)
+    .block(help_block);
+
+    f.render_widget(help, chunks[2]);
+}
+
+/// The menu pipeline every screen but the report goes through.
+fn draw_list(f: &mut Frame, app: &AppState, area: Rect) {
     let (items, block_title, selected_index) = menu_items(app);
 
     let list_block = Block::default()
@@ -233,13 +288,13 @@ pub fn draw(f: &mut Frame, app: &AppState) {
         .border_style(Theme::dim_item());
 
     if shows_status_lines(app.active_screen) {
-        let inner_area = list_block.inner(chunks[1]);
+        let inner_area = list_block.inner(area);
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(1), Constraint::Length(1), Constraint::Length(1)])
             .split(inner_area);
 
-        f.render_widget(list_block, chunks[1]);
+        f.render_widget(list_block, area);
 
         let list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::ITALIC));
         let mut list_state = ratatui::widgets::ListState::default();
@@ -286,8 +341,8 @@ pub fn draw(f: &mut Frame, app: &AppState) {
 
         f.render_widget(status_paragraph, main_chunks[2]);
     } else if app.active_screen == ActiveScreen::AutotuneSubmenu && !app.autotune_running {
-        f.render_widget(&list_block, chunks[1]);
-        let inner = list_block.inner(chunks[1]);
+        f.render_widget(&list_block, area);
+        let inner = list_block.inner(area);
         let sub = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Length(1), Constraint::Min(1)])
@@ -310,32 +365,6 @@ pub fn draw(f: &mut Frame, app: &AppState) {
         let mut list_state = ratatui::widgets::ListState::default();
         list_state.select(Some(selected_index));
 
-        f.render_stateful_widget(list, chunks[1], &mut list_state);
+        f.render_stateful_widget(list, area, &mut list_state);
     }
-
-    let dynamic_help = help_text(app);
-
-    let help_text = if let Some(ref msg) = app.status_message {
-        msg.clone()
-    } else {
-        dynamic_help
-    };
-
-    let help_block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Theme::dim_item());
-
-    let help = Paragraph::new(Span::styled(
-        help_text,
-        Style::default().fg(if app.status_message.is_some() {
-            Color::Cyan
-        } else {
-            Color::Gray
-        }),
-    ))
-    .alignment(Alignment::Center)
-    .block(help_block);
-
-    f.render_widget(help, chunks[2]);
 }

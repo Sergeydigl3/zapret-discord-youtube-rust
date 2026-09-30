@@ -1,4 +1,10 @@
-//! The TUI session: draw a frame, take a key, react, run any pending task.
+//! The TUI session: draw a frame, take a key, react, run any pending job.
+//!
+//! The loop has two modes. Normally it draws a menu and dispatches keys. While a
+//! sweep is in flight it draws the sweep's own screen instead and reads only the
+//! cancel key — but it still repaints on the same 50 ms tick, which is the point:
+//! the bar, the spinner and the elapsed clock keep moving whether or not the
+//! sweep has anything new to say.
 
 use crossterm::event::{Event, KeyCode, KeyEventKind};
 use crossterm::execute;
@@ -10,9 +16,16 @@ use std::sync::mpsc::RecvTimeoutError;
 
 use crate::draw::draw;
 use crate::event::{drain_events, EventReader};
+use crate::jobs::{start_autotune, start_ttl, JobOutcome};
 use crate::state::actions;
-use crate::state::AppState;
+use crate::state::{ActiveScreen, AppState};
 use crate::tasks;
+
+/// How long one frame waits for a key before repainting anyway.
+const TICK: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// How far PageUp / PageDown move the autotune report.
+const PAGE: usize = 10;
 
 pub fn run_tui(app: &mut AppState, reader: &EventReader) -> Result<(), io::Error> {
     let rx = reader.rx();
@@ -26,49 +39,38 @@ pub fn run_tui(app: &mut AppState, reader: &EventReader) -> Result<(), io::Error
     drain_events(rx);
 
     loop {
-        terminal.draw(|f| draw(f, app))?;
-
-        match rx.recv_timeout(std::time::Duration::from_millis(50)) {
-            Ok(Event::Key(key)) => {
-                if key.kind == KeyEventKind::Press {
-                    handle_key(app, key.code);
+        if app.job.is_some() {
+            if let Some(job) = app.job.as_ref() {
+                terminal.draw(|f| job.render(f))?;
+            }
+            if let Ok(Event::Key(key)) = rx.recv_timeout(TICK) {
+                if key.kind == KeyEventKind::Press && is_cancel(key.code) {
+                    if let Some(job) = app.job.as_ref() {
+                        job.request_cancel();
+                    }
                 }
             }
-            Ok(_) => {}
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => {
-                // The reader is immortal (see spawn_event_reader), so this
-                // should never happen while the TUI is active.
+            if app.job.as_ref().is_some_and(|j| j.is_finished()) {
+                finish_job(app);
             }
-        }
+        } else {
+            terminal.draw(|f| draw(f, app))?;
 
-        if app.should_download_zapret {
-            app.should_download_zapret = false;
-            tasks::download::download_zapret(app, &mut terminal, rx)?;
-        }
+            match rx.recv_timeout(TICK) {
+                Ok(Event::Key(key)) => {
+                    if key.kind == KeyEventKind::Press {
+                        handle_key(app, key.code);
+                    }
+                }
+                Ok(_) => {}
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => {
+                    // The reader is immortal (see spawn_event_reader), so this
+                    // should never happen while the TUI is active.
+                }
+            }
 
-        if app.should_download_strategies {
-            app.should_download_strategies = false;
-            tasks::download::download_strategies(app, &mut terminal, rx)?;
-        }
-
-        if app.should_download_defaults {
-            app.should_download_defaults = false;
-            tasks::download::download_defaults(app, &mut terminal, rx)?;
-        }
-
-        if let Some(file_path) = app.should_open_editor.take() {
-            tasks::edit::open_in_editor(app, &file_path, &mut terminal, rx, reader)?;
-        }
-
-        if app.should_run_autotune {
-            app.should_run_autotune = false;
-            tasks::autotune::run_autotune(app, &mut terminal, rx)?;
-        }
-
-        if app.should_run_ttl {
-            app.should_run_ttl = false;
-            tasks::ttl_run::run_ttl_autopick(app, &mut terminal, rx)?;
+            dispatch(app, &mut terminal, rx, reader)?;
         }
 
         if app.should_run || app.should_quit {
@@ -79,6 +81,87 @@ pub fn run_tui(app: &mut AppState, reader: &EventReader) -> Result<(), io::Error
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
+    Ok(())
+}
+
+/// The keys that mean "stop", on a sweep screen. `q` and Esc, like everywhere
+/// else; nothing else is read while a job owns the screen.
+fn is_cancel(code: KeyCode) -> bool {
+    matches!(code, KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc)
+}
+
+/// Apply what a finished sweep left behind, and get out of its way.
+fn finish_job(app: &mut AppState) {
+    let Some(outcome) = app.job.as_mut().and_then(|j| j.take_outcome()) else {
+        return;
+    };
+    app.job = None;
+
+    match outcome {
+        JobOutcome::Autotune(results, cancelled) => {
+            app.autotune_results = Some(*results);
+            app.has_autotune_results_file = true;
+            app.dpi_desync_ttl = zapret_wrapper::config::load_ttl();
+            app.autotune_results_index = 0;
+            app.autotune_report_tab = crate::state::AutotuneReportTab::Summary;
+            app.active_screen = ActiveScreen::AutotuneResultsSubmenu;
+            app.status_message = Some(if cancelled {
+                rust_i18n::t!("autotune_cancelled").into_owned()
+            } else {
+                rust_i18n::t!("autotune_done").into_owned()
+            });
+        }
+        JobOutcome::Ttl(Ok(ttl)) => {
+            let _ = zapret_wrapper::config::save_ttl(Some(ttl));
+            app.dpi_desync_ttl = Some(ttl);
+            app.active_screen = ActiveScreen::Main;
+            app.status_message = Some(rust_i18n::t!("ttl_found").replace("{}", &ttl.to_string()));
+        }
+        JobOutcome::Ttl(Err(e)) => {
+            app.active_screen = ActiveScreen::TtlSubmenu;
+            app.show_error(e);
+        }
+    }
+    app.autotune_running = false;
+}
+
+/// Start whatever the `should_*` flags are asking for.
+fn dispatch(
+    app: &mut AppState,
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    rx: &std::sync::mpsc::Receiver<Event>,
+    reader: &EventReader,
+) -> Result<(), io::Error> {
+    if app.should_download_zapret {
+        app.should_download_zapret = false;
+        tasks::download::download_zapret(app, terminal, rx)?;
+    }
+
+    if app.should_download_strategies {
+        app.should_download_strategies = false;
+        tasks::download::download_strategies(app, terminal, rx)?;
+    }
+
+    if app.should_download_defaults {
+        app.should_download_defaults = false;
+        tasks::download::download_defaults(app, terminal, rx)?;
+    }
+
+    if let Some(file_path) = app.should_open_editor.take() {
+        tasks::edit::open_in_editor(app, &file_path, terminal, rx, reader)?;
+    }
+
+    if app.should_run_autotune {
+        app.should_run_autotune = false;
+        app.autotune_running = true;
+        app.job = Some(start_autotune(app));
+    }
+
+    if app.should_run_ttl {
+        app.should_run_ttl = false;
+        app.job = Some(start_ttl(app));
+    }
+
     Ok(())
 }
 
@@ -114,36 +197,13 @@ fn handle_key(app: &mut AppState, code: KeyCode) {
     match code {
         KeyCode::Up | KeyCode::Char('k') => app.prev_menu(),
         KeyCode::Down | KeyCode::Char('j') => app.next_menu(),
-        KeyCode::Left | KeyCode::Char('h') => {
-            if app.is_ttl_autopick_selected() {
-                app.change_ttl(false);
-            } else {
-                actions::on_cycle(app, false);
-            }
-        }
-        KeyCode::Right | KeyCode::Char('l') => {
-            if app.is_ttl_autopick_selected() {
-                app.change_ttl(true);
-            } else {
-                actions::on_cycle(app, true);
-            }
-        }
-        KeyCode::Enter => {
-            if app.is_ttl_autopick_selected() {
-                if app.check_dependencies() {
-                    app.should_run_ttl = true;
-                }
-            } else {
-                actions::on_cycle(app, true);
-            }
-        }
-        KeyCode::Char(' ') => {
-            if app.is_ttl_autopick_selected() {
-                app.change_ttl(true);
-            } else {
-                actions::on_cycle(app, true);
-            }
-        }
+        KeyCode::PageUp if app.active_screen == ActiveScreen::AutotuneResultsSubmenu => app.scroll_report(false, PAGE),
+        KeyCode::PageDown if app.active_screen == ActiveScreen::AutotuneResultsSubmenu => app.scroll_report(true, PAGE),
+        KeyCode::Tab if app.active_screen == ActiveScreen::AutotuneResultsSubmenu => app.switch_report_tab(true),
+        KeyCode::BackTab if app.active_screen == ActiveScreen::AutotuneResultsSubmenu => app.switch_report_tab(false),
+        KeyCode::Left | KeyCode::Char('h') => actions::on_cycle(app, false),
+        KeyCode::Right | KeyCode::Char('l') => actions::on_cycle(app, true),
+        KeyCode::Enter | KeyCode::Char(' ') => actions::on_cycle(app, true),
         KeyCode::Char('q') | KeyCode::Esc => actions::on_back(app),
         _ => {}
     }

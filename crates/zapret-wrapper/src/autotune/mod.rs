@@ -11,6 +11,7 @@
 //!   probe             raw reachability: the curl transports (HTTP, TLS, QUIC)
 //!   checks_network    what the network is blocking right now (DNS, RST, SNI, ...)
 //!   checks_domain     per-domain reachability through and without the tunnel
+//!   progress          the event stream the sweep reports through
 //!   orchestrator      the sweep itself: strategy x domain x protocol
 //!   storage           the results file
 //! ```
@@ -30,11 +31,13 @@ mod probe;
 mod quic;
 
 pub mod orchestrator;
+pub mod progress;
 pub mod storage;
 pub mod types;
 
 pub use checks_domain::domain_check_error;
 pub use orchestrator::run_all;
+pub use progress::{LogLevel, SweepEvent};
 pub use storage::{load_results_file, save_results_file, RESULTS_FILE};
 pub use types::{
     status_char, status_str_file, AutotuneConfig, AutotuneResults, BlockCheckType, BlockChecks, CheckResult,

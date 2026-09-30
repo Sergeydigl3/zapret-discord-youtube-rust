@@ -14,8 +14,9 @@ use zapret_wrapper::fakes::FakesState;
 use zapret_wrapper::lists::IpsetMode;
 
 pub use screens::{
-    ActiveScreen, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState, DownloadDepsMenuState,
-    DownloadSubmenuState, FakesMenuState, FakesSelectTarget, GamefilterMenuState, MainMenuState, VersionTarget,
+    ActiveScreen, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState, AutotuneReportTab,
+    DownloadDepsMenuState, DownloadSubmenuState, FakesMenuState, FakesSelectTarget, GamefilterMenuState, MainMenuState,
+    TtlMenuState, VersionTarget,
 };
 
 #[cfg(target_os = "windows")]
@@ -95,12 +96,18 @@ pub struct AppState {
     pub autotune_preset_index: usize,
     pub autotune_strat_index: usize,
     pub autotune_results_index: usize,
+    pub autotune_report_tab: AutotuneReportTab,
     pub should_run_autotune: bool,
     pub autotune_running: bool,
     pub autotune_request_editing: bool,
     pub autotune_request_buf: String,
     pub should_run_ttl: bool,
     pub dpi_desync_ttl: Option<u8>,
+    pub ttl_menu: TtlMenuState,
+
+    /// The sweep in flight, if any. While this is set the frame loop paints it
+    /// instead of the menus and only reads the cancel key.
+    pub job: Option<crate::jobs::Job>,
 }
 
 impl AppState {
@@ -227,12 +234,15 @@ impl AppState {
             autotune_preset_index: 0,
             autotune_strat_index: 0,
             autotune_results_index: 0,
+            autotune_report_tab: AutotuneReportTab::Summary,
             should_run_autotune: false,
             autotune_running: false,
             autotune_request_editing: false,
             autotune_request_buf: String::new(),
             should_run_ttl: false,
             dpi_desync_ttl: config::load_ttl(),
+            ttl_menu: TtlMenuState::DontTouch,
+            job: None,
         };
         app.refresh_service_status();
         app
@@ -278,6 +288,22 @@ impl AppState {
         #[cfg(target_os = "windows")]
         {
             &zapret_core::firewall::windivert::WinDivertBackend
+        }
+    }
+
+    /// An owned backend, for a sweep that runs on its own thread.
+    ///
+    /// [`Self::firewall_backend`] borrows `self`, and a worker thread cannot
+    /// borrow the app. Every backend is a unit struct or a fieldless enum, so
+    /// boxing a copy costs nothing and crosses the thread boundary.
+    pub fn owned_backend(&self) -> Box<dyn zapret_core::firewall::FirewallBackend> {
+        #[cfg(target_os = "linux")]
+        {
+            Box::new(self.selected_backend)
+        }
+        #[cfg(target_os = "windows")]
+        {
+            Box::new(zapret_core::firewall::windivert::WinDivertBackend)
         }
     }
 
@@ -336,57 +362,9 @@ impl AppState {
         }
     }
 
-    /// Cycle the fixed TTL value with the left/right arrows (0 = off/autottl).
-    pub fn change_ttl(&mut self, forward: bool) {
-        let len = domains::ttl::TTL_MAX as i32 + 1;
-        let current = self.dpi_desync_ttl.map_or(0, |v| v as i32);
-        let new = if forward {
-            (current + 1) % len
-        } else {
-            (current + len - 1) % len
-        };
-        self.dpi_desync_ttl = if new == 0 { None } else { Some(new as u8) };
-        let _ = config::save_ttl(self.dpi_desync_ttl);
-    }
-
     pub(crate) fn toggle_block_check(&mut self, index: usize) {
         let mut bc = self.autotune_config.block_checks.clone();
         bc.set(index, !bc.get(index));
         self.autotune_config.block_checks = bc;
-    }
-
-    /// Number of navigable rows in the autotune results screen.
-    pub(crate) fn count_results_items(&self) -> usize {
-        if let Some(ref results) = self.autotune_results {
-            let mut n = 10; // header + 6 net checks + blank
-            for pr in &results.preset_results {
-                n += 1; // preset header
-                n += pr.domain_checks.len();
-                if !pr.strategy_results.is_empty() {
-                    n += 1; // strategy header
-                    for sr in &pr.strategy_results {
-                        n += 1; // strategy name line
-                        n += sr.domain_checks.len();
-                    }
-                    let working_count = pr.strategy_results.iter().filter(|s| s.works).count();
-                    if working_count > 0 {
-                        n += 1; // working summary header
-                        n += working_count;
-                    }
-                }
-                n += 1; // blank
-            }
-            if !results.common_strategies.is_empty() {
-                n += 1; // common strategies header
-                n += results.common_strategies.len();
-                n += 1; // blank
-            }
-            n += 1; // back
-            n
-        } else if let Some(cached) = zapret_wrapper::autotune::load_results_file() {
-            cached.lines().count() + 1 // lines + back
-        } else {
-            2 // "no data" line + back
-        }
     }
 }

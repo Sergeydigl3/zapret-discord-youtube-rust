@@ -195,7 +195,18 @@ impl LaunchPlan {
     /// Used by the sweeps, which run dozens of launches in a row and report
     /// their own progress. A firewall that refuses the rules is fatal here,
     /// because a strategy test measured against no rules proves nothing.
-    pub fn launch_quiet(&self, interface: &str, backend: &dyn FirewallBackend) -> Result<LaunchOutcome, LaunchError> {
+    ///
+    /// The daemon's output still goes to `capture` rather than to the null
+    /// device, and the file is left in place: when winws rejects an argument it
+    /// says so and exits, and that one line is the only explanation a sweep ever
+    /// gets. There is no sleep here, so the caller reads the file later — after
+    /// whatever wait it does anyway.
+    pub fn launch_quiet(
+        &self,
+        interface: &str,
+        backend: &dyn FirewallBackend,
+        capture: &Path,
+    ) -> Result<LaunchOutcome, LaunchError> {
         backend
             .setup(&self.tcp_ports, &self.udp_ports, interface)
             .map_err(LaunchError::Firewall)?;
@@ -208,12 +219,21 @@ impl LaunchPlan {
 
         let _ = crate::process::set_cap(&self.binary);
 
+        if let Some(parent) = capture.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let output_file =
+            fs::File::create(capture).map_err(|e| LaunchError::CaptureFile(capture.to_path_buf(), e.to_string()))?;
+        let err_dup = output_file
+            .try_clone()
+            .map_err(|e| LaunchError::CaptureFile(capture.to_path_buf(), e.to_string()))?;
+
         let child = Command::new(&self.binary)
             .args(&self.args)
             .current_dir(&self.work_dir)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stdout(output_file)
+            .stderr(err_dup)
             .spawn()
             .map_err(|e| LaunchError::Spawn(e.to_string()))?;
 

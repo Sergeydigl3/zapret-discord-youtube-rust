@@ -252,11 +252,9 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
         if is_sel {
             selected_index = index;
         }
-        let ttl = app.dpi_desync_ttl;
-        let val = match ttl {
-            Some(n) => n.to_string(),
-            None => rust_i18n::t!("ttl_auto").into_owned(),
-        };
+        // No arrows here any more: the row opens a submenu where "leave it
+        // alone", "set it to a number" and "go and find one" are three separate
+        // decisions instead of three gestures on one control.
         let spans = vec![
             Span::styled(
                 format!(" {}: ", rust_i18n::t!("menu_main_ttl")),
@@ -267,7 +265,7 @@ pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
                 },
             ),
             Span::styled(
-                format!("< {} >", val),
+                crate::menus::ttl_menu::current_label(app),
                 if is_sel {
                     Theme::selected_value()
                 } else {

@@ -12,3 +12,4 @@ zapret-wrapper = { path = "../zapret-wrapper" }
 ratatui = "0.26.1"
 crossterm = "0.27.0"
 rust-i18n = "4.1.0"
+unicode-width = "0.1"
