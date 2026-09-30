@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use super::cancel::{is_cancelled, reset_cancel};
+use super::progress::{LogLevel, Reporter, SweepEvent};
 use crate::domains::{get_domains_for_preset, PRESETS};
 use zapret_core::firewall::FirewallBackend;
 
@@ -9,7 +10,8 @@ use super::checks_network::run_network_checks;
 use super::probe::{test_http, test_quic, test_tls};
 use super::storage::{restore_ipset, save_ipset, save_results_file, set_ipset_any};
 use super::types::{
-    AutotuneConfig, AutotuneResults, DomainCheckResult, DomainProtocolCheck, PresetResult, StrategyCheckResult,
+    AutotuneConfig, AutotuneResults, BlockCheckType, CheckStatus, DomainCheckResult, DomainProtocolCheck, PresetResult,
+    StrategyCheckResult,
 };
 
 /// The strategies the sweep will test, as (display name, file name).
@@ -65,20 +67,35 @@ impl Drop for TtlGuard {
     }
 }
 
+/// Keeps the firewall backends quiet for the length of the sweep.
+///
+/// The caller repaints the whole screen on every step, so a notice the backends
+/// print between two frames lands on the last frame and is not erased until
+/// some later step happens to come along.
+type QuietGuard = zapret_core::firewall::QuietGuard;
+
+/// Sweep strategy x domain x protocol and report every step through `on_event`.
+///
+/// The callback returns `false` to abort; whatever it has collected so far
+/// comes back as a partial result, with the sweep's own cleanup (daemon, ipset,
+/// TTL) already done.
 pub fn run_all(
     config: &AutotuneConfig,
-    progress: &dyn Fn(usize, usize) -> bool,
+    on_event: &mut dyn FnMut(SweepEvent) -> bool,
     backend: &dyn FirewallBackend,
     interface: &str,
 ) -> AutotuneResults {
     reset_cancel();
     let start_instant = std::time::Instant::now();
+    // The sweep paints its own progress, so nothing underneath it may print.
+    let _quiet_guard = QuietGuard::new();
     // Temporarily set TTL to auto (None) during autotune, restoring original TTL on exit
     let original_ttl = crate::config::load_ttl();
     let _ttl_guard = TtlGuard { original_ttl };
     let _ = crate::config::save_ttl(None);
 
     // Run network checks once (shared across all presets)
+    on_event(SweepEvent::Phase(rust_i18n::t!("autotune_phase_net").into_owned()));
     let block_results = run_network_checks(&config.block_checks);
     let net_check_count = config.block_checks.count_enabled();
 
@@ -101,20 +118,42 @@ pub fn run_all(
         total += baseline_steps + strat_steps;
     }
 
+    let mut report = Reporter::new(on_event, total);
     let mut done = 0;
+
+    // Everything a cancelled sweep still owes the caller: the checks that
+    // finished, the presets that finished, and how long it took.
+    let partial = |preset_results: Vec<PresetResult>| AutotuneResults {
+        block_results: block_results.clone(),
+        preset_results,
+        common_strategies: Vec::new(),
+        elapsed_secs: start_instant.elapsed().as_secs(),
+    };
 
     // === Network checks ===
     for _result in block_results.iter() {
         done += 1;
-        if !progress(done, total) {
-            println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
-            return AutotuneResults {
-                block_results,
-                preset_results: Vec::new(),
-                common_strategies: Vec::new(),
-                elapsed_secs: start_instant.elapsed().as_secs(),
-            };
+        if !report.step(done) {
+            report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
+            return partial(Vec::new());
         }
+    }
+
+    // What the network is doing, in one line: the log is empty for a minute
+    // otherwise, and this is the first thing the result depends on.
+    let detected: Vec<&str> = BlockCheckType::all()
+        .iter()
+        .zip(&block_results)
+        .filter(|(_, r)| r.status == CheckStatus::Fail)
+        .map(|(kind, _)| kind.name())
+        .collect();
+    if detected.is_empty() {
+        report.log(LogLevel::Good, rust_i18n::t!("autotune_log_net_clean"));
+    } else {
+        report.log(
+            LogLevel::Bad,
+            rust_i18n::t!("autotune_log_net_blocked").replace("{}", &detected.join(", ")),
+        );
     }
 
     let mut preset_results: Vec<PresetResult> = Vec::new();
@@ -123,6 +162,7 @@ pub fn run_all(
     // Save ipset once for all presets
     let saved_ipset = save_ipset();
     set_ipset_any();
+    report.log(LogLevel::Info, rust_i18n::t!("autotune_ipset_any"));
 
     for &preset_idx in config.preset_indices.iter() {
         let domains = get_domains_for_preset(preset_idx);
@@ -132,11 +172,7 @@ pub fn run_all(
             "Custom".to_string()
         };
 
-        println!(
-            "\n--- {} [{}] ---",
-            rust_i18n::t!("autotune_domain_results"),
-            preset_name
-        );
+        report.phase(rust_i18n::t!("autotune_phase_baseline").replace("{}", &preset_name));
 
         // === Per-domain protocol checks (without any strategy) ===
         let mut domain_checks = Vec::with_capacity(domains.len());
@@ -149,17 +185,12 @@ pub fn run_all(
         for handle in handles {
             domain_checks.push(handle.join().unwrap_or_else(|_| domain_check_error()));
             done += 1 + proto_steps;
-            if !progress(done, total) {
-                println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+            if !report.step(done) {
+                report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
                 if let Some(ref saved) = saved_ipset {
                     restore_ipset(saved);
                 }
-                return AutotuneResults {
-                    block_results,
-                    preset_results,
-                    common_strategies: Vec::new(),
-                    elapsed_secs: start_instant.elapsed().as_secs(),
-                };
+                return partial(preset_results);
             }
         }
 
@@ -170,49 +201,58 @@ pub fn run_all(
             .map(|dc| dc.domain.clone())
             .collect();
 
+        report.log(
+            if blocked_domains.is_empty() {
+                LogLevel::Good
+            } else {
+                LogLevel::Info
+            },
+            rust_i18n::t!("autotune_log_preset")
+                .replace("{name}", &preset_name)
+                .replace("{blocked}", &blocked_domains.len().to_string())
+                .replace("{total}", &domains.len().to_string()),
+        );
+
         // === Strategy testing with real nfqws ===
         let mut strategy_results: Vec<StrategyCheckResult> = Vec::new();
         let mut working_names: std::collections::HashSet<String> = std::collections::HashSet::new();
 
         if !loaded.is_empty() && !blocked_domains.is_empty() {
             for (strat_name, strat_file) in &loaded {
-                println!("  {} {}", rust_i18n::t!("autotune_testing"), strat_name);
+                report.phase(rust_i18n::t!("autotune_testing").replace("{}", strat_name));
 
                 let started = {
                     let req = crate::plan::RunRequest::new(strat_file, interface, false, false);
-                    crate::run::run_quiet(&req, backend)
+                    crate::run::run_quiet(&req, backend, &crate::paths::nfqws_output_log())
                 };
                 done += 1;
-                if !progress(done, total) {
-                    println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
-                    crate::run::stop(backend);
+                if !report.step(done) {
+                    report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
+                    crate::run::stop_quiet(backend);
                     if let Some(ref saved) = saved_ipset {
                         restore_ipset(saved);
                     }
-                    return AutotuneResults {
-                        block_results,
-                        preset_results,
-                        common_strategies: Vec::new(),
-                        elapsed_secs: start_instant.elapsed().as_secs(),
-                    };
+                    return partial(preset_results);
                 }
 
                 if let Err(e) = started {
-                    println!("    {} {}: {}", rust_i18n::t!("status_failed"), strat_name, e);
+                    report.log(
+                        LogLevel::Bad,
+                        format!(
+                            "{}: {}",
+                            strat_name,
+                            rust_i18n::t!("autotune_log_start_failed").replace("{}", &e)
+                        ),
+                    );
                     strategy_results.push(StrategyCheckResult::failed(strat_name, &blocked_domains));
                     for _ in 0..domains.len() {
                         done += 1;
-                        if !progress(done, total) {
-                            println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                        if !report.step(done) {
+                            report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
                             if let Some(ref saved) = saved_ipset {
                                 restore_ipset(saved);
                             }
-                            return AutotuneResults {
-                                block_results,
-                                preset_results,
-                                common_strategies: Vec::new(),
-                                elapsed_secs: start_instant.elapsed().as_secs(),
-                            };
+                            return partial(preset_results);
                         }
                     }
                     continue;
@@ -221,26 +261,20 @@ pub fn run_all(
                 let nfqws_alive = wait_for_nfqws(Duration::from_secs(3));
 
                 if !nfqws_alive {
-                    println!(
-                        "    {} {} (nfqws exited early)",
-                        rust_i18n::t!("status_failed"),
-                        strat_name
+                    report.log(
+                        LogLevel::Bad,
+                        format!("{}: {}", strat_name, rust_i18n::t!("autotune_log_nfqws_early")),
                     );
                     strategy_results.push(StrategyCheckResult::failed(strat_name, &blocked_domains));
-                    crate::run::stop(backend);
+                    crate::run::stop_quiet(backend);
                     for _ in 0..domains.len() {
                         done += 1;
-                        if !progress(done, total) {
-                            println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                        if !report.step(done) {
+                            report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
                             if let Some(ref saved) = saved_ipset {
                                 restore_ipset(saved);
                             }
-                            return AutotuneResults {
-                                block_results,
-                                preset_results,
-                                common_strategies: Vec::new(),
-                                elapsed_secs: start_instant.elapsed().as_secs(),
-                            };
+                            return partial(preset_results);
                         }
                     }
                     continue;
@@ -310,18 +344,13 @@ pub fn run_all(
                         quic: quic_ok,
                     });
                     done += 1;
-                    if !progress(done, total) {
-                        println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
-                        crate::run::stop(backend);
+                    if !report.step(done) {
+                        report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
+                        crate::run::stop_quiet(backend);
                         if let Some(ref saved) = saved_ipset {
                             restore_ipset(saved);
                         }
-                        return AutotuneResults {
-                            block_results,
-                            preset_results,
-                            common_strategies: Vec::new(),
-                            elapsed_secs: start_instant.elapsed().as_secs(),
-                        };
+                        return partial(preset_results);
                     }
                 }
 
@@ -329,18 +358,13 @@ pub fn run_all(
                 let unblocked_count = domains.len().saturating_sub(blocked_domains.len());
                 for _ in 0..unblocked_count {
                     done += 1;
-                    if !progress(done, total) {
-                        println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
-                        crate::run::stop(backend);
+                    if !report.step(done) {
+                        report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
+                        crate::run::stop_quiet(backend);
                         if let Some(ref saved) = saved_ipset {
                             restore_ipset(saved);
                         }
-                        return AutotuneResults {
-                            block_results,
-                            preset_results,
-                            common_strategies: Vec::new(),
-                            elapsed_secs: start_instant.elapsed().as_secs(),
-                        };
+                        return partial(preset_results);
                     }
                 }
 
@@ -358,12 +382,29 @@ pub fn run_all(
                     protocols_working.push("QUIC".to_string());
                 }
 
-                crate::run::stop(backend);
+                crate::run::stop_quiet(backend);
 
                 let works = pass.len() >= blocked_domains.len() / 2;
                 if works {
                     working_names.insert(strat_name.clone());
                 }
+
+                // One line per strategy is the heartbeat of a sweep that can run
+                // for ten minutes, and it is the only place the per-strategy
+                // verdict shows up before the report opens. The name is left out
+                // because the phase line right above it already said which
+                // strategy this is.
+                let over = if protocols_working.is_empty() {
+                    rust_i18n::t!("atv_none").to_string()
+                } else {
+                    protocols_working.join(" ")
+                };
+                let summary = rust_i18n::t!("autotune_log_strategy")
+                    .replace("{score}", &pass.len().to_string())
+                    .replace("{total}", &blocked_domains.len().to_string())
+                    .replace("{}", &over);
+                report.log(if works { LogLevel::Good } else { LogLevel::Bad }, summary);
+
                 strategy_results.push(StrategyCheckResult {
                     strategy_name: strat_name.clone(),
                     domains_pass: pass,
@@ -374,33 +415,27 @@ pub fn run_all(
                 });
             }
         } else if !loaded.is_empty() && blocked_domains.is_empty() {
+            report.log(
+                LogLevel::Good,
+                rust_i18n::t!("autotune_nothing_blocked").replace("{}", &preset_name),
+            );
             for (strat_name, _) in &loaded {
                 done += 1;
-                if !progress(done, total) {
-                    println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                if !report.step(done) {
+                    report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
                     if let Some(ref saved) = saved_ipset {
                         restore_ipset(saved);
                     }
-                    return AutotuneResults {
-                        block_results,
-                        preset_results,
-                        common_strategies: Vec::new(),
-                        elapsed_secs: start_instant.elapsed().as_secs(),
-                    };
+                    return partial(preset_results);
                 }
                 for _ in &domains {
                     done += 1;
-                    if !progress(done, total) {
-                        println!("\n  {}", rust_i18n::t!("autotune_cancelled"));
+                    if !report.step(done) {
+                        report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
                         if let Some(ref saved) = saved_ipset {
                             restore_ipset(saved);
                         }
-                        return AutotuneResults {
-                            block_results,
-                            preset_results,
-                            common_strategies: Vec::new(),
-                            elapsed_secs: start_instant.elapsed().as_secs(),
-                        };
+                        return partial(preset_results);
                     }
                 }
                 working_names.insert(strat_name.clone());
@@ -466,7 +501,7 @@ pub fn run_all(
     // Restore original ipset
     if let Some(ref saved) = saved_ipset {
         restore_ipset(saved);
-        println!("  {}", rust_i18n::t!("autotune_ipset_restored"));
+        report.log(LogLevel::Good, rust_i18n::t!("autotune_ipset_restored"));
     }
 
     let results = AutotuneResults {
@@ -476,6 +511,12 @@ pub fn run_all(
         elapsed_secs: start_instant.elapsed().as_secs(),
     };
 
-    save_results_file(&results);
+    match save_results_file(&results) {
+        Ok(path) => report.log(
+            LogLevel::Info,
+            rust_i18n::t!("autotune_saving_results").replace("{}", &path),
+        ),
+        Err(e) => report.log(LogLevel::Bad, e),
+    }
     results
 }

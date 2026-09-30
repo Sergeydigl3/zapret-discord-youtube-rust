@@ -181,7 +181,7 @@ key ──▶ session::handle_key ──▶ state::actions::{on_activate, on_cyc
                                    └──▶ actions::<screen>   one file per screen
 
 a screen that starts a long job only raises a should_* flag on AppState;
-session then runs tasks::<job>, which takes the terminal over and gives it back.
+session then runs tasks::<job>.
 ```
 
 | Module | Owns |
@@ -189,11 +189,13 @@ session then runs tasks::<job>, which takes the terminal over and gives it back.
 | `event` | The one console reader thread for the process, plus draining it and waiting for a key |
 | `screen` | Raw mode, the alternate screen, and handing the terminal to a child program |
 | `draw` | One frame. Pure rendering |
-| `session` | The frame loop and the key dispatch |
+| `views` | The screens that own their whole area: a sweep's progress bar, and the report's short and long forms |
+| `session` | The frame loop and the key dispatch. Two modes: menus, or a running job |
+| `jobs` | A sweep on a worker thread, and the cancel flag the UI sets on it |
 | `state` | `AppState` — data, the refreshes, and the screens in `state::screens` |
 | `state::actions` | One handler per screen. `actions/mod.rs` only routes |
 | `menus` | The rows each screen draws. No logic |
-| `tasks` | The jobs that take the terminal over: downloads, the editor, autotune, the TTL sweep |
+| `tasks` | The jobs that hand the terminal to a child program: downloads and the editor |
 | `editor` | Choosing an editor from `$EDITOR` and falling back |
 
 The TUI depends on all three libraries: `zapret-core` for the firewall backend
@@ -202,7 +204,42 @@ the downloads. The only thing it takes from `zapret-core` is `firewall`; if a
 second `zapret-core` import appears, the code probably belongs in the wrapper.
 
 Adding a screen means four edits: a variant in `state::screens`, a handler in
-`state::actions`, a render branch in `draw`, and a menu module.
+`state::actions`, a render branch in `draw`, and a menu module. A screen that is
+a table or a bar rather than a list of rows skips the last two and gets a
+`views` module instead.
+
+### Three kinds of job
+
+`tasks` and `jobs` split on where the work runs, and the split is about the
+terminal:
+
+- A job that runs a **child program** — a download, `$EDITOR` — hands the
+  terminal over (`screen::begin_external_output`), lets the child and its own
+  `println!` own the console, and takes it back afterwards. These live in
+  `tasks`.
+- A job that runs **in-process work** — the autotune sweep, the TTL sweep —
+  keeps the terminal and paints frames, and it runs on **its own thread**
+  (`jobs::Job`). The frame loop keeps repainting on its 50 ms tick and reads
+  only the cancel key, so the bar, the spinner and the elapsed clock keep
+  moving through a step that takes thirty seconds. A sweep that blocked the
+  loop's thread would freeze exactly when it has the most to say.
+- Everything else is a menu.
+
+A sweep on a worker thread cannot print, which is the other half of why it does
+not: it reports through an event callback (`autotune::SweepEvent`,
+`domains::TtlEvent`), and the wrapper helpers it calls have quiet modes —
+`run_quiet` / `stop_quiet`, and `firewall::QuietGuard` for the backends whose
+`setup` / `clear` notices would otherwise land between two frames.
+
+The rules that fall out:
+
+- **Inside the TUI, nothing prints to stdout.**
+- `FirewallBackend: Send + Sync`, because a backend reference crosses into the
+  worker thread. Every backend is a unit struct or a fieldless enum, so this
+  costs nothing.
+- The daemon and the firewall are process-wide singletons. Only one sweep may
+  run at a time, which the single `AppState::job` slot already guarantees.
+
 
 ## Localization
 

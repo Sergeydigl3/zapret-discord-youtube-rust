@@ -1,4 +1,4 @@
-use crate::firewall::FirewallBackend;
+use crate::firewall::{notice, FirewallBackend};
 use std::process::{Command, Stdio};
 
 pub struct IptablesBackend;
@@ -32,7 +32,7 @@ fn normalize_ports(ports: &str) -> String {
 
 impl FirewallBackend for IptablesBackend {
     fn clear(&self) -> Result<(), String> {
-        println!("{}", rust_i18n::t!("msg_clear_iptables"));
+        notice(&rust_i18n::t!("msg_clear_iptables"));
 
         let _ = Command::new("iptables")
             .args(["-t", "mangle", "-D", "POSTROUTING", "-j", CHAIN_POST])
@@ -70,7 +70,7 @@ impl FirewallBackend for IptablesBackend {
     fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str) -> Result<(), String> {
         let _ = self.clear();
 
-        println!("{}", rust_i18n::t!("msg_setup_iptables"));
+        notice(&rust_i18n::t!("msg_setup_iptables"));
 
         let _ = Command::new("iptables")
             .args(["-t", "mangle", "-N", CHAIN_POST])

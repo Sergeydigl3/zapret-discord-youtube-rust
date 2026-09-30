@@ -29,6 +29,71 @@ pub enum ActiveScreen {
     AutotunePresetSelectionSubmenu,
     AutotuneStrategiesSubmenu,
     AutotuneResultsSubmenu,
+    TtlSubmenu,
+}
+
+/// The three things one can do about the fixed DPI-TTL, plus the way back.
+///
+/// This used to be a single row on the main menu where the arrows changed the
+/// number and Enter ran the sweep, which made "do not touch it" and "set it to
+/// seven" and "go and find one" three different gestures on one control. They
+/// are three different decisions, so they get three rows.
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum TtlMenuState {
+    /// Leave the setting alone: the DPI-desync feature stays off.
+    DontTouch,
+    /// Pin an explicit hop count.
+    SetValue,
+    /// Sweep the range and use the first hop count that works.
+    Autopick,
+    Back,
+}
+
+impl TtlMenuState {
+    pub const ALL: [Self; 4] = [Self::DontTouch, Self::SetValue, Self::Autopick, Self::Back];
+
+    pub fn next(self) -> Self {
+        let i = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
+        Self::ALL[(i + 1) % Self::ALL.len()]
+    }
+
+    pub fn prev(self) -> Self {
+        let i = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
+        Self::ALL[(i + Self::ALL.len() - 1) % Self::ALL.len()]
+    }
+
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|s| *s == self).unwrap_or(0)
+    }
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum AutotuneReportTab {
+    /// Which strategy to pick.
+    Summary,
+    /// Every preset, every domain, every protocol.
+    Details,
+}
+
+impl AutotuneReportTab {
+    pub const ALL: [Self; 2] = [Self::Summary, Self::Details];
+
+    pub fn label(self) -> String {
+        match self {
+            Self::Summary => rust_i18n::t!("atv_tab_summary").to_string(),
+            Self::Details => rust_i18n::t!("atv_tab_details").to_string(),
+        }
+    }
+
+    pub fn next(self) -> Self {
+        let i = Self::ALL.iter().position(|t| *t == self).unwrap_or(0);
+        Self::ALL[(i + 1) % Self::ALL.len()]
+    }
+
+    pub fn prev(self) -> Self {
+        let i = Self::ALL.iter().position(|t| *t == self).unwrap_or(0);
+        Self::ALL[(i + Self::ALL.len() - 1) % Self::ALL.len()]
+    }
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -496,17 +561,18 @@ impl AppState {
                     self.autotune_strat_index = Self::cycle_index(self.autotune_strat_index, max, forward);
                 }
             }
+            ActiveScreen::TtlSubmenu => {
+                self.ttl_menu = if forward {
+                    self.ttl_menu.next()
+                } else {
+                    self.ttl_menu.prev()
+                };
+            }
             ActiveScreen::AutotuneResultsSubmenu => {
-                let total = self.count_results_items();
-                if total > 0 {
-                    if forward {
-                        if self.autotune_results_index + 1 < total {
-                            self.autotune_results_index += 1;
-                        }
-                    } else if self.autotune_results_index > 0 {
-                        self.autotune_results_index -= 1;
-                    }
-                }
+                // The report is a scrolling view, not a menu: the offset has no
+                // cursor to sit on, and `views::report` pulls it back into range
+                // once it knows how tall the tables turned out to be.
+                self.scroll_report(forward, 1);
             }
         }
     }
@@ -522,6 +588,29 @@ impl AppState {
         }
     }
 
+    /// Scroll the autotune report by `lines`, never above the top.
+    pub fn scroll_report(&mut self, forward: bool, lines: usize) {
+        self.autotune_results_index = if forward {
+            self.autotune_results_index.saturating_add(lines)
+        } else {
+            self.autotune_results_index.saturating_sub(lines)
+        };
+    }
+
+    /// Switch the autotune report between its short and long form.
+    ///
+    /// The offset is dropped rather than kept: the two tabs have nothing in
+    /// common vertically, so landing halfway down a freshly opened one would
+    /// just look broken.
+    pub fn switch_report_tab(&mut self, forward: bool) {
+        self.autotune_report_tab = if forward {
+            self.autotune_report_tab.next()
+        } else {
+            self.autotune_report_tab.prev()
+        };
+        self.autotune_results_index = 0;
+    }
+
     pub(crate) fn set_autotune_menu_index(&mut self, index: usize) {
         self.autotune_menu_index = index % 9;
         self.autotune_menu = match self.autotune_menu_index {
@@ -535,9 +624,5 @@ impl AppState {
             7 => AutotuneMenuState::Run,
             _ => AutotuneMenuState::Back,
         };
-    }
-
-    pub fn is_ttl_autopick_selected(&self) -> bool {
-        self.active_screen == ActiveScreen::Main && self.main_menu == MainMenuState::TtlAutopick
     }
 }

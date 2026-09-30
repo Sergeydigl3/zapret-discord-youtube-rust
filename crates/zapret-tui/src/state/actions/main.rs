@@ -92,9 +92,9 @@ pub fn activate(app: &mut AppState) {
             app.status_message = None;
         }
         MainMenuState::TtlAutopick => {
-            if app.check_dependencies() {
-                app.should_run_ttl = true;
-            }
+            app.active_screen = ActiveScreen::TtlSubmenu;
+            app.ttl_menu = crate::state::screens::TtlMenuState::DontTouch;
+            app.status_message = None;
         }
         MainMenuState::Run => {
             if app.check_dependencies() {

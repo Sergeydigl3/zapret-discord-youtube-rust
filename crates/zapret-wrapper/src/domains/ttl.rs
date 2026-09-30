@@ -3,13 +3,12 @@
 //! Depends on `domains` for the domain list file only. The autotune feature is
 //! not involved, which is what keeps the two features from forming a cycle.
 
-use std::io::Write;
 use std::time::Duration;
 
 use zapret_core::firewall::FirewallBackend;
 
 /// TTL sweep range (DPI hop numbers are typically 3-20).
-pub const TTL_MIN: u8 = 1;
+pub const TTL_MIN: u8 = 3;
 pub const TTL_MAX: u8 = 20;
 
 const TEST_DOMAINS: &[&str] = &[
@@ -102,43 +101,87 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
     running
 }
 
+/// One thing the sweep did, so the caller can draw it instead of holding the
+/// terminal and reading a console log.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TtlEvent {
+    /// About to probe every test domain with this hop count.
+    Trying(u8),
+    /// The daemon said something and left the queue empty. The text is what
+    /// winws printed, which is the only explanation for a launch that died.
+    Refused(u8, String),
+    /// One domain's verdict under the current hop count.
+    Probed { domain: String, ok: bool },
+    /// Every domain came through at this hop count — this is the answer.
+    Found(u8),
+}
+
 /// Sweep TTL from 1 to 20, running winws with a fixed TTL each time and
 /// probing real domains. Returns the first (minimum) working TTL.
-pub fn autopick_ttl(strategy_file: &str, interface: &str, backend: &dyn FirewallBackend) -> Result<u8, String> {
+///
+/// `on_event` is asked after every event; returning `false` stops the sweep
+/// with the network put back the way it was.
+pub fn autopick_ttl(
+    strategy_file: &str,
+    interface: &str,
+    backend: &dyn FirewallBackend,
+    on_event: &mut dyn FnMut(TtlEvent) -> bool,
+) -> Result<u8, String> {
     if crate::run::queue_in_use() {
         return Err(rust_i18n::t!("ttl_err_running").into_owned());
     }
+    let domains = get_test_domains();
+    if domains.is_empty() {
+        return Err(rust_i18n::t!("ttl_err_none").into_owned());
+    }
+    let capture = crate::paths::nfqws_output_log();
 
     for ttl in TTL_MIN..=TTL_MAX {
-        println!("{} {}", rust_i18n::t!("ttl_testing"), ttl);
-        let _ = std::io::stdout().flush();
+        if !on_event(TtlEvent::Trying(ttl)) {
+            crate::run::stop_quiet(backend);
+            return Err(rust_i18n::t!("ttl_err_cancelled").into_owned());
+        }
 
         let req = crate::plan::RunRequest::new(strategy_file, interface, false, false).with_ttl(ttl);
-        if let Err(e) = crate::run::run_quiet(&req, backend) {
-            println!("  ❌ {}", e);
+        if let Err(e) = crate::run::run_quiet(&req, backend, &capture) {
+            let line = format!("{}: {}", strategy_file, e);
+            if !on_event(TtlEvent::Refused(ttl, line)) {
+                crate::run::stop_quiet(backend);
+                return Err(rust_i18n::t!("ttl_err_cancelled").into_owned());
+            }
             continue;
         }
 
         if !wait_for_nfqws(Duration::from_secs(3)) {
-            println!("  {}", rust_i18n::t!("ttl_nfqws_failed"));
-            crate::run::stop(backend);
+            // Whatever winws printed on its way out is the answer to why this
+            // hop count was skipped, so it is reported rather than dropped.
+            let said = crate::run::read_launch_output(&capture);
+            crate::run::stop_quiet(backend);
+            if !on_event(TtlEvent::Refused(ttl, said)) {
+                return Err(rust_i18n::t!("ttl_err_cancelled").into_owned());
+            }
             continue;
         }
 
         let mut all_ok = true;
-        let domains = get_test_domains();
         for domain in &domains {
             let ok = curl_tls_ok(domain);
-            println!("  {} {}", domain, if ok { "✅" } else { "❌" });
-            let _ = std::io::stdout().flush();
             if !ok {
                 all_ok = false;
             }
+            if !on_event(TtlEvent::Probed {
+                domain: domain.clone(),
+                ok,
+            }) {
+                crate::run::stop_quiet(backend);
+                return Err(rust_i18n::t!("ttl_err_cancelled").into_owned());
+            }
         }
 
-        crate::run::stop(backend);
+        crate::run::stop_quiet(backend);
 
         if all_ok {
+            on_event(TtlEvent::Found(ttl));
             return Ok(ttl);
         }
     }

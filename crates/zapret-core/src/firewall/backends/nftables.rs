@@ -1,4 +1,4 @@
-use crate::firewall::FirewallBackend;
+use crate::firewall::{notice, FirewallBackend};
 use nftables::helper::{apply_ruleset, get_current_ruleset};
 use nftables::schema::Nftables;
 use serde_json::{json, Value};
@@ -48,7 +48,7 @@ fn has_zapret_table(current_ruleset: &Nftables) -> bool {
 
 impl FirewallBackend for NftablesBackend {
     fn clear(&self) -> Result<(), String> {
-        println!("{}", rust_i18n::t!("msg_clear_nftables"));
+        notice(&rust_i18n::t!("msg_clear_nftables"));
 
         let current_ruleset = get_current_ruleset().map_err(|e| format!("Failed to get current ruleset: {:?}", e))?;
 
@@ -73,7 +73,7 @@ impl FirewallBackend for NftablesBackend {
     fn setup(&self, tcp_ports: &str, udp_ports: &str, interface: &str) -> Result<(), String> {
         let _ = self.clear();
 
-        println!("{}", rust_i18n::t!("msg_setup_nftables"));
+        notice(&rust_i18n::t!("msg_setup_nftables"));
 
         let mut rules = vec![
             json!({ "add": { "table": { "family": "inet", "name": NFT_TABLE } } }),

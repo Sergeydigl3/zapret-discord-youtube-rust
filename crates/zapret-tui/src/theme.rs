@@ -44,4 +44,29 @@ impl Theme {
     pub fn block_title() -> Style {
         Style::default().fg(Color::LightGreen)
     }
+
+    /// The colour of something the UI wants the eye to land on first.
+    pub fn accent() -> Style {
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+    }
+
+    /// The header row of a table: the one inverted band in the report.
+    pub fn table_header() -> Style {
+        Style::default()
+            .fg(Color::Black)
+            .bg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn ok() -> Style {
+        Style::default().fg(Color::Green)
+    }
+
+    pub fn bad() -> Style {
+        Style::default().fg(Color::Red)
+    }
+
+    pub fn warn() -> Style {
+        Style::default().fg(Color::Yellow)
+    }
 }

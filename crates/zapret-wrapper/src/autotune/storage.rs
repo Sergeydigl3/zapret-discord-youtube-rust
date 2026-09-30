@@ -9,19 +9,14 @@ use super::types::{status_str_file, AutotuneResults, CheckStatus};
 
 pub const RESULTS_FILE: &str = "autotune_results.txt";
 
-pub fn save_results_file(results: &AutotuneResults) {
+/// Write the human-readable report next to the sweep's state.
+///
+/// Returns the file it wrote so the caller can report it, because the sweep
+/// itself only speaks [`super::SweepEvent`]s and never prints.
+pub fn save_results_file(results: &AutotuneResults) -> Result<String, String> {
     let path = crate::paths::cache_dir().join(RESULTS_FILE);
-    let mut file = match std::fs::File::create(&path) {
-        Ok(f) => f,
-        Err(e) => {
-            println!("  [save_results_file] Failed to create {}: {}", path.display(), e);
-            return;
-        }
-    };
-    println!(
-        "  {}",
-        rust_i18n::t!("autotune_saving_results").replace("{}", &path.display().to_string())
-    );
+    let mut file =
+        std::fs::File::create(&path).map_err(|e| format!("[save_results_file] {}: {}", path.display(), e))?;
 
     let mins = results.elapsed_secs / 60;
     let secs = results.elapsed_secs % 60;
@@ -117,6 +112,7 @@ pub fn save_results_file(results: &AutotuneResults) {
             let _ = writeln!(file);
         }
     }
+    Ok(path.display().to_string())
 }
 
 pub fn load_results_file() -> Option<String> {
@@ -139,5 +135,4 @@ pub fn restore_ipset(content: &str) {
 
 pub fn set_ipset_any() {
     let _ = std::fs::write(crate::lists::get_ipset_all_path(), "");
-    println!("  {}", rust_i18n::t!("autotune_ipset_any"));
 }
