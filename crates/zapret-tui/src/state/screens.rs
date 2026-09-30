@@ -165,6 +165,24 @@ pub struct Group {
     pub rows: &'static [MainMenuState],
 }
 
+/// A menu's cursor is a position in an ordered list of states, so up and down
+/// are the same arithmetic on every screen. Writing them out per menu is how one
+/// of them ends up skipping a row, and the mouse needs the same list to turn a
+/// drawn row back into a state.
+fn step_in<T: Copy + PartialEq>(all: &[T], current: T, forward: bool) -> T {
+    let len = all.len();
+    if len == 0 {
+        return current;
+    }
+    let pos = position_in(all, current);
+    let next = if forward { pos + 1 } else { pos + len - 1 } % len;
+    all[next]
+}
+
+fn position_in<T: Copy + PartialEq>(all: &[T], current: T) -> usize {
+    all.iter().position(|s| *s == current).unwrap_or(0)
+}
+
 impl MainMenuState {
     /// The main menu as drawn, in order.
     ///
@@ -230,19 +248,14 @@ impl MainMenuState {
 
     fn step(self, forward: bool) -> Self {
         let all: Vec<Self> = Self::all().collect();
-        if all.is_empty() {
-            return self;
-        }
-        let len = all.len();
-        let pos = all.iter().position(|s| *s == self).unwrap_or(0);
-        let next = if forward { pos + 1 } else { pos + len - 1 } % len;
-        all[next]
+        step_in(&all, self, forward)
     }
 
     /// Where this row sits among the selectable ones, which is also the row the
     /// cursor lands on. Headings are not counted.
     pub fn index(self) -> usize {
-        Self::all().position(|s| s == self).unwrap_or(0)
+        let all: Vec<Self> = Self::all().collect();
+        position_in(&all, self)
     }
 }
 
@@ -258,17 +271,15 @@ impl ExtendedMenuState {
     pub const ALL: [Self; 3] = [Self::Ttl, Self::Fakes, Self::Back];
 
     pub fn next(self) -> Self {
-        let i = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
-        Self::ALL[(i + 1) % Self::ALL.len()]
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        let i = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
-        Self::ALL[(i + Self::ALL.len() - 1) % Self::ALL.len()]
+        step_in(&Self::ALL, self, false)
     }
 
     pub fn index(self) -> usize {
-        Self::ALL.iter().position(|s| *s == self).unwrap_or(0)
+        position_in(&Self::ALL, self)
     }
 }
 
@@ -293,17 +304,15 @@ impl TtlMenuState {
     pub const ALL: [Self; 4] = [Self::DontTouch, Self::SetValue, Self::Autopick, Self::Back];
 
     pub fn next(self) -> Self {
-        let i = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
-        Self::ALL[(i + 1) % Self::ALL.len()]
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        let i = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
-        Self::ALL[(i + Self::ALL.len() - 1) % Self::ALL.len()]
+        step_in(&Self::ALL, self, false)
     }
 
     pub fn index(self) -> usize {
-        Self::ALL.iter().position(|s| *s == self).unwrap_or(0)
+        position_in(&Self::ALL, self)
     }
 }
 
@@ -326,13 +335,11 @@ impl AutotuneReportTab {
     }
 
     pub fn next(self) -> Self {
-        let i = Self::ALL.iter().position(|t| *t == self).unwrap_or(0);
-        Self::ALL[(i + 1) % Self::ALL.len()]
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        let i = Self::ALL.iter().position(|t| *t == self).unwrap_or(0);
-        Self::ALL[(i + Self::ALL.len() - 1) % Self::ALL.len()]
+        step_in(&Self::ALL, self, false)
     }
 }
 
@@ -344,20 +351,18 @@ pub enum GamefilterMenuState {
 }
 
 impl GamefilterMenuState {
+    pub const ALL: [Self; 3] = [Self::Tcp, Self::Udp, Self::Back];
+
     pub fn next(self) -> Self {
-        match self {
-            Self::Tcp => Self::Udp,
-            Self::Udp => Self::Back,
-            Self::Back => Self::Tcp,
-        }
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        match self {
-            Self::Tcp => Self::Back,
-            Self::Udp => Self::Tcp,
-            Self::Back => Self::Udp,
-        }
+        step_in(&Self::ALL, self, false)
+    }
+
+    pub fn index(self) -> usize {
+        position_in(&Self::ALL, self)
     }
 }
 
@@ -369,20 +374,18 @@ pub enum FakesMenuState {
 }
 
 impl FakesMenuState {
+    pub const ALL: [Self; 3] = [Self::DiscordUdp, Self::GameUdp, Self::Back];
+
     pub fn next(self) -> Self {
-        match self {
-            Self::DiscordUdp => Self::GameUdp,
-            Self::GameUdp => Self::Back,
-            Self::Back => Self::DiscordUdp,
-        }
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        match self {
-            Self::DiscordUdp => Self::Back,
-            Self::GameUdp => Self::DiscordUdp,
-            Self::Back => Self::GameUdp,
-        }
+        step_in(&Self::ALL, self, false)
+    }
+
+    pub fn index(self) -> usize {
+        position_in(&Self::ALL, self)
     }
 }
 
@@ -393,7 +396,7 @@ pub enum FakesSelectTarget {
 }
 
 #[cfg(target_os = "windows")]
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum DefenderMenuState {
     Add,
     Remove,
@@ -402,20 +405,14 @@ pub enum DefenderMenuState {
 
 #[cfg(target_os = "windows")]
 impl DefenderMenuState {
+    pub const ALL: [Self; 3] = [Self::Add, Self::Remove, Self::Back];
+
     pub fn next(self) -> Self {
-        match self {
-            Self::Add => Self::Remove,
-            Self::Remove => Self::Back,
-            Self::Back => Self::Add,
-        }
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        match self {
-            Self::Add => Self::Back,
-            Self::Remove => Self::Add,
-            Self::Back => Self::Remove,
-        }
+        step_in(&Self::ALL, self, false)
     }
 }
 
@@ -446,23 +443,16 @@ impl AutotuneMenuState {
     ];
 
     pub fn next(self) -> Self {
-        Self::step(self, true)
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        Self::step(self, false)
+        step_in(&Self::ALL, self, false)
     }
 
-    fn step(self, forward: bool) -> Self {
-        let len = Self::ALL.len();
-        let pos = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
-        let next = if forward { pos + 1 } else { pos + len - 1 } % len;
-        Self::ALL[next]
-    }
-
-    /// Where this row sits in the menu, which is also where the cursor is.
+    /// Where this row sits, which is also the row the cursor lands on.
     pub fn index(self) -> usize {
-        Self::ALL.iter().position(|s| *s == self).unwrap_or(0)
+        position_in(&Self::ALL, self)
     }
 }
 
@@ -476,24 +466,14 @@ pub enum AutotuneProtocolsState {
 }
 
 impl AutotuneProtocolsState {
+    pub const ALL: [Self; 5] = [Self::Http, Self::Tls12, Self::Tls13, Self::Quic, Self::Back];
+
     pub fn next(self) -> Self {
-        match self {
-            Self::Http => Self::Tls12,
-            Self::Tls12 => Self::Tls13,
-            Self::Tls13 => Self::Quic,
-            Self::Quic => Self::Back,
-            Self::Back => Self::Http,
-        }
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        match self {
-            Self::Http => Self::Back,
-            Self::Tls12 => Self::Http,
-            Self::Tls13 => Self::Tls12,
-            Self::Quic => Self::Tls13,
-            Self::Back => Self::Quic,
-        }
+        step_in(&Self::ALL, self, false)
     }
 }
 
@@ -509,45 +489,47 @@ pub enum AutotuneBlockChecksState {
 }
 
 impl AutotuneBlockChecksState {
+    /// The six checks, in the order they are drawn. `Back` is not one: it is a
+    /// row below them, not a seventh check.
+    pub const CHECKS: [Self; 6] = [
+        Self::DnsSpoof,
+        Self::TcpRst,
+        Self::SniBlock,
+        Self::SiberianBlock,
+        Self::QuicBlock,
+        Self::CidrWhitelist,
+    ];
+    pub const ALL: [Self; 7] = [
+        Self::DnsSpoof,
+        Self::TcpRst,
+        Self::SniBlock,
+        Self::SiberianBlock,
+        Self::QuicBlock,
+        Self::CidrWhitelist,
+        Self::Back,
+    ];
+
     pub fn next(self) -> Self {
-        match self {
-            Self::DnsSpoof => Self::TcpRst,
-            Self::TcpRst => Self::SniBlock,
-            Self::SniBlock => Self::SiberianBlock,
-            Self::SiberianBlock => Self::QuicBlock,
-            Self::QuicBlock => Self::CidrWhitelist,
-            Self::CidrWhitelist => Self::Back,
-            Self::Back => Self::DnsSpoof,
-        }
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        match self {
-            Self::DnsSpoof => Self::Back,
-            Self::TcpRst => Self::DnsSpoof,
-            Self::SniBlock => Self::TcpRst,
-            Self::SiberianBlock => Self::SniBlock,
-            Self::QuicBlock => Self::SiberianBlock,
-            Self::CidrWhitelist => Self::QuicBlock,
-            Self::Back => Self::CidrWhitelist,
-        }
+        step_in(&Self::ALL, self, false)
+    }
+
+    /// Where this row sits, which is also its index into
+    /// [`BlockCheckType::all`](zapret_wrapper::autotune::BlockCheckType::all).
+    pub fn index(self) -> usize {
+        position_in(&Self::ALL, self)
     }
 
     /// Which check this row toggles, or `None` for the way back.
-    pub fn index(self) -> Option<usize> {
-        match self {
-            Self::DnsSpoof => Some(0),
-            Self::TcpRst => Some(1),
-            Self::SniBlock => Some(2),
-            Self::SiberianBlock => Some(3),
-            Self::QuicBlock => Some(4),
-            Self::CidrWhitelist => Some(5),
-            Self::Back => None,
-        }
+    pub fn check_index(self) -> Option<usize> {
+        Self::CHECKS.iter().position(|c| *c == self)
     }
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum DownloadDepsMenuState {
     ZapretDownloader,
     StrategiesDownloader,
@@ -556,26 +538,23 @@ pub enum DownloadDepsMenuState {
 }
 
 impl DownloadDepsMenuState {
+    pub const ALL: [Self; 4] = [
+        Self::ZapretDownloader,
+        Self::StrategiesDownloader,
+        Self::DownloadDefaults,
+        Self::Back,
+    ];
+
     pub fn next(self) -> Self {
-        match self {
-            Self::ZapretDownloader => Self::StrategiesDownloader,
-            Self::StrategiesDownloader => Self::DownloadDefaults,
-            Self::DownloadDefaults => Self::Back,
-            Self::Back => Self::ZapretDownloader,
-        }
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        match self {
-            Self::ZapretDownloader => Self::Back,
-            Self::StrategiesDownloader => Self::ZapretDownloader,
-            Self::DownloadDefaults => Self::StrategiesDownloader,
-            Self::Back => Self::DownloadDefaults,
-        }
+        step_in(&Self::ALL, self, false)
     }
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum DownloadSubmenuState {
     Version,
     SelectTag,
@@ -584,22 +563,18 @@ pub enum DownloadSubmenuState {
 }
 
 impl DownloadSubmenuState {
+    pub const ALL: [Self; 4] = [Self::Version, Self::SelectTag, Self::Start, Self::Back];
+
     pub fn next(self) -> Self {
-        match self {
-            Self::Version => Self::SelectTag,
-            Self::SelectTag => Self::Start,
-            Self::Start => Self::Back,
-            Self::Back => Self::Version,
-        }
+        step_in(&Self::ALL, self, true)
     }
 
     pub fn prev(self) -> Self {
-        match self {
-            Self::Version => Self::Back,
-            Self::SelectTag => Self::Version,
-            Self::Start => Self::SelectTag,
-            Self::Back => Self::Start,
-        }
+        step_in(&Self::ALL, self, false)
+    }
+
+    pub fn index(self) -> usize {
+        position_in(&Self::ALL, self)
     }
 }
 

@@ -10,6 +10,9 @@
 //!                                        │
 //!                                        └──▶ actions::<screen>  (one file per screen)
 //!
+//!   mouse ▶ draw records where the rows landed in AppState::hit
+//!        ─▶ session::handle_mouse ──▶ actions::mouse (click = cursor + press)
+//!
 //!   a screen that starts a long job only sets a should_* flag on AppState;
 //!   session then calls tasks::<job>.
 //! ```
@@ -35,6 +38,7 @@ pub mod tasks;
 pub mod draw;
 pub mod editor;
 pub mod menus;
+pub mod mouse;
 pub mod state;
 pub mod theme;
 pub mod views;

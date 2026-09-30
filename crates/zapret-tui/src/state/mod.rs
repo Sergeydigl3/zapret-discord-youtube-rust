@@ -50,6 +50,9 @@ pub struct AppState {
     pub udp_gamefilter: bool,
 
     pub active_screen: ActiveScreen,
+    /// Where the last frame put its rows, for the mouse to point at. Rebuilt by
+    /// every draw, so it always describes the frame that is on screen.
+    pub hit: crate::mouse::HitMap,
     /// The screens behind the current one, oldest first. Esc walks it backwards
     /// and the breadcrumb reads it forwards.
     pub history: History,
@@ -194,6 +197,7 @@ impl AppState {
             tcp_gamefilter,
             udp_gamefilter,
             active_screen: ActiveScreen::Main,
+            hit: crate::mouse::HitMap::default(),
             history: History::default(),
 
             // The top of the menu, whichever row that is on this platform.

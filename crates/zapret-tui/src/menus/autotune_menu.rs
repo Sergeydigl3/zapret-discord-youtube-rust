@@ -163,8 +163,8 @@ pub fn render_blockchecks(app: &AppState, cursor: AutotuneBlockChecksState) -> M
     rows.push(Row::new(rust_i18n::t!("menu_autotune_back")));
 
     let index = match cursor {
-        AutotuneBlockChecksState::Back => all.len(),
-        other => other.index().unwrap_or(0),
+        AutotuneBlockChecksState::Back => BlockCheckType::all().len(),
+        other => other.index(),
     };
 
     Menu::new(rust_i18n::t!("tui_title_autotune_bc"), rows).at(index)

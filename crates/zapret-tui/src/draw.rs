@@ -256,6 +256,7 @@ fn draw_body(f: &mut Frame, app: &mut AppState, area: Rect) {
     // so it takes the whole band and never goes through the menu pipeline.
     if app.active_screen == ActiveScreen::AutotuneResultsSubmenu {
         if let Some(ref results) = app.autotune_results {
+            app.hit.set_report(area);
             views::report::render(
                 f,
                 area,
@@ -269,7 +270,7 @@ fn draw_body(f: &mut Frame, app: &mut AppState, area: Rect) {
     draw_menu(f, app, area);
 }
 
-fn draw_menu(f: &mut Frame, app: &AppState, area: Rect) {
+fn draw_menu(f: &mut Frame, app: &mut AppState, area: Rect) {
     let menu = menu_for(app);
 
     let block = Block::bordered()
@@ -308,6 +309,26 @@ fn draw_menu(f: &mut Frame, app: &AppState, area: Rect) {
         .highlight_style(Theme::selection());
     let mut state = ListState::default().with_selected(Some(menu.index));
     f.render_stateful_widget(list, list_area, &mut state);
+
+    // Tell the mouse where every visible row landed.
+    //
+    // `List` has already scrolled itself by now, so `state.offset()` is the row
+    // at the top of the area, and a row is exactly one line tall — which is why
+    // this is arithmetic rather than something the widget hands back.
+    let visible = menu
+        .rows
+        .len()
+        .saturating_sub(state.offset())
+        .min(list_area.height as usize);
+    let rows = (state.offset()..state.offset() + visible)
+        .map(|row| Rect {
+            x: list_area.x,
+            y: list_area.y + (row - state.offset()) as u16,
+            width: list_area.width,
+            height: 1,
+        })
+        .collect();
+    app.hit.set_menu(list_area, rows);
 
     // A scrollbar only where there is something to scroll: an always-on rail
     // beside a six-row menu claims there is more below, and there is not.
@@ -425,6 +446,10 @@ fn help_key(app: &AppState) -> &'static str {
 // -------------------------------------------------------------------- frame --
 
 pub fn draw(f: &mut Frame, app: &mut AppState) {
+    // Cleared here rather than where the map is filled, so a frame too small to
+    // hold a menu cannot leave the previous frame's rows clickable.
+    app.hit.clear();
+
     let frame = Block::bordered()
         .border_type(BorderType::Rounded)
         .border_style(Theme::frame())
