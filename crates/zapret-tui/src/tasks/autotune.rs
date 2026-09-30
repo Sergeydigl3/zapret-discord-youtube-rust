@@ -6,9 +6,8 @@ use ratatui::Terminal;
 use std::io;
 use std::io::Write;
 use std::sync::mpsc::Receiver;
-use zapret_core::autotune::{self, CheckStatus, StrategyCheckResult};
+use zapret_core::autotune::{self, cancel, CheckStatus, StrategyCheckResult};
 use zapret_core::firewall::FirewallBackend;
-use zapret_core::net::cancel;
 use zapret_core::run;
 
 use crate::event::{drain_events, wait_for_key};

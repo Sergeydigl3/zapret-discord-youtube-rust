@@ -2,10 +2,9 @@ use std::io::{self, ErrorKind, Read};
 use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs, UdpSocket};
 use std::time::Duration;
 
-use crate::autotune::types::{BlockChecks, CheckResult};
-
 use super::dns::{resolve_domain, KNOWN_IPS, TEST_DOMAINS};
 use super::quic;
+use super::types::{BlockChecks, CheckResult};
 
 const TIMEOUT: Duration = Duration::from_secs(4);
 

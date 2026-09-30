@@ -29,8 +29,8 @@ depends on both. Neither library depends on the binary.
 ## Layers of `zapret-core`
 
 ```
-L4  autotune            the auto-tuning feature, composed from everything below
-L3  net, run, service, diagnose      actions: probing, running, installing, logging
+L4  autotune            the auto-tuning sweep, probes included
+L3  run, service, diagnose       actions: running, installing a service, logging
 L2  download, firewall, lists, strategy   what gets installed and how the network is described
 L1  config, defender, domains, fakes, platform   configuration and OS access
 L0  error, i18n, paths, process      no dependencies of their own
@@ -51,11 +51,28 @@ L0  error, i18n, paths, process      no dependencies of their own
 | `firewall` | The `FirewallBackend` trait, the nftables/iptables backends and the WinDivert stub |
 | `lists` | The list files (`ipset-all.txt` and friends): the directory, the available modes, and applying one |
 | `strategy` | `.bat` parsing, the bundled strategies, and discovery of what is on disk |
-| `net` | Reachability probes that know nothing about autotune: DNS, TCP, TLS, QUIC |
 | `run` | The daemon lifecycle: build the arguments, spawn, track, stop |
 | `service` | One `ServiceManager` per init system. The managers are dumb: they write a unit and shell out |
 | `diagnose` | The launch log: system facts, timestamp, and writing the file |
-| `autotune` | The feature itself: configuration, results, the orchestrator |
+| `autotune` | The whole sweep: the probes it measures with, the checks, the orchestrator and the results file |
+
+### A zone needs a second consumer
+
+Splitting a large file into focused files *inside* a zone is cheap and always
+worthwhile. Promoting a group of files to a zone of their own is a stronger
+claim, and it needs a second consumer — otherwise it is a layer that only one
+caller stands on, and the next person will wire around it.
+
+`autotune` is the worked example. Its probes (`dns`, `quic`, `probe`,
+`checks_network`, `checks_domain`, `cancel`) used to sit in a top-level `net`
+module presented as shared reachability infrastructure. Nothing outside the sweep
+used them, and they reported in the sweep's own result types, so `net` was a
+cycle wearing a layer's clothes. They now live in `autotune/`, where the single
+consumer is honest.
+
+The same test is why `domains` *is* a zone: the autotune sweep and the TTL sweep
+both need the domain list files, and hoisting them is what stopped those two from
+depending on each other.
 
 ### Two directories called `bin`
 
