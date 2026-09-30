@@ -193,7 +193,7 @@ impl MainMenuState {
     pub const GROUPS: &'static [Group] = &[
         Group {
             title: "menu_group_setup",
-            rows: &[Self::DownloadDeps, Self::ListsEditor, Self::Extended],
+            rows: &[Self::DownloadDeps, Self::ListsEditor],
         },
         Group {
             title: "menu_group_network",
@@ -204,6 +204,7 @@ impl MainMenuState {
                 #[cfg(target_os = "linux")]
                 Self::BackendSettings,
                 Self::IpsetMode,
+                Self::Extended,
             ],
         },
         Group {
