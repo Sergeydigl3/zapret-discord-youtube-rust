@@ -40,7 +40,7 @@ pub fn run_foreground(req: &RunRequest, backend: &dyn FirewallBackend) {
     term.push(cmd_msg.clone());
     println!("{}", cmd_msg);
 
-    let outcome = match plan.launch(&req.interface, backend, &crate::paths::nfqws_output_log()) {
+    let outcome = match launch(req, &plan, backend, &crate::paths::nfqws_output_log()) {
         Ok(o) => o,
         Err(e) => {
             let msg = describe_launch_error(&e);
@@ -92,8 +92,45 @@ pub fn run_foreground(req: &RunRequest, backend: &dyn FirewallBackend) {
 pub fn run_quiet(req: &RunRequest, backend: &dyn FirewallBackend, capture: &std::path::Path) -> ZResult<LaunchOutcome> {
     let plan = crate::plan::plan(req).map_err(|e| format!("parse error: {}", e))?;
     crate::lists::ensure_user_lists();
-    plan.launch_quiet(&req.interface, backend, capture)
-        .map_err(|e| e.to_string())
+    launch_quiet(req, &plan, backend, capture).map_err(|e| e.to_string())
+}
+
+/// The one place the launch signature's platform difference is spelled out.
+///
+/// `LaunchPlan::launch` takes the interface on Linux and does without it
+/// everywhere else, so both call sites above would otherwise repeat a `cfg`.
+fn launch(
+    req: &RunRequest,
+    plan: &daemon::LaunchPlan,
+    backend: &dyn FirewallBackend,
+    capture: &std::path::Path,
+) -> Result<LaunchOutcome, LaunchError> {
+    #[cfg(target_os = "linux")]
+    {
+        plan.launch(&req.interface, backend, capture)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = req;
+        plan.launch(backend, capture)
+    }
+}
+
+fn launch_quiet(
+    req: &RunRequest,
+    plan: &daemon::LaunchPlan,
+    backend: &dyn FirewallBackend,
+    capture: &std::path::Path,
+) -> Result<LaunchOutcome, LaunchError> {
+    #[cfg(target_os = "linux")]
+    {
+        plan.launch_quiet(&req.interface, backend, capture)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = req;
+        plan.launch_quiet(backend, capture)
+    }
 }
 
 /// Whatever the daemon wrote while starting up, for a sweep to show or log.

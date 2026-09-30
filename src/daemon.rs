@@ -97,8 +97,7 @@ fn my_service_main(_arguments: Vec<std::ffi::OsString>) {
     // Run Zapret background loop
     let backend = zapret_core::firewall::windivert::WinDivertBackend;
 
-    let req =
-        zapret_wrapper::plan::RunRequest::new(&cfg.strategy, &cfg.interface, cfg.gamefilter_tcp, cfg.gamefilter_udp);
+    let req = zapret_wrapper::plan::RunRequest::new(&cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp);
     zapret_wrapper::run::run_foreground(&req, &backend);
 
     // Main service loop

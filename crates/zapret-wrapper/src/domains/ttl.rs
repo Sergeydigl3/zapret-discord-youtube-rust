@@ -123,7 +123,7 @@ pub enum TtlEvent {
 /// with the network put back the way it was.
 pub fn autopick_ttl(
     strategy_file: &str,
-    interface: &str,
+    #[cfg(target_os = "linux")] interface: &str,
     backend: &dyn FirewallBackend,
     on_event: &mut dyn FnMut(TtlEvent) -> bool,
 ) -> Result<u8, String> {
@@ -142,7 +142,9 @@ pub fn autopick_ttl(
             return Err(rust_i18n::t!("ttl_err_cancelled").into_owned());
         }
 
-        let req = crate::plan::RunRequest::new(strategy_file, interface, false, false).with_ttl(ttl);
+        let req = crate::plan::RunRequest::new(strategy_file, false, false).with_ttl(ttl);
+        #[cfg(target_os = "linux")]
+        let req = req.with_interface(interface);
         if let Err(e) = crate::run::run_quiet(&req, backend, &capture) {
             let line = format!("{}: {}", strategy_file, e);
             if !on_event(TtlEvent::Refused(ttl, line)) {

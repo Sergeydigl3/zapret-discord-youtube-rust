@@ -6,10 +6,10 @@
 //! the bar, the spinner and the elapsed clock keep moving whether or not the
 //! sweep has anything new to say.
 
-use crossterm::event::{Event, KeyCode, KeyEventKind};
-use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
+use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
+use ratatui::crossterm::execute;
+use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::Terminal;
 use std::io;
 use std::sync::mpsc::RecvTimeoutError;
@@ -102,9 +102,13 @@ fn finish_job(app: &mut AppState) {
             app.autotune_results = Some(*results);
             app.has_autotune_results_file = true;
             app.dpi_desync_ttl = zapret_wrapper::config::load_ttl();
+            // The report is one step further in from where the sweep was
+            // started, so Esc from it lands back on the autotune menu. A fresh
+            // report opens at the top of its first tab rather than wherever the
+            // last one was scrolled to.
             app.autotune_results_index = 0;
             app.autotune_report_tab = crate::state::AutotuneReportTab::Summary;
-            app.active_screen = ActiveScreen::AutotuneResultsSubmenu;
+            app.open(ActiveScreen::AutotuneResultsSubmenu);
             app.status_message = Some(if cancelled {
                 rust_i18n::t!("autotune_cancelled").into_owned()
             } else {
@@ -114,11 +118,11 @@ fn finish_job(app: &mut AppState) {
         JobOutcome::Ttl(Ok(ttl)) => {
             let _ = zapret_wrapper::config::save_ttl(Some(ttl));
             app.dpi_desync_ttl = Some(ttl);
-            app.active_screen = ActiveScreen::Main;
+            // Back to the row the sweep was started from, not to the top.
+            app.back();
             app.status_message = Some(rust_i18n::t!("ttl_found").replace("{}", &ttl.to_string()));
         }
         JobOutcome::Ttl(Err(e)) => {
-            app.active_screen = ActiveScreen::TtlSubmenu;
             app.show_error(e);
         }
     }

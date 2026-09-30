@@ -1,7 +1,7 @@
 //! The three download flows: zapret, strategies and both at once.
 
-use crossterm::event::Event;
 use ratatui::backend::CrosstermBackend;
+use ratatui::crossterm::event::Event;
 use ratatui::Terminal;
 use std::io;
 use std::sync::mpsc::Receiver;

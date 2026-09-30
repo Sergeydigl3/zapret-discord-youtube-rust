@@ -1,48 +1,32 @@
+use crate::menus::{Menu, Row};
 use crate::state::screens::DefenderMenuState;
 use crate::state::AppState;
 use crate::theme::Theme;
-use ratatui::widgets::ListItem;
 
-pub fn render(app: &AppState) -> (Vec<ListItem<'static>>, String, usize) {
-    let mut selected_index = 0;
+/// Where the cursor sits: the first two rows are scenery.
+const FIRST_ACTION: usize = 2;
 
-    let status_str = match app.defender_status_cache {
+pub fn render(app: &AppState) -> Menu {
+    let status = match app.defender_status_cache {
         Some(true) => rust_i18n::t!("status_def_active"),
         Some(false) => rust_i18n::t!("status_def_inactive"),
         None => rust_i18n::t!("status_def_unknown"),
     };
 
-    let menu_items = vec![
-        format!("{}{}", rust_i18n::t!("status_def_curr"), status_str),
-        " ------------------------------------".to_string(),
-        format!(" {}", rust_i18n::t!("menu_def_add")),
-        format!(" {}", rust_i18n::t!("menu_def_remove")),
-        format!(" {}", rust_i18n::t!("menu_def_back")),
+    // The status line is scenery above the actions, not an action: the cursor
+    // starts below it and up/down never lands on it.
+    let rows = vec![
+        Row::value(rust_i18n::t!("status_def_curr"), status).styled_value(Theme::accent()),
+        Row::new(""),
+        Row::new(rust_i18n::t!("menu_def_add")),
+        Row::new(rust_i18n::t!("menu_def_remove")),
+        Row::new(rust_i18n::t!("menu_def_back")),
     ];
+    let index = match app.defender_menu {
+        DefenderMenuState::Add => FIRST_ACTION,
+        DefenderMenuState::Remove => FIRST_ACTION + 1,
+        DefenderMenuState::Back => FIRST_ACTION + 2,
+    };
 
-    let items: Vec<ListItem> = menu_items
-        .into_iter()
-        .enumerate()
-        .map(|(i, m)| {
-            let is_selected = match app.defender_menu {
-                DefenderMenuState::Add if i == 2 => true,
-                DefenderMenuState::Remove if i == 3 => true,
-                DefenderMenuState::Back if i == 4 => true,
-                _ => false,
-            };
-
-            if is_selected {
-                selected_index = i;
-                ListItem::new(m).style(Theme::selected_item())
-            } else {
-                ListItem::new(m).style(if i < 2 {
-                    Theme::normal_value()
-                } else {
-                    Theme::normal_item()
-                })
-            }
-        })
-        .collect();
-
-    (items, rust_i18n::t!("menu_def_title").into_owned(), selected_index)
+    Menu::new(rust_i18n::t!("menu_def_title"), rows).at(index)
 }

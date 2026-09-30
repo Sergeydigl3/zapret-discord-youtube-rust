@@ -97,7 +97,7 @@ impl Job {
 
     pub fn render(&self, f: &mut Frame) {
         if let Ok(view) = self.view.lock() {
-            let area = f.size();
+            let area = f.area();
             view.render(f, area);
         }
     }
@@ -128,11 +128,8 @@ impl Job {
 /// state the next time the loop comes round.
 pub fn start_autotune(app: &AppState) -> Job {
     let config = app.autotune_config.clone();
-    let interface = app
-        .interfaces
-        .get(app.selected_interface)
-        .cloned()
-        .unwrap_or_else(|| "any".to_string());
+    #[cfg(target_os = "linux")]
+    let interface = app.interface().to_string();
     let backend = app.owned_backend();
 
     Job::spawn(ProgressView::new(), move |reporter| {
@@ -141,7 +138,10 @@ pub fn start_autotune(app: &AppState) -> Job {
             reporter.update(|view| view.apply(event));
             !reporter.cancelled()
         };
+        #[cfg(target_os = "linux")]
         let results = autotune::run_all(&config, &mut sink, &*backend, &interface);
+        #[cfg(not(target_os = "linux"))]
+        let results = autotune::run_all(&config, &mut sink, &*backend);
         JobOutcome::Autotune(Box::new(results), reporter.cancelled())
     })
 }
@@ -149,11 +149,8 @@ pub fn start_autotune(app: &AppState) -> Job {
 /// Start the fixed-TTL sweep.
 pub fn start_ttl(app: &AppState) -> Job {
     let strategy = app.strategies.get(app.selected_strategy).cloned().unwrap_or_default();
-    let interface = app
-        .interfaces
-        .get(app.selected_interface)
-        .cloned()
-        .unwrap_or_else(|| "any".to_string());
+    #[cfg(target_os = "linux")]
+    let interface = app.interface().to_string();
     let backend = app.owned_backend();
 
     let view = ProgressView::titled(rust_i18n::t!("ttl_screen_title").to_string(), BarFormat::Count);
@@ -167,7 +164,10 @@ pub fn start_ttl(app: &AppState) -> Job {
             reporter.update(|view| view.apply_ttl(event));
             !reporter.cancelled()
         };
+        #[cfg(target_os = "linux")]
         let result = ttl::autopick_ttl(&strategy, &interface, &*backend, &mut on_event);
+        #[cfg(not(target_os = "linux"))]
+        let result = ttl::autopick_ttl(&strategy, &*backend, &mut on_event);
         JobOutcome::Ttl(result)
     })
 }

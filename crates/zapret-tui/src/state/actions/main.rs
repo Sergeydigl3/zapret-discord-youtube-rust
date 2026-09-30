@@ -5,7 +5,7 @@ use zapret_wrapper::lists;
 #[cfg(target_os = "linux")]
 use zapret_core::firewall::LinuxBackend;
 
-use crate::state::screens::{ActiveScreen, AutotuneMenuState, FakesMenuState, GamefilterMenuState, MainMenuState};
+use crate::state::screens::{ActiveScreen, AutotuneMenuState, GamefilterMenuState, MainMenuState};
 use crate::state::AppState;
 
 use super::on_activate;
@@ -14,14 +14,14 @@ pub fn activate(app: &mut AppState) {
     match app.main_menu {
         #[cfg(target_os = "windows")]
         MainMenuState::DefenderSettings => {
-            app.active_screen = ActiveScreen::DefenderSubmenu;
+            app.defender_menu = crate::state::screens::DefenderMenuState::Add;
+            app.open(ActiveScreen::DefenderSubmenu);
             app.refresh_defender_status();
-            app.status_message = None;
         }
         MainMenuState::DownloadDeps => {
-            app.active_screen = ActiveScreen::DownloadDepsSubmenu;
-            app.status_message = None;
+            app.open(ActiveScreen::DownloadDepsSubmenu);
         }
+        #[cfg(target_os = "linux")]
         MainMenuState::Interface => {
             if !app.interfaces.is_empty() {
                 app.selected_interface = (app.selected_interface + 1) % app.interfaces.len();
@@ -33,8 +33,7 @@ pub fn activate(app: &mut AppState) {
             let backends = LinuxBackend::variants();
             if !backends.is_empty() {
                 let current_idx = backends.iter().position(|b| *b == app.selected_backend).unwrap_or(0);
-                let new_idx = (current_idx + 1) % backends.len();
-                app.selected_backend = backends[new_idx];
+                app.selected_backend = backends[(current_idx + 1) % backends.len()];
                 app.save_current_config();
             }
         }
@@ -53,20 +52,17 @@ pub fn activate(app: &mut AppState) {
             }
         }
         MainMenuState::Strategy => {
-            app.active_screen = ActiveScreen::StrategySubmenu;
+            app.open(ActiveScreen::StrategySubmenu);
             app.strategy_menu_index = app.selected_strategy;
-            app.status_message = None;
         }
         MainMenuState::GamefilterSettings => {
-            app.active_screen = ActiveScreen::GamefilterSubmenu;
+            app.open(ActiveScreen::GamefilterSubmenu);
             app.gamefilter_menu = GamefilterMenuState::Tcp;
-            app.status_message = None;
         }
         MainMenuState::ServiceSettings => {
-            app.active_screen = ActiveScreen::ServiceSubmenu;
+            app.open(ActiveScreen::ServiceSubmenu);
             app.service_menu_index = 0;
             app.refresh_service_status();
-            app.status_message = None;
         }
         MainMenuState::ListsEditor => {
             if !zapret_wrapper::paths::strategies_installed() {
@@ -74,27 +70,17 @@ pub fn activate(app: &mut AppState) {
             } else {
                 app.lists_files = lists::get_lists_files();
                 app.lists_menu_index = 0;
-                app.active_screen = ActiveScreen::ListsEditorSubmenu;
-                app.status_message = None;
+                app.open(ActiveScreen::ListsEditorSubmenu);
             }
         }
         MainMenuState::Autotune => {
-            app.active_screen = ActiveScreen::AutotuneSubmenu;
-            app.autotune_menu_index = 0;
+            app.open(ActiveScreen::AutotuneSubmenu);
             app.autotune_menu = AutotuneMenuState::PresetSelection;
             app.has_autotune_results_file = zapret_wrapper::autotune::load_results_file().is_some();
-            app.status_message = None;
         }
-        MainMenuState::FakesSettings => {
-            app.fakes_state = zapret_wrapper::fakes::load_fakes_state();
-            app.active_screen = ActiveScreen::FakesSubmenu;
-            app.fakes_menu = FakesMenuState::DiscordUdp;
-            app.status_message = None;
-        }
-        MainMenuState::TtlAutopick => {
-            app.active_screen = ActiveScreen::TtlSubmenu;
-            app.ttl_menu = crate::state::screens::TtlMenuState::DontTouch;
-            app.status_message = None;
+        MainMenuState::Extended => {
+            app.open(ActiveScreen::ExtendedSubmenu);
+            app.extended_menu = crate::state::screens::ExtendedMenuState::Ttl;
         }
         MainMenuState::Run => {
             if app.check_dependencies() {
@@ -107,14 +93,15 @@ pub fn activate(app: &mut AppState) {
 
 pub fn cycle(app: &mut AppState, forward: bool) {
     match app.main_menu {
+        #[cfg(target_os = "linux")]
         MainMenuState::Interface => {
             if !app.interfaces.is_empty() {
                 let len = app.interfaces.len();
-                if forward {
-                    app.selected_interface = (app.selected_interface + 1) % len;
+                app.selected_interface = if forward {
+                    (app.selected_interface + 1) % len
                 } else {
-                    app.selected_interface = (app.selected_interface + len - 1) % len;
-                }
+                    (app.selected_interface + len - 1) % len
+                };
                 app.save_current_config();
             }
         }
@@ -124,12 +111,11 @@ pub fn cycle(app: &mut AppState, forward: bool) {
             if !backends.is_empty() {
                 let current_idx = backends.iter().position(|b| *b == app.selected_backend).unwrap_or(0);
                 let len = backends.len();
-                let new_idx = if forward {
-                    (current_idx + 1) % len
+                app.selected_backend = if forward {
+                    backends[(current_idx + 1) % len]
                 } else {
-                    (current_idx + len - 1) % len
+                    backends[(current_idx + len - 1) % len]
                 };
-                app.selected_backend = backends[new_idx];
                 app.save_current_config();
             }
         }
@@ -137,11 +123,11 @@ pub fn cycle(app: &mut AppState, forward: bool) {
             if !app.available_ipset_modes.is_empty() {
                 let len = app.available_ipset_modes.len();
                 let old_mode = app.available_ipset_modes[app.selected_ipset_mode];
-                if forward {
-                    app.selected_ipset_mode = (app.selected_ipset_mode + 1) % len;
+                app.selected_ipset_mode = if forward {
+                    (app.selected_ipset_mode + 1) % len
                 } else {
-                    app.selected_ipset_mode = (app.selected_ipset_mode + len - 1) % len;
-                }
+                    (app.selected_ipset_mode + len - 1) % len
+                };
                 let new_mode = app.available_ipset_modes[app.selected_ipset_mode];
                 lists::apply_ipset_mode(old_mode, new_mode);
                 app.available_ipset_modes = lists::get_available_modes();

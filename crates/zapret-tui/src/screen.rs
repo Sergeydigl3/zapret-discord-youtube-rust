@@ -4,14 +4,14 @@
 //! On Windows the screen is deliberately *not* torn down between the TUI and an
 //! external program; see [`begin_external_output`].
 
-use crossterm::event::Event;
-use crossterm::execute;
-use crossterm::terminal::enable_raw_mode;
-#[cfg(target_os = "windows")]
-use crossterm::terminal::Clear;
-#[cfg(target_os = "windows")]
-use crossterm::terminal::ClearType;
 use ratatui::backend::CrosstermBackend;
+use ratatui::crossterm::event::Event;
+use ratatui::crossterm::execute;
+use ratatui::crossterm::terminal::enable_raw_mode;
+#[cfg(target_os = "windows")]
+use ratatui::crossterm::terminal::Clear;
+#[cfg(target_os = "windows")]
+use ratatui::crossterm::terminal::ClearType;
 use ratatui::Terminal;
 use std::io;
 use std::sync::mpsc::Receiver;
@@ -20,7 +20,7 @@ use crate::event::{drain_events, wait_for_key};
 
 // Only the POSIX path leaves the alternate screen, so these are Windows-unused.
 #[cfg(not(target_os = "windows"))]
-use crossterm::terminal::{disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use ratatui::crossterm::terminal::{disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 
 /// Prepare the Windows console for a colorful, UTF-8 TUI:
 /// - switch it to UTF-8 (codepage 65001) so emoji and localized text emitted
@@ -42,7 +42,9 @@ pub fn setup_console() {
         SetConsoleCP(65001);
         SetConsoleOutputCP(65001);
     }
-    let _ = crossterm::ansi_support::supports_ansi();
+    // Asking crossterm whether the console understands ANSI also switches VT
+    // processing on; there is no separate "enable it" call to make.
+    let _ = ratatui::crossterm::ansi_support::supports_ansi();
 }
 
 #[cfg(not(target_os = "windows"))]

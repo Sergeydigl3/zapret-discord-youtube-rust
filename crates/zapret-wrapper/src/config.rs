@@ -3,8 +3,13 @@ use std::fs;
 use crate::paths;
 
 /// Runtime configuration assembled from CLI flags or a config file.
+///
+/// `interface` is Linux-only and is compiled out everywhere else: nftables and
+/// iptables can bind rules to one output device, WinDivert cannot, so on Windows
+/// the setting does not exist rather than existing and doing nothing.
 #[derive(Debug)]
 pub struct RunConfig {
+    #[cfg(target_os = "linux")]
     pub interface: String,
     pub strategy: String,
     pub gamefilter_tcp: bool,
@@ -18,6 +23,7 @@ pub struct RunConfig {
 impl Default for RunConfig {
     fn default() -> Self {
         Self {
+            #[cfg(target_os = "linux")]
             interface: "any".to_string(),
             strategy: String::new(),
             gamefilter_tcp: false,
@@ -38,9 +44,12 @@ pub fn load_config(file: &str) -> Result<RunConfig, String> {
 
     for line in content.lines() {
         let line = line.trim();
+        #[cfg(target_os = "linux")]
         if let Some(val) = line.strip_prefix("interface=") {
             cfg.interface = val.trim().to_string();
-        } else if let Some(val) = line.strip_prefix("strategy=") {
+            continue;
+        }
+        if let Some(val) = line.strip_prefix("strategy=") {
             cfg.strategy = val.trim().to_string();
         } else if line == "gamefiltertcp=true" {
             cfg.gamefilter_tcp = true;
@@ -60,16 +69,26 @@ pub fn load_config(file: &str) -> Result<RunConfig, String> {
     Ok(cfg)
 }
 
-const DEFAULT_CONFIG_LINES: &[&str] = &[
-    "interface=any",
-    "strategy=",
-    "gamefiltertcp=false",
-    "gamefilterudp=false",
-    "backend=nftables",
-    "active_discord_fake=quic_initial_steamcommunity_com.bin",
-    "active_gamefilter_fake=quic_initial_4pda_to.bin",
-    "dpi_desync_ttl=",
-];
+/// The keys a config file is expected to hold, in write order.
+///
+/// A function rather than a const because the interface key only exists on Linux.
+fn default_config_lines() -> Vec<&'static str> {
+    #[cfg(target_os = "linux")]
+    let mut lines = vec!["interface=any"];
+    #[cfg(not(target_os = "linux"))]
+    let mut lines: Vec<&'static str> = Vec::new();
+
+    lines.extend([
+        "strategy=",
+        "gamefiltertcp=false",
+        "gamefilterudp=false",
+        "backend=nftables",
+        "active_discord_fake=quic_initial_steamcommunity_com.bin",
+        "active_gamefilter_fake=quic_initial_4pda_to.bin",
+        "dpi_desync_ttl=",
+    ]);
+    lines
+}
 
 pub fn config_path() -> std::path::PathBuf {
     paths::config_path()
@@ -78,11 +97,14 @@ pub fn config_path() -> std::path::PathBuf {
 pub fn save_config(cfg: &RunConfig) -> Result<(), String> {
     let path = config_path();
     let ttl = cfg.dpi_desync_ttl.map(|v| v.to_string()).unwrap_or_default();
-    let content = format!(
-        "interface={}\nstrategy={}\ngamefiltertcp={}\ngamefilterudp={}\nbackend={}\nactive_discord_fake={}\nactive_gamefilter_fake={}\ndpi_desync_ttl={}\n",
-        cfg.interface, cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp, cfg.backend,
-        cfg.active_discord_fake, cfg.active_gamefilter_fake, ttl,
-    );
+    let mut content = String::new();
+    #[cfg(target_os = "linux")]
+    content.push_str(&format!("interface={}\n", cfg.interface));
+    content.push_str(&format!(
+        "strategy={}\ngamefiltertcp={}\ngamefilterudp={}\nbackend={}\nactive_discord_fake={}\nactive_gamefilter_fake={}\ndpi_desync_ttl={}\n",
+        cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp, cfg.backend, cfg.active_discord_fake,
+        cfg.active_gamefilter_fake, ttl,
+    ));
     fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     Ok(())
 }
@@ -102,10 +124,20 @@ pub fn save_ttl(ttl: Option<u8>) -> Result<(), String> {
     save_config(&cfg)
 }
 
-pub fn save_tui_state(interface: &str, strategy: &str, tcp: bool, udp: bool, backend: &str) -> Result<(), String> {
+/// Persist what the TUI has the user choosing: the run parameters.
+pub fn save_tui_state(
+    #[cfg(target_os = "linux")] interface: &str,
+    strategy: &str,
+    tcp: bool,
+    udp: bool,
+    backend: &str,
+) -> Result<(), String> {
     let path = config_path();
     let mut cfg = load_config(&path.to_string_lossy()).unwrap_or_default();
-    cfg.interface = interface.to_string();
+    #[cfg(target_os = "linux")]
+    {
+        cfg.interface = interface.to_string();
+    }
     cfg.strategy = strategy.to_string();
     cfg.gamefilter_tcp = tcp;
     cfg.gamefilter_udp = udp;
@@ -136,10 +168,10 @@ fn validate_config() -> Result<(), String> {
         .collect();
 
     let mut missing = Vec::new();
-    for default_line in DEFAULT_CONFIG_LINES {
+    for default_line in default_config_lines() {
         if let Some(key) = default_line.split_once('=').map(|(k, _)| k.trim()) {
             if !existing_keys.contains(&key) {
-                missing.push(*default_line);
+                missing.push(default_line);
             }
         }
     }

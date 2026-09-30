@@ -15,6 +15,9 @@ pub struct Cli {
     #[arg(short = 's', long = "strategy", help = "Use specific strategy")]
     pub strategy: Option<String>,
 
+    /// Linux only: nftables and iptables can bind the rules to one output
+    /// device, WinDivert cannot, so on Windows there is no such option to pass.
+    #[cfg(target_os = "linux")]
     #[arg(
         short = 'i',
         long = "interface",
@@ -46,6 +49,7 @@ pub fn show_help() {
     println!("{}", rust_i18n::t!("cli_opts"));
     println!("{}", rust_i18n::t!("cli_opt_c"));
     println!("{}", rust_i18n::t!("cli_opt_s"));
+    #[cfg(target_os = "linux")]
     println!("{}", rust_i18n::t!("cli_opt_i"));
     println!("{}", rust_i18n::t!("cli_opt_t"));
     println!("{}", rust_i18n::t!("cli_opt_u"));
@@ -54,5 +58,7 @@ pub fn show_help() {
     println!("{}", rust_i18n::t!("cli_modes"));
     println!("{}", rust_i18n::t!("cli_mode1"));
     println!("{}", rust_i18n::t!("cli_mode2"));
+    // The example names -i, which is a Linux-only flag.
+    #[cfg(target_os = "linux")]
     println!("{}", rust_i18n::t!("cli_mode3"));
 }

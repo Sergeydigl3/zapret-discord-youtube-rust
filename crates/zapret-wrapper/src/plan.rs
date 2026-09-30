@@ -15,7 +15,10 @@ pub struct RunRequest {
     /// Strategy file name as listed by `strategy::get_strategies`, e.g.
     /// `discord.bat`. Resolution happens in `plan`.
     pub strategy: String,
-    /// Network interface, or `any`.
+    /// Network interface, or `any`. Linux only: nftables and iptables can bind
+    /// rules to one output device and WinDivert cannot, so elsewhere there is
+    /// nothing here to ask for.
+    #[cfg(target_os = "linux")]
     pub interface: String,
     pub gamefilter_tcp: bool,
     pub gamefilter_udp: bool,
@@ -27,14 +30,22 @@ pub struct RunRequest {
 
 impl RunRequest {
     /// A request with no fixed TTL: the saved value is used.
-    pub fn new(strategy: &str, interface: &str, gamefilter_tcp: bool, gamefilter_udp: bool) -> Self {
+    pub fn new(strategy: &str, gamefilter_tcp: bool, gamefilter_udp: bool) -> Self {
         Self {
             strategy: strategy.to_string(),
-            interface: interface.to_string(),
+            #[cfg(target_os = "linux")]
+            interface: "any".to_string(),
             gamefilter_tcp,
             gamefilter_udp,
             ttl_override: None,
         }
+    }
+
+    /// The same request, bound to one network interface.
+    #[cfg(target_os = "linux")]
+    pub fn with_interface(mut self, interface: &str) -> Self {
+        self.interface = interface.to_string();
+        self
     }
 
     /// The same request, pinned to one DPI TTL.

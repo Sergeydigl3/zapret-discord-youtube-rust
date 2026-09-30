@@ -14,7 +14,6 @@ use nix::sys::signal::{self, SaFlags, SigAction, SigHandler, Signal};
 
 use zapret_wrapper::config;
 use zapret_wrapper::paths;
-use zapret_wrapper::platform;
 use zapret_wrapper::run;
 use zapret_wrapper::strategy;
 
@@ -66,6 +65,7 @@ fn backend_info(_chosen: ChosenBackend) -> String {
 }
 
 pub fn run(args: Cli) {
+    #[cfg(target_os = "linux")]
     let mut use_interface = args.interface.clone();
     let mut use_strategy = args.strategy.clone();
     let mut use_gamefilter_tcp = args.gamefiltertcp;
@@ -82,7 +82,10 @@ pub fn run(args: Cli) {
         println!("{}{}", rust_i18n::t!("msg_load_cfg"), config_file);
         match config::load_config(config_file) {
             Ok(cfg) => {
-                use_interface = cfg.interface;
+                #[cfg(target_os = "linux")]
+                {
+                    use_interface = cfg.interface;
+                }
                 use_strategy = Some(cfg.strategy);
                 use_gamefilter_tcp = cfg.gamefilter_tcp;
                 use_gamefilter_udp = cfg.gamefilter_udp;
@@ -111,9 +114,8 @@ pub fn run(args: Cli) {
 
     loop {
         if is_interactive {
-            let interfaces = platform::get_interfaces();
             let strategies = strategy::get_strategies();
-            let mut app = AppState::new(interfaces, strategies);
+            let mut app = AppState::new(strategies);
 
             let res = zapret_tui::run_tui(&mut app, &reader);
             if let Err(e) = res {
@@ -121,11 +123,10 @@ pub fn run(args: Cli) {
                 exit(1);
             }
 
-            use_interface = app
-                .interfaces
-                .get(app.selected_interface)
-                .unwrap_or(&"any".to_string())
-                .to_string();
+            #[cfg(target_os = "linux")]
+            {
+                use_interface = app.interface().to_string();
+            }
             use_strategy = app.strategies.get(app.selected_strategy).cloned();
             use_gamefilter_tcp = app.tcp_gamefilter;
             use_gamefilter_udp = app.udp_gamefilter;
@@ -173,22 +174,31 @@ pub fn run(args: Cli) {
         let backend = firewall_backend(use_backend);
         let backend_info = backend_info(use_backend);
 
+        // The interface is part of the run only where there is one to choose.
+        let scope = {
+            #[cfg(target_os = "linux")]
+            {
+                format!(", interface={use_interface}")
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                String::new()
+            }
+        };
+
         println!(
-            "{}{}, interface={}, gamefiltertcp={}, gamefilterudp={}{}",
+            "{}{}, {}gamefiltertcp={}, gamefilterudp={}{}",
             rust_i18n::t!("msg_run_params"),
             strategy_file,
-            use_interface,
+            scope,
             use_gamefilter_tcp,
             use_gamefilter_udp,
             backend_info
         );
 
-        let req = zapret_wrapper::plan::RunRequest::new(
-            &strategy_file,
-            &use_interface,
-            use_gamefilter_tcp,
-            use_gamefilter_udp,
-        );
+        let req = zapret_wrapper::plan::RunRequest::new(&strategy_file, use_gamefilter_tcp, use_gamefilter_udp);
+        #[cfg(target_os = "linux")]
+        let req = req.with_interface(&use_interface);
         run::run_foreground(&req, backend.as_ref());
 
         thread::sleep(Duration::from_millis(100));

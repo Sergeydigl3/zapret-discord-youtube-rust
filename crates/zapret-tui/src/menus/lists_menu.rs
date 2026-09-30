@@ -1,35 +1,18 @@
-use crate::theme::Theme;
-use ratatui::widgets::ListItem;
+use crate::menus::{Menu, Row};
 
-pub fn render(lists_files: &[String], selected_index: usize) -> (Vec<ListItem<'static>>, String, usize) {
-    let mut items = vec![];
-    let mut index = 0;
+pub fn render(lists_files: &[String], selected_index: usize) -> Menu {
+    let mut rows: Vec<Row> = lists_files
+        .iter()
+        .map(|file| {
+            Row::new(
+                std::path::Path::new(file)
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy(),
+            )
+        })
+        .collect();
+    rows.push(Row::new(rust_i18n::t!("menu_dl_back")));
 
-    for file in lists_files {
-        let is_sel = index == selected_index;
-
-        let filename = std::path::Path::new(file)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
-
-        items.push(ListItem::new(format!(" {}", filename)).style(if is_sel {
-            Theme::selected_item()
-        } else {
-            Theme::normal_item()
-        }));
-        index += 1;
-    }
-
-    let is_sel = index == selected_index;
-    items.push(
-        ListItem::new(format!(" {}", rust_i18n::t!("menu_dl_back"))).style(if is_sel {
-            Theme::selected_item()
-        } else {
-            Theme::normal_item()
-        }),
-    );
-
-    (items, rust_i18n::t!("tui_title_lists").into_owned(), selected_index)
+    Menu::new(rust_i18n::t!("tui_title_lists"), rows).at(selected_index)
 }

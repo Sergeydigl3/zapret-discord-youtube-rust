@@ -3,6 +3,13 @@
 //! Every screen owns a small state enum here. Keeping the enums in one place
 //! makes the screen set easy to audit: adding a screen means adding a variant
 //! here, a handler in `actions`, and a render branch in `menus`.
+//!
+//! Two invariants hold across the whole set:
+//!
+//! - A screen that ends in a "Back" row is `rows.len()` deep, not
+//!   `rows.len() - 1`, so the cursor has somewhere to sit on the way out.
+//! - Where a screen came from is [`AppState::history`], not a second copy of
+//!   that knowledge in the back handler.
 
 use super::AppState;
 
@@ -15,13 +22,19 @@ pub enum ActiveScreen {
     DownloadDepsSubmenu,
     DownloadZapretSubmenu,
     DownloadStrategiesSubmenu,
-    GamefilterSubmenu,
-    FakesSubmenu,
-    FakesSelectSubmenu,
     ZapretTagSelect,
     StrategyTagSelect,
+    GamefilterSubmenu,
     ServiceSubmenu,
     ListsEditorSubmenu,
+    /// The settings that are real but not part of the everyday run: the DPI TTL
+    /// and the fake payloads. They used to be two rows on the main menu, which
+    /// made the menu long enough that the things you touch most were the
+    /// hardest ones to find.
+    ExtendedSubmenu,
+    TtlSubmenu,
+    FakesSubmenu,
+    FakesSelectSubmenu,
     AutotuneSubmenu,
     AutotuneEditDomainsSubmenu,
     AutotuneProtocolsSubmenu,
@@ -29,7 +42,234 @@ pub enum ActiveScreen {
     AutotunePresetSelectionSubmenu,
     AutotuneStrategiesSubmenu,
     AutotuneResultsSubmenu,
-    TtlSubmenu,
+}
+
+impl ActiveScreen {
+    /// What this screen is called, everywhere it is named: the breadcrumb, the
+    /// download version rows, nowhere else.
+    pub fn label(self) -> String {
+        match self {
+            Self::Main => rust_i18n::t!("tui_title_main").into_owned(),
+            #[cfg(target_os = "windows")]
+            Self::DefenderSubmenu => rust_i18n::t!("tui_title_defender").into_owned(),
+            Self::StrategySubmenu => rust_i18n::t!("tui_title_strategy").into_owned(),
+            Self::DownloadDepsSubmenu => rust_i18n::t!("tui_title_download_cat").into_owned(),
+            Self::DownloadZapretSubmenu => rust_i18n::t!("tui_title_download_zapret").into_owned(),
+            Self::DownloadStrategiesSubmenu => rust_i18n::t!("tui_title_download_strat").into_owned(),
+            Self::GamefilterSubmenu => rust_i18n::t!("tui_title_gamefilter").into_owned(),
+            Self::ExtendedSubmenu => rust_i18n::t!("tui_title_extended").into_owned(),
+            Self::TtlSubmenu => rust_i18n::t!("tui_title_ttl").into_owned(),
+            Self::FakesSubmenu => rust_i18n::t!("tui_title_fakes").into_owned(),
+            Self::FakesSelectSubmenu => rust_i18n::t!("menu_fakes_select_title").into_owned(),
+            Self::ZapretTagSelect => rust_i18n::t!("tui_title_tag_zapret").into_owned(),
+            Self::StrategyTagSelect => rust_i18n::t!("tui_title_tag_strat").into_owned(),
+            Self::ServiceSubmenu => rust_i18n::t!("tui_title_service").into_owned(),
+            Self::ListsEditorSubmenu => rust_i18n::t!("tui_title_lists").into_owned(),
+            Self::AutotuneSubmenu => rust_i18n::t!("tui_title_autotune").into_owned(),
+            Self::AutotuneEditDomainsSubmenu => rust_i18n::t!("tui_title_autotune_edit_domains").into_owned(),
+            Self::AutotuneProtocolsSubmenu => rust_i18n::t!("tui_title_autotune_proto").into_owned(),
+            Self::AutotuneBlockChecksSubmenu => rust_i18n::t!("tui_title_autotune_bc").into_owned(),
+            Self::AutotunePresetSelectionSubmenu => rust_i18n::t!("tui_title_autotune_presets").into_owned(),
+            Self::AutotuneStrategiesSubmenu => rust_i18n::t!("tui_title_autotune_strat").into_owned(),
+            Self::AutotuneResultsSubmenu => rust_i18n::t!("tui_title_autotune_results").into_owned(),
+        }
+    }
+}
+
+/// Where the user has been, so Esc can walk back out the way they walked in.
+///
+/// This used to be knowledge spread across the back handler: one arm per
+/// screen, each one naming the screen to return to. That is a table of parents
+/// pretending to be navigation, and it goes stale the moment a screen gains a
+/// second parent — the autotune menu reached three levels down used to send Esc
+/// straight to the top, skipping two screens on the way.
+///
+/// Holding the stack instead means the answer is always the screen the user was
+/// on when they opened this one, however deep they are.
+#[derive(Default)]
+pub struct History {
+    screens: Vec<ActiveScreen>,
+}
+
+impl History {
+    /// Record where a screen was opened from.
+    pub fn push(&mut self, from: ActiveScreen) {
+        // Consecutive duplicates would make Esc appear to do nothing, which is
+        // what a screen that reopens itself looks like from the keyboard.
+        if self.screens.last() != Some(&from) {
+            self.screens.push(from);
+        }
+    }
+
+    /// The screen to go back to, or `None` at the main menu.
+    pub fn pop(&mut self) -> Option<ActiveScreen> {
+        self.screens.pop()
+    }
+
+    pub fn clear(&mut self) {
+        self.screens.clear();
+    }
+
+    /// The route from the main menu down to `to`, oldest first.
+    ///
+    /// Read off the stack rather than a table of parents, so it is the way the
+    /// user actually came. `to` is appended rather than looked for: the stack
+    /// holds where they came *from*, so the current screen is never in it.
+    pub fn trail(&self, to: ActiveScreen) -> Vec<ActiveScreen> {
+        if to == ActiveScreen::Main {
+            return vec![to];
+        }
+        let mut trail: Vec<ActiveScreen> = self.screens.iter().copied().filter(|s| *s != to).collect();
+        if trail.first() != Some(&ActiveScreen::Main) {
+            trail.insert(0, ActiveScreen::Main);
+        }
+        trail.push(to);
+        trail
+    }
+}
+
+/// The main menu.
+///
+/// `Interface` is Linux-only: nftables and iptables can bind the rules to one
+/// output device and WinDivert cannot, so on Windows the row does not exist
+/// rather than existing and doing nothing.
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum MainMenuState {
+    #[cfg(target_os = "windows")]
+    DefenderSettings,
+    DownloadDeps,
+    #[cfg(target_os = "linux")]
+    Interface,
+    Strategy,
+    GamefilterSettings,
+    #[cfg(target_os = "linux")]
+    BackendSettings,
+    IpsetMode,
+    ListsEditor,
+    Autotune,
+    Extended,
+    ServiceSettings,
+    Run,
+    Quit,
+}
+
+/// A named group of main-menu rows.
+///
+/// The main menu is ordered by how often a row is touched, least first: the
+/// machine gets set up once, then the network, then the service, and the
+/// strategy is what you come back to change. Headings are what make a list of
+/// rows read as a set of decisions rather than a list to scan.
+pub struct Group {
+    /// The locale key of the heading.
+    pub title: &'static str,
+    pub rows: &'static [MainMenuState],
+}
+
+impl MainMenuState {
+    /// The main menu as drawn, in order.
+    ///
+    /// The single source of truth: the menu is rendered from this list and the
+    /// cursor is this list's index, so a row cannot be added to one and not the
+    /// other. Headings are not in it — they are drawn from [`Self::GROUPS`] but
+    /// never land the cursor.
+    pub const GROUPS: &'static [Group] = &[
+        Group {
+            title: "menu_group_setup",
+            rows: &[Self::DownloadDeps, Self::ListsEditor, Self::Extended],
+        },
+        Group {
+            title: "menu_group_network",
+            rows: &[
+                #[cfg(target_os = "linux")]
+                Self::Interface,
+                Self::GamefilterSettings,
+                #[cfg(target_os = "linux")]
+                Self::BackendSettings,
+                Self::IpsetMode,
+            ],
+        },
+        Group {
+            title: "menu_group_system",
+            rows: &[
+                #[cfg(target_os = "windows")]
+                Self::DefenderSettings,
+                Self::ServiceSettings,
+            ],
+        },
+        Group {
+            title: "menu_group_strategy",
+            rows: &[Self::Strategy, Self::Autotune],
+        },
+        // The two ends of every screen, not a setting: no heading, because a
+        // heading above "Run" would name a group of one decision.
+        Group {
+            title: "",
+            rows: &[Self::Run, Self::Quit],
+        },
+    ];
+
+    /// Every selectable row, in the order the menu draws them.
+    pub fn all() -> impl Iterator<Item = Self> {
+        Self::GROUPS.iter().flat_map(|group| group.rows.iter().copied())
+    }
+
+    /// The row the cursor starts on: the top of the menu, whichever row that
+    /// happens to be on this platform. Derived rather than named, so reordering
+    /// the menu cannot leave the cursor starting on a row that is not there.
+    pub fn first() -> Self {
+        Self::all().next().unwrap_or(Self::Quit)
+    }
+
+    pub fn next(self) -> Self {
+        Self::step(self, true)
+    }
+
+    pub fn prev(self) -> Self {
+        Self::step(self, false)
+    }
+
+    fn step(self, forward: bool) -> Self {
+        let all: Vec<Self> = Self::all().collect();
+        if all.is_empty() {
+            return self;
+        }
+        let len = all.len();
+        let pos = all.iter().position(|s| *s == self).unwrap_or(0);
+        let next = if forward { pos + 1 } else { pos + len - 1 } % len;
+        all[next]
+    }
+
+    /// Where this row sits among the selectable ones, which is also the row the
+    /// cursor lands on. Headings are not counted.
+    pub fn index(self) -> usize {
+        Self::all().position(|s| s == self).unwrap_or(0)
+    }
+}
+
+/// The settings under the Extended submenu, plus the way back.
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum ExtendedMenuState {
+    Ttl,
+    Fakes,
+    Back,
+}
+
+impl ExtendedMenuState {
+    pub const ALL: [Self; 3] = [Self::Ttl, Self::Fakes, Self::Back];
+
+    pub fn next(self) -> Self {
+        let i = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
+        Self::ALL[(i + 1) % Self::ALL.len()]
+    }
+
+    pub fn prev(self) -> Self {
+        let i = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
+        Self::ALL[(i + Self::ALL.len() - 1) % Self::ALL.len()]
+    }
+
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|s| *s == self).unwrap_or(0)
+    }
 }
 
 /// The three things one can do about the fixed DPI-TTL, plus the way back.
@@ -97,82 +337,6 @@ impl AutotuneReportTab {
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
-pub enum MainMenuState {
-    #[cfg(target_os = "windows")]
-    DefenderSettings,
-    DownloadDeps,
-    Interface,
-    Strategy,
-    GamefilterSettings,
-    #[cfg(target_os = "linux")]
-    BackendSettings,
-    IpsetMode,
-    ListsEditor,
-    Autotune,
-    TtlAutopick,
-    FakesSettings,
-    ServiceSettings,
-    Run,
-    Quit,
-}
-
-impl MainMenuState {
-    pub fn next(self) -> Self {
-        match self {
-            #[cfg(target_os = "windows")]
-            Self::DefenderSettings => Self::DownloadDeps,
-            Self::DownloadDeps => Self::Interface,
-            Self::Interface => Self::Strategy,
-            Self::Strategy => Self::GamefilterSettings,
-            #[cfg(target_os = "linux")]
-            Self::GamefilterSettings => Self::BackendSettings,
-            #[cfg(target_os = "linux")]
-            Self::BackendSettings => Self::IpsetMode,
-            #[cfg(not(target_os = "linux"))]
-            Self::GamefilterSettings => Self::IpsetMode,
-            Self::IpsetMode => Self::ListsEditor,
-            Self::ListsEditor => Self::Autotune,
-            Self::Autotune => Self::TtlAutopick,
-            Self::TtlAutopick => Self::FakesSettings,
-            Self::FakesSettings => Self::ServiceSettings,
-            Self::ServiceSettings => Self::Run,
-            Self::Run => Self::Quit,
-            #[cfg(target_os = "windows")]
-            Self::Quit => Self::DefenderSettings,
-            #[cfg(not(target_os = "windows"))]
-            Self::Quit => Self::DownloadDeps,
-        }
-    }
-
-    pub fn prev(self) -> Self {
-        match self {
-            #[cfg(target_os = "windows")]
-            Self::DefenderSettings => Self::Quit,
-            #[cfg(target_os = "windows")]
-            Self::DownloadDeps => Self::DefenderSettings,
-            #[cfg(not(target_os = "windows"))]
-            Self::DownloadDeps => Self::Quit,
-            Self::Interface => Self::DownloadDeps,
-            Self::Strategy => Self::Interface,
-            Self::GamefilterSettings => Self::Strategy,
-            #[cfg(target_os = "linux")]
-            Self::BackendSettings => Self::GamefilterSettings,
-            #[cfg(target_os = "linux")]
-            Self::IpsetMode => Self::BackendSettings,
-            #[cfg(not(target_os = "linux"))]
-            Self::IpsetMode => Self::GamefilterSettings,
-            Self::ListsEditor => Self::IpsetMode,
-            Self::Autotune => Self::ListsEditor,
-            Self::TtlAutopick => Self::Autotune,
-            Self::FakesSettings => Self::TtlAutopick,
-            Self::ServiceSettings => Self::FakesSettings,
-            Self::Run => Self::ServiceSettings,
-            Self::Quit => Self::Run,
-        }
-    }
-}
-
-#[derive(PartialEq, Clone, Copy)]
 pub enum GamefilterMenuState {
     Tcp,
     Udp,
@@ -268,6 +432,40 @@ pub enum AutotuneMenuState {
     Back,
 }
 
+impl AutotuneMenuState {
+    pub const ALL: [Self; 9] = [
+        Self::PresetSelection,
+        Self::NumRequests,
+        Self::Strategies,
+        Self::Protocols,
+        Self::BlockChecks,
+        Self::EditDomains,
+        Self::Results,
+        Self::Run,
+        Self::Back,
+    ];
+
+    pub fn next(self) -> Self {
+        Self::step(self, true)
+    }
+
+    pub fn prev(self) -> Self {
+        Self::step(self, false)
+    }
+
+    fn step(self, forward: bool) -> Self {
+        let len = Self::ALL.len();
+        let pos = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
+        let next = if forward { pos + 1 } else { pos + len - 1 } % len;
+        Self::ALL[next]
+    }
+
+    /// Where this row sits in the menu, which is also where the cursor is.
+    pub fn index(self) -> usize {
+        Self::ALL.iter().position(|s| *s == self).unwrap_or(0)
+    }
+}
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum AutotuneProtocolsState {
     Http,
@@ -335,15 +533,16 @@ impl AutotuneBlockChecksState {
         }
     }
 
-    pub fn index(self) -> usize {
+    /// Which check this row toggles, or `None` for the way back.
+    pub fn index(self) -> Option<usize> {
         match self {
-            Self::DnsSpoof => 0,
-            Self::TcpRst => 1,
-            Self::SniBlock => 2,
-            Self::SiberianBlock => 3,
-            Self::QuicBlock => 4,
-            Self::CidrWhitelist => 5,
-            Self::Back => unreachable!("Back has no block-check index"),
+            Self::DnsSpoof => Some(0),
+            Self::TcpRst => Some(1),
+            Self::SniBlock => Some(2),
+            Self::SiberianBlock => Some(3),
+            Self::QuicBlock => Some(4),
+            Self::CidrWhitelist => Some(5),
+            Self::Back => None,
         }
     }
 }
@@ -428,6 +627,35 @@ impl VersionTarget {
 }
 
 impl AppState {
+    /// Go one step down into `screen`, remembering where we came from.
+    pub fn open(&mut self, screen: ActiveScreen) {
+        self.history.push(self.active_screen);
+        self.active_screen = screen;
+        self.status_message = None;
+    }
+
+    /// Go one step up. False at the main menu, which is where the back stack
+    /// runs out and Esc means "leave".
+    pub fn back(&mut self) -> bool {
+        match self.history.pop() {
+            Some(previous) => {
+                self.active_screen = previous;
+                self.status_message = None;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Put the user back on the main menu and forget how they got here.
+    ///
+    /// For a job that finished and dropped the user out of a submenu tree:
+    /// there is nothing left to go back to.
+    pub fn home(&mut self) {
+        self.history.clear();
+        self.active_screen = ActiveScreen::Main;
+    }
+
     pub fn next_menu(&mut self) {
         self.move_menu(true);
     }
@@ -492,6 +720,20 @@ impl AppState {
                     self.gamefilter_menu.prev()
                 };
             }
+            ActiveScreen::ExtendedSubmenu => {
+                self.extended_menu = if forward {
+                    self.extended_menu.next()
+                } else {
+                    self.extended_menu.prev()
+                }
+            }
+            ActiveScreen::TtlSubmenu => {
+                self.ttl_menu = if forward {
+                    self.ttl_menu.next()
+                } else {
+                    self.ttl_menu.prev()
+                };
+            }
             ActiveScreen::FakesSubmenu => {
                 self.fakes_menu = if forward {
                     self.fakes_menu.next()
@@ -532,8 +774,12 @@ impl AppState {
                 self.domain_files_index = Self::cycle_index(self.domain_files_index, max, forward);
             }
             ActiveScreen::AutotuneSubmenu => {
-                let count = 9;
-                self.set_autotune_menu_index(Self::cycle_index(self.autotune_menu_index, count, forward));
+                self.autotune_menu = if forward {
+                    self.autotune_menu.next()
+                } else {
+                    self.autotune_menu.prev()
+                };
+                self.autotune_menu_index = self.autotune_menu.index();
             }
             ActiveScreen::AutotuneProtocolsSubmenu => {
                 self.autotune_protocols_menu = if forward {
@@ -560,13 +806,6 @@ impl AppState {
                 if max > 0 {
                     self.autotune_strat_index = Self::cycle_index(self.autotune_strat_index, max, forward);
                 }
-            }
-            ActiveScreen::TtlSubmenu => {
-                self.ttl_menu = if forward {
-                    self.ttl_menu.next()
-                } else {
-                    self.ttl_menu.prev()
-                };
             }
             ActiveScreen::AutotuneResultsSubmenu => {
                 // The report is a scrolling view, not a menu: the offset has no
@@ -609,20 +848,5 @@ impl AppState {
             self.autotune_report_tab.prev()
         };
         self.autotune_results_index = 0;
-    }
-
-    pub(crate) fn set_autotune_menu_index(&mut self, index: usize) {
-        self.autotune_menu_index = index % 9;
-        self.autotune_menu = match self.autotune_menu_index {
-            0 => AutotuneMenuState::PresetSelection,
-            1 => AutotuneMenuState::NumRequests,
-            2 => AutotuneMenuState::Strategies,
-            3 => AutotuneMenuState::Protocols,
-            4 => AutotuneMenuState::BlockChecks,
-            5 => AutotuneMenuState::EditDomains,
-            6 => AutotuneMenuState::Results,
-            7 => AutotuneMenuState::Run,
-            _ => AutotuneMenuState::Back,
-        };
     }
 }
