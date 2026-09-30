@@ -5,7 +5,7 @@
 //!
 //! ```text
 //! L4  autotune
-//! L3  net, run, service, diagnose
+//! L3  run, service, diagnose
 //! L2  download, firewall, lists, strategy
 //! L1  config, defender, domains, fakes, platform
 //! L0  error, i18n, paths, process
@@ -38,11 +38,11 @@ pub mod firewall;
 pub mod lists;
 pub mod strategy;
 
-// L3 — actions: probing, running, installing a service, diagnosing.
+// L3 — actions: running, installing a service, diagnosing.
 pub mod diagnose;
-pub mod net;
 pub mod run;
 pub mod service;
 
-// L4 — the auto-tuning feature, composed from the layers above.
+// L4 — the auto-tuning feature, including its own probes. Self-contained:
+// nothing outside it uses them, so they are not a layer of their own.
 pub mod autotune;

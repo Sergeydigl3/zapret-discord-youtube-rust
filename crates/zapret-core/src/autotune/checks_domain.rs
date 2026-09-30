@@ -2,12 +2,31 @@ use std::io::{ErrorKind, Read, Write};
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use crate::autotune::types::{status_char, AutotuneConfig, CheckStatus, DomainCheckResult};
+use super::types::{status_char, AutotuneConfig, CheckStatus, DomainCheckResult};
 
 use super::checks_network::try_tcp_connect_domain;
 use super::dns::resolve_domain;
 use super::probe::test_tls;
 use super::quic;
+
+/// Result to report when a per-domain check thread died before producing one.
+///
+/// Lives next to [`check_domain`] because this is the module that produces
+/// `DomainCheckResult`; the orchestrator only has to ask for it.
+pub fn domain_check_error() -> DomainCheckResult {
+    DomainCheckResult {
+        domain: String::new(),
+        alive: CheckStatus::Error,
+        http: CheckStatus::Error,
+        tls12: CheckStatus::Error,
+        tls13: CheckStatus::Error,
+        quic: CheckStatus::Error,
+        baseline_pass: false,
+        detail: "check thread panicked".to_string(),
+        http_count: 0,
+        quic_count: 0,
+    }
+}
 
 pub fn check_domain_alive(domain: &str) -> CheckStatus {
     match try_tcp_connect_domain(domain, 443) {
@@ -100,7 +119,7 @@ pub fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
 
 pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult {
     if super::cancel::is_cancelled() {
-        return crate::autotune::orchestrator::domain_check_error();
+        return domain_check_error();
     }
     let alive = check_domain_alive(domain);
     let detail;

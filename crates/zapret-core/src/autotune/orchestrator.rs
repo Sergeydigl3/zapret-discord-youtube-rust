@@ -1,17 +1,16 @@
 use std::path::Path;
 use std::time::Duration;
 
+use super::cancel::{is_cancelled, reset_cancel};
 use crate::domains::{get_domains_for_preset, PRESETS};
 use crate::firewall::FirewallBackend;
-use crate::net::cancel::{is_cancelled, reset_cancel};
-use crate::net::checks_domain::check_domain;
-use crate::net::checks_network::run_network_checks;
-use crate::net::probe::{test_http, test_quic, test_tls};
 
+use super::checks_domain::{check_domain, domain_check_error};
+use super::checks_network::run_network_checks;
+use super::probe::{test_http, test_quic, test_tls};
 use super::storage::{restore_ipset, save_ipset, save_results_file, set_ipset_any};
 use super::types::{
-    AutotuneConfig, AutotuneResults, CheckStatus, DomainCheckResult, DomainProtocolCheck, PresetResult,
-    StrategyCheckResult,
+    AutotuneConfig, AutotuneResults, DomainCheckResult, DomainProtocolCheck, PresetResult, StrategyCheckResult,
 };
 
 fn get_strategy_name(name: &str) -> String {
@@ -69,21 +68,6 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
         std::thread::sleep(Duration::from_millis(100));
     }
     running && !is_cancelled()
-}
-
-pub fn domain_check_error() -> DomainCheckResult {
-    DomainCheckResult {
-        domain: String::new(),
-        alive: CheckStatus::Error,
-        http: CheckStatus::Error,
-        tls12: CheckStatus::Error,
-        tls13: CheckStatus::Error,
-        quic: CheckStatus::Error,
-        baseline_pass: false,
-        detail: "check thread panicked".to_string(),
-        http_count: 0,
-        quic_count: 0,
-    }
 }
 
 struct TtlGuard {
