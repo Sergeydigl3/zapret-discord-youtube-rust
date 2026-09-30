@@ -1,5 +1,45 @@
 # Changelog
 
+## [2.2.0](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/compare/zapret-rust-v2.1.0...zapret-rust-v2.2.0) (2026-09-30)
+
+
+### 🚀 Новые функции
+
+* add mouse support ([430cc58](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/430cc582be09e68ec9523702018b7d5c53d2c4b5))
+* add router mode ([370ff4c](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/370ff4c4e7cde112b0b67871e9ba26649850588e))
+
+
+### 🐛 Исправления ошибок
+
+* **autotune:** resolve strategies through strategy::resolve ([c6aeeaa](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/c6aeeaadd028327bb070855012c0ee9676e15c8f))
+* **config:** исправить дефолтный фейк GameFilter UDP ([62d2f25](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/62d2f254bc9cc88bd0961ef4a41fbbaff7c5958a))
+* **core:** hide deps under platform selector ([40c4a8b](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/40c4a8b5b5d41ed1141c0fea76f46d2fbfddc3e0))
+* ttl flags works ([067da2a](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/067da2ab0a3e4ca439e7326eb07253a0a381eb70))
+* **windows:** TUI в Windows Terminal, цветные эмодзи и UTF-8 ([76540dc](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/76540dcc38ffde5b7ef6a1526ac5cbdd3265b963))
+
+
+### ♻️ Рефакторинг кода
+
+* **autotune:** move the probing and check modules under autotune ([15a929e](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/15a929e7a680ddd1f0ee6730791416e11fe4b5fb))
+* **core:** extract the downloader into zapret-fetch ([30470c7](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/30470c733a8c4820e9f544290d5c893c5ea88215))
+* **core:** make the runner take a LaunchPlan instead of a strategy name ([872af09](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/872af092a0eca4cff6e58ac568555b6723ff7e35))
+* **core:** process management handling ([bd74a01](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/bd74a01cd0d2f645dfd7370f426aa73aa570292b))
+* move the framing into zapret-wrapper ([829b57b](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/829b57b486c51c424d13a870542031cd8c28f16f))
+* split the codebase into zapret-core and zapret-tui crates ([3cae5cb](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/3cae5cb772bf66516573b18a7b1ad3f8e2c5ba14))
+* use native uid check ([c789650](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/c7896502054ce0717c260b7fce5d6f494cd57f74))
+
+
+### 📝 Документация
+
+* add NixOS module usage documentation to README ([bde98cd](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/bde98cdb385f132aaf716dbddf0542ae059e917f))
+* rewrite the package map for the five-crate split ([e87a5e7](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/e87a5e73b1a610fe46e1d9f553a15da5c834df09))
+
+
+### 🔧 Обслуживание и зависимости
+
+* add background service support for NixOS ([0847893](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/084789359e8967a6c0e1397c9aa74efc1510f0b2))
+* tmp remove later ([670a3cc](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/670a3ccf7b29e9d2139288af5599ae56705a3c9e))
+
 ## [2.1.0](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/compare/zapret-rust-v2.0.0...zapret-rust-v2.1.0) (2026-09-01)
 
 
