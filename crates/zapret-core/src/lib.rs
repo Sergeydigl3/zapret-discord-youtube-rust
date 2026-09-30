@@ -38,7 +38,9 @@ pub mod lists;
 pub mod strategy;
 
 // L3 — actions: running, installing a service, diagnosing.
+pub mod daemon;
 pub mod diagnose;
+pub mod plan;
 pub mod run;
 pub mod service;
 

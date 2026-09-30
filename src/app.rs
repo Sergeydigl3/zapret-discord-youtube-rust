@@ -152,13 +152,9 @@ pub fn run(args: Cli) {
             backend_info
         );
 
-        run::run_zapret(
-            &strategy_file,
-            &use_interface,
-            use_gamefilter_tcp,
-            use_gamefilter_udp,
-            &backend,
-        );
+        let req =
+            zapret_core::plan::RunRequest::new(&strategy_file, &use_interface, use_gamefilter_tcp, use_gamefilter_udp);
+        run::run_foreground(&req, &backend);
 
         thread::sleep(Duration::from_millis(100));
         println!("{}", rust_i18n::t!("msg_zapret_started"));
@@ -169,7 +165,7 @@ pub fn run(args: Cli) {
             thread::sleep(Duration::from_millis(100));
         }
 
-        run::stop_zapret(&backend);
+        run::stop(&backend);
 
         if !is_interactive {
             break;

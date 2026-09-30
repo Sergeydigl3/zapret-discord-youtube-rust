@@ -83,7 +83,7 @@ pub fn run_autotune(
                         || key.code == crossterm::event::KeyCode::Esc
                     {
                         cancel::trigger_cancel();
-                        run::stop_zapret(backend);
+                        run::stop(backend);
                         return false; // Emergency stop requested!
                     }
                 }

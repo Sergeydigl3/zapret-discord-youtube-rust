@@ -1,12 +1,15 @@
 mod date;
 mod facts;
 
+use crate::daemon::LaunchPlan;
 use date::timestamp;
 use facts::collect_system_info;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 
-pub fn log_nfqws_launch(bin_path: &str, nfqws_params: &[String], terminal_output: &[String]) {
+/// Write the launch record: what the machine looked like, what was configured,
+/// what was printed and what the daemon was actually started with.
+pub fn log_launch(plan: &LaunchPlan, terminal_output: &[String]) {
     let log_dir = crate::paths::cache_dir().join("logs");
     let log_file = log_dir.join("zapret.log");
 
@@ -50,10 +53,11 @@ pub fn log_nfqws_launch(bin_path: &str, nfqws_params: &[String], terminal_output
     }
 
     let _ = writeln!(file, "--- Strategy params ---");
-    let _ = writeln!(file, "binary: {}", bin_path);
-    for param in nfqws_params {
-        let _ = writeln!(file, "{}", param);
+    let _ = writeln!(file, "binary: {}", plan.binary.display());
+    for arg in &plan.args {
+        let _ = writeln!(file, "{}", arg);
     }
+    let _ = writeln!(file, "divert tcp/udp: {} / {}", plan.tcp_ports, plan.udp_ports);
 }
 
 pub fn log_stop(stop_output: &[String]) {

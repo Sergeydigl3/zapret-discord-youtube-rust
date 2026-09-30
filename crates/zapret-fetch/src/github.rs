@@ -34,10 +34,7 @@ pub fn fetch_repo_tags(repo: &str) -> Result<Vec<String>, String> {
 pub(crate) fn resolve_tag(version: &str) -> Result<String, String> {
     if version == "latest" {
         println!("{}", rust_i18n::t!("msg_fetch_rel"));
-        let latest_url = format!(
-            "https://api.github.com/repos/{}/releases/latest",
-            crate::ZAPRET_REPO
-        );
+        let latest_url = format!("https://api.github.com/repos/{}/releases/latest", crate::ZAPRET_REPO);
         let req = ureq::get(&latest_url)
             .set("User-Agent", "zapret-rust")
             .call()
