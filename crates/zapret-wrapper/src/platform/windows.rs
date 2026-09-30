@@ -99,12 +99,3 @@ fn is_elevated() -> bool {
         .map(|out| out.status.success())
         .unwrap_or(false)
 }
-
-pub fn is_nfqws_running() -> bool {
-    let out = Command::new("tasklist")
-        .args(["/FI", "IMAGENAME eq winws.exe", "/NH"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-        .unwrap_or_default();
-    out.contains("winws.exe")
-}

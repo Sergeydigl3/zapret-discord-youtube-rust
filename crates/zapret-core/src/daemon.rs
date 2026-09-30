@@ -2,7 +2,12 @@
 //!
 //! This is the launch kernel: given a fully resolved [`LaunchPlan`] it puts the
 //! firewall in place, grants the capability the queue needs, spawns
-//! `nfqws` / `winws`, keeps track of the child and tears everything down again.
+//! `nfqws` / `winws`, keeps the child handle and tears everything down again.
+//!
+//! "Is zapret running?" is answered from that handle, never from a scan of the
+//! machine. The only zapret processes this program does not own are the ones it
+//! deliberately has to get out of the way of — a leftover of an earlier run, a
+//! service it does not manage — and [`free_queue`] deals with those by name.
 //!
 //! It deliberately knows nothing about strategies. It does not parse a `.bat`,
 //! does not know what an alias or a list is, does not read the configuration
@@ -18,7 +23,43 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
-static NFQWS_PROCESSES: Mutex<Vec<Child>> = Mutex::new(Vec::new());
+/// The daemon this program started.
+///
+/// The child handle is the whole truth about it: while there is one and it has
+/// not exited, zapret is running, and stopping it means `kill()` on that handle.
+/// The operating system is never asked whether a zapret daemon exists — a
+/// process found that way is one somebody else started, which this program does
+/// not own and does not report on.
+struct Daemon {
+    child: Option<Child>,
+}
+
+impl Daemon {
+    fn new(child: Child) -> Self {
+        Self { child: Some(child) }
+    }
+
+    /// True while the child is alive. Reaps it when it has just exited, so a
+    /// later call answers `false` instead of blocking in `wait`.
+    fn is_running(&mut self) -> bool {
+        match self.child.as_mut() {
+            Some(child) => child.try_wait().map(|s| s.is_none()).unwrap_or(false),
+            None => false,
+        }
+    }
+
+    /// Kill the child, wait for it, and let the handle go.
+    fn stop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+/// At most one daemon at a time: a new launch stops the previous one, so the
+/// handle is a single slot rather than a list.
+static DAEMON: Mutex<Option<Daemon>> = Mutex::new(None);
 
 /// Everything the runner needs to start the daemon.
 ///
@@ -110,7 +151,7 @@ impl LaunchPlan {
             outcome.firewall_error = Some(e);
         }
 
-        crate::process::kill_stale_zapret();
+        free_queue();
 
         if !self.binary.exists() {
             return Err(LaunchError::BinaryMissing(self.binary.clone()));
@@ -139,9 +180,7 @@ impl LaunchPlan {
             .spawn()
             .map_err(|e| LaunchError::Spawn(e.to_string()))?;
 
-        if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
-            procs.push(child);
-        }
+        adopt(child);
 
         // Wait briefly for the startup output before reading it back.
         thread::sleep(Duration::from_millis(300));
@@ -161,7 +200,7 @@ impl LaunchPlan {
             .setup(&self.tcp_ports, &self.udp_ports, interface)
             .map_err(LaunchError::Firewall)?;
 
-        crate::process::kill_stale_zapret();
+        free_queue();
 
         if !self.binary.exists() {
             return Err(LaunchError::BinaryMissing(self.binary.clone()));
@@ -178,9 +217,7 @@ impl LaunchPlan {
             .spawn()
             .map_err(|e| LaunchError::Spawn(e.to_string()))?;
 
-        if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
-            procs.push(child);
-        }
+        adopt(child);
 
         Ok(LaunchOutcome {
             command: self.command(),
@@ -189,25 +226,47 @@ impl LaunchPlan {
     }
 }
 
-/// Returns true if any spawned zapret process is still running.
-pub fn is_running() -> bool {
-    let Ok(mut procs) = NFQWS_PROCESSES.lock() else {
-        return false;
-    };
-    procs
-        .iter_mut()
-        .any(|p| p.try_wait().map(|s| s.is_none()).unwrap_or(false))
+/// Take ownership of a daemon this program just started.
+///
+/// The handle is dropped if the lock is poisoned, which leaves the process
+/// running: it is then somebody else's daemon as far as this program is
+/// concerned, and the next launch's `free_queue` reaches it by name.
+fn adopt(child: Child) {
+    if let Ok(mut guard) = DAEMON.lock() {
+        *guard = Some(Daemon::new(child));
+    }
 }
 
-/// Kill the daemons this process started and drop the firewall rules.
-pub fn stop(backend: &dyn FirewallBackend) {
-    if let Ok(mut procs) = NFQWS_PROCESSES.lock() {
-        for child in procs.iter_mut() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
-        procs.clear();
-    }
+/// Free the queue for a new daemon.
+///
+/// Our own previous daemon goes through its handle. Anything else that answers
+/// to the same image — a leftover of an earlier run, a binary the user started
+/// by hand, a managed service — has no handle here, and by name is the only way
+/// to reach it.
+fn free_queue() {
+    stop_daemon();
+    crate::process::kill_stale_zapret();
+}
 
+/// True while the daemon this program started is running.
+pub fn is_running() -> bool {
+    DAEMON
+        .lock()
+        .map(|mut guard| guard.as_mut().is_some_and(Daemon::is_running))
+        .unwrap_or(false)
+}
+
+/// Stop the daemon this program started, through its handle.
+fn stop_daemon() {
+    if let Ok(mut guard) = DAEMON.lock() {
+        if let Some(daemon) = guard.as_mut() {
+            daemon.stop();
+        }
+    }
+}
+
+/// Kill the daemon this program started and drop the firewall rules.
+pub fn stop(backend: &dyn FirewallBackend) {
+    stop_daemon();
     let _ = backend.clear();
 }

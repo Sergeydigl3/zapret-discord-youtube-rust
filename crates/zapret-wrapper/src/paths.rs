@@ -90,12 +90,15 @@ pub fn bin_runtime_dir() -> PathBuf {
 
 /// Path of the runtime binary for the current platform.
 pub fn binary_path() -> PathBuf {
-    let bin_name = if env::consts::OS == "windows" {
-        "winws.exe"
-    } else {
-        "nfqws"
-    };
-    bin_runtime_dir().join(bin_name)
+    bin_runtime_dir().join(binary_name())
+}
+
+/// Name of the runtime binary on this platform.
+///
+/// Owned by `zapret_core::process`, which is also what kills and looks for that
+/// image: one spelling of `winws.exe` / `nfqws` in the program.
+pub fn binary_name() -> &'static str {
+    zapret_core::process::daemon_image()
 }
 
 /// Directory with the `.bin` payload files referenced by the strategies.

@@ -2,7 +2,7 @@
 //! block-check toggles, the preset and strategy multi-selects, and the results.
 
 use zapret_wrapper::domains::PRESETS;
-use zapret_wrapper::platform;
+use zapret_wrapper::run::queue_in_use;
 
 use crate::state::screens::{ActiveScreen, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState};
 use crate::state::AppState;
@@ -44,7 +44,7 @@ pub fn activate(app: &mut AppState) {
                 app.status_message = None;
             }
             AutotuneMenuState::Run => {
-                if platform::is_nfqws_running() {
+                if queue_in_use() {
                     app.status_message = Some(rust_i18n::t!("autotune_err_nfqws_running").into_owned());
                 } else {
                     app.should_run_autotune = true;

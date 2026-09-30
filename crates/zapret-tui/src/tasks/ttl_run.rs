@@ -5,7 +5,6 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io;
 use std::sync::mpsc::Receiver;
-use zapret_core::firewall::FirewallBackend;
 use zapret_wrapper::config;
 use zapret_wrapper::domains::ttl;
 
@@ -29,10 +28,7 @@ pub fn run_ttl_autopick(
         .get(app.selected_interface)
         .map(|s| s.as_str())
         .unwrap_or("any");
-    #[cfg(target_os = "linux")]
-    let backend: &dyn FirewallBackend = &app.selected_backend;
-    #[cfg(target_os = "windows")]
-    let backend: &dyn FirewallBackend = &zapret_core::firewall::windivert::WinDivertBackend;
+    let backend = app.firewall_backend();
 
     let result = if strategy.is_empty() {
         Err(rust_i18n::t!("msg_no_strat").into_owned())

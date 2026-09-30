@@ -91,6 +91,16 @@ pub fn run_quiet(req: &RunRequest, backend: &dyn FirewallBackend) -> ZResult<Lau
     plan.launch_quiet(&req.interface, backend).map_err(|e| e.to_string())
 }
 
+/// True when something already holds the queue, so a launch would fight it.
+///
+/// Two questions, one answer, and the only place the second one is asked: the
+/// daemon this program started is a handle, while a daemon somebody else started
+/// — a managed service, a binary started by hand, a leftover of an earlier run
+/// — is only knowable from the operating system.
+pub fn queue_in_use() -> bool {
+    daemon::is_running() || crate::platform::is_nfqws_running()
+}
+
 /// Stop the daemon, reporting it on the console and in the log.
 pub fn stop(backend: &dyn FirewallBackend) {
     let mut term: Vec<String> = Vec::new();

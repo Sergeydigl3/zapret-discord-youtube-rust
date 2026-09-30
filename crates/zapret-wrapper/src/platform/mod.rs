@@ -18,15 +18,14 @@ pub use linux::ensure_admin;
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
 pub fn ensure_admin() {}
 
-#[cfg(target_os = "windows")]
-pub use windows::is_nfqws_running;
-
-#[cfg(target_os = "linux")]
-pub use linux::is_nfqws_running;
-
-#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+/// True when a zapret daemon that this program did not start is running.
+///
+/// The only question in the program that is answered by looking at the machine:
+/// the daemon this program started is a child handle, and a process found by
+/// name belongs to somebody else. `run::queue_in_use` is the one caller-facing
+/// form of the question.
 pub fn is_nfqws_running() -> bool {
-    false
+    zapret_core::process::is_daemon_running()
 }
 
 /// Return available network interfaces.

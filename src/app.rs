@@ -30,13 +30,52 @@ use zapret_core::firewall::LinuxBackend;
 #[cfg(target_os = "windows")]
 use zapret_core::firewall::windivert::WinDivertBackend;
 
+use zapret_core::firewall::FirewallBackend;
+
+/// What the run loop remembers about the firewall between passes.
+///
+/// On Linux this is the backend the user picked; on Windows there is nothing to
+/// pick, so the type is empty and the two helpers below are what actually hold
+/// the platform difference. The run loop itself never branches.
+#[cfg(target_os = "linux")]
+type ChosenBackend = LinuxBackend;
+
+#[cfg(target_os = "windows")]
+type ChosenBackend = ();
+
+/// The firewall this run is put behind.
+#[cfg(target_os = "linux")]
+fn firewall_backend(chosen: ChosenBackend) -> Box<dyn FirewallBackend> {
+    Box::new(chosen)
+}
+
+#[cfg(target_os = "windows")]
+fn firewall_backend(_chosen: ChosenBackend) -> Box<dyn FirewallBackend> {
+    Box::new(WinDivertBackend)
+}
+
+/// The backend as it is printed in the run parameters, where Windows has none.
+#[cfg(target_os = "linux")]
+fn backend_info(chosen: ChosenBackend) -> String {
+    format!(", backend={}", chosen.to_config())
+}
+
+#[cfg(target_os = "windows")]
+fn backend_info(_chosen: ChosenBackend) -> String {
+    String::new()
+}
+
 pub fn run(args: Cli) {
     let mut use_interface = args.interface.clone();
     let mut use_strategy = args.strategy.clone();
     let mut use_gamefilter_tcp = args.gamefiltertcp;
     let mut use_gamefilter_udp = args.gamefilterudp;
     #[cfg(target_os = "linux")]
-    let mut use_backend: LinuxBackend = LinuxBackend::Nftables;
+    let mut use_backend: ChosenBackend = LinuxBackend::Nftables;
+    // Windows has no choice to remember, so nothing writes to it.
+    #[cfg(target_os = "windows")]
+    #[allow(unused_mut)]
+    let mut use_backend: ChosenBackend = ();
     let mut is_interactive = true;
 
     if let Some(config_file) = &args.config {
@@ -131,16 +170,8 @@ pub fn run(args: Cli) {
             }
         }
 
-        #[cfg(target_os = "linux")]
-        let backend = use_backend;
-
-        #[cfg(target_os = "windows")]
-        let backend = WinDivertBackend;
-
-        #[cfg(target_os = "linux")]
-        let backend_info = format!(", backend={}", use_backend.to_config());
-        #[cfg(not(target_os = "linux"))]
-        let backend_info = String::new();
+        let backend = firewall_backend(use_backend);
+        let backend_info = backend_info(use_backend);
 
         println!(
             "{}{}, interface={}, gamefiltertcp={}, gamefilterudp={}{}",
@@ -158,7 +189,7 @@ pub fn run(args: Cli) {
             use_gamefilter_tcp,
             use_gamefilter_udp,
         );
-        run::run_foreground(&req, &backend);
+        run::run_foreground(&req, backend.as_ref());
 
         thread::sleep(Duration::from_millis(100));
         println!("{}", rust_i18n::t!("msg_zapret_started"));
@@ -169,7 +200,7 @@ pub fn run(args: Cli) {
             thread::sleep(Duration::from_millis(100));
         }
 
-        run::stop(&backend);
+        run::stop(backend.as_ref());
 
         if !is_interactive {
             break;

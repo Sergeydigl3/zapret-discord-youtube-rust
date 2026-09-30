@@ -81,11 +81,15 @@ fn curl_tls_ok(domain: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Wait until the daemon this program just started is up.
+///
+/// The child handle is the answer: the sweep launched it, and nothing else can
+/// be mistaken for it.
 fn wait_for_nfqws(timeout: Duration) -> bool {
     let deadline = std::time::Instant::now() + timeout;
     let mut running = false;
     while std::time::Instant::now() < deadline {
-        if zapret_core::daemon::is_running() || crate::platform::is_nfqws_running() {
+        if zapret_core::daemon::is_running() {
             running = true;
             break;
         }
@@ -101,7 +105,7 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
 /// Sweep TTL from 1 to 20, running winws with a fixed TTL each time and
 /// probing real domains. Returns the first (minimum) working TTL.
 pub fn autopick_ttl(strategy_file: &str, interface: &str, backend: &dyn FirewallBackend) -> Result<u8, String> {
-    if crate::platform::is_nfqws_running() {
+    if crate::run::queue_in_use() {
         return Err(rust_i18n::t!("ttl_err_running").into_owned());
     }
 
