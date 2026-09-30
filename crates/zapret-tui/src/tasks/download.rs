@@ -5,11 +5,25 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io;
 use std::sync::mpsc::Receiver;
-use zapret_core::download;
+use zapret_core::paths;
 use zapret_core::strategy;
 
 use crate::screen::run_download;
 use crate::state::{ActiveScreen, AppState, VersionTarget};
+
+/// Where the downloader writes.
+///
+/// The layout belongs to `paths`; the downloader is handed the directories
+/// rather than resolving them itself.
+fn install_targets() -> zapret_fetch::InstallTargets {
+    zapret_fetch::InstallTargets {
+        cache_dir: paths::cache_dir(),
+        runtime_bin_dir: paths::bin_runtime_dir(),
+        // Deliberately not `paths::repo_dir()`: strategies have always been
+        // unpacked into `<cache>/<repo name>`, ignoring the REPO_DIR override.
+        strategies_dir: paths::cache_dir().join(paths::REPO_DIR_NAME),
+    }
+}
 
 /// Resolve the version selector chosen in the submenu into the string
 /// `install_dependencies` expects.
@@ -19,7 +33,7 @@ use crate::state::{ActiveScreen, AppState, VersionTarget};
 pub fn nfqws_version(app: &AppState) -> String {
     let nfqws_target_string;
     match &app.nfqws_target {
-        VersionTarget::Recommended => download::ZAPRET_REC_VER.to_string(),
+        VersionTarget::Recommended => zapret_fetch::ZAPRET_REC_VER.to_string(),
         VersionTarget::Latest => "latest".to_string(),
         VersionTarget::Tag(t) => {
             nfqws_target_string = t.clone();
@@ -47,7 +61,9 @@ pub fn download_zapret(
 ) -> Result<(), io::Error> {
     let nfqws_ver = nfqws_version(app);
 
-    let res = run_download(terminal, rx, || download::install_dependencies(&nfqws_ver, "skip"))?;
+    let res = run_download(terminal, rx, || {
+        zapret_fetch::install_dependencies(&install_targets(), &nfqws_ver, "skip")
+    })?;
 
     if let Err(e) = res {
         app.show_error(e.to_string());
@@ -66,7 +82,9 @@ pub fn download_strategies(
 ) -> Result<(), io::Error> {
     let strat_ver = strategies_version(app);
 
-    let res = run_download(terminal, rx, || download::install_dependencies("skip", &strat_ver))?;
+    let res = run_download(terminal, rx, || {
+        zapret_fetch::install_dependencies(&install_targets(), "skip", &strat_ver)
+    })?;
 
     if let Err(e) = res {
         app.show_error(e.to_string());
@@ -85,7 +103,7 @@ pub fn download_defaults(
     rx: &Receiver<Event>,
 ) -> Result<(), io::Error> {
     let res = run_download(terminal, rx, || {
-        download::install_dependencies(download::ZAPRET_REC_VER, "recommended")
+        zapret_fetch::install_dependencies(&install_targets(), zapret_fetch::ZAPRET_REC_VER, "recommended")
     })?;
 
     if let Err(e) = res {

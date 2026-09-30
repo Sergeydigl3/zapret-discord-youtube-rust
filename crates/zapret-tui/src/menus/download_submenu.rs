@@ -37,9 +37,9 @@ pub fn render(app: &AppState, is_zapret: bool) -> (Vec<ListItem<'static>>, Strin
     let mut version_spans = vec![Span::styled(version_title.into_owned(), label_style)];
 
     let rec_ver_str = if is_zapret {
-        zapret_core::download::ZAPRET_REC_VER.to_string()
+        zapret_fetch::ZAPRET_REC_VER.to_string()
     } else {
-        zapret_core::download::STRAT_REC_VER[..7].to_string()
+        zapret_fetch::STRAT_REC_VER[..7].to_string()
     };
 
     let latest_label = rust_i18n::t!("val_latest");

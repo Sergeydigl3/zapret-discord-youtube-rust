@@ -36,7 +36,7 @@ pub(crate) fn resolve_tag(version: &str) -> Result<String, String> {
         println!("{}", rust_i18n::t!("msg_fetch_rel"));
         let latest_url = format!(
             "https://api.github.com/repos/{}/releases/latest",
-            crate::download::ZAPRET_REPO
+            crate::ZAPRET_REPO
         );
         let req = ureq::get(&latest_url)
             .set("User-Agent", "zapret-rust")
@@ -48,7 +48,7 @@ pub(crate) fn resolve_tag(version: &str) -> Result<String, String> {
         return Ok(parsed
             .get("tag_name")
             .and_then(|t| t.as_str())
-            .unwrap_or(crate::download::ZAPRET_REC_VER)
+            .unwrap_or(crate::ZAPRET_REC_VER)
             .to_string());
     }
     Ok(version.to_string())

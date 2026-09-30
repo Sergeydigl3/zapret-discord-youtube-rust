@@ -32,8 +32,7 @@ pub mod domains;
 pub mod fakes;
 pub mod platform;
 
-// L2 — what the application installs and how it describes the network.
-pub mod download;
+// L2 — how the network is described to the operating system.
 pub mod firewall;
 pub mod lists;
 pub mod strategy;

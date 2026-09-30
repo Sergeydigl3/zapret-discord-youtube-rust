@@ -12,6 +12,7 @@ repository = "https://github.com/Sergeydigl3/zapret-discord-youtube-rust"
 
 [dependencies]
 zapret-core = { path = "crates/zapret-core" }
+zapret-fetch = { path = "crates/zapret-fetch" }
 zapret-tui = { path = "crates/zapret-tui" }
 clap = { version = "4.4", features = ["derive"] }
 inquire = "0.6"

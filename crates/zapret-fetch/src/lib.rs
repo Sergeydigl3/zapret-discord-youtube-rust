@@ -1,24 +1,34 @@
 //! Downloading and installing the zapret runtime binary and the strategy
 //! repository.
 //!
+//! The crate knows nothing about where the application keeps its files and
+//! nothing about what a strategy is: the caller hands over an
+//! [`InstallTargets`] and gets files on disk. Everything that lands here is
+//! reached later through `zapret_wrapper::paths`.
+//!
 //! The zone is split by concern: `platform_matrix` maps the running OS and
-//! architecture onto a release directory, `github` talks to the GitHub API,
-//! `archive` unpacks what was downloaded, and `state` answers whether the
-//! payloads are already on disk. This module keeps the two top-level
-//! operations and the version constants the rest of the crate refers to.
+//! architecture onto a release directory, `github` talks to the GitHub API, and
+//! `archive` unpacks what was downloaded. This module keeps the two top-level
+//! operations and the version constants the interface refers to.
+//!
+//! Progress is written straight to stdout with `println!`, which is what the
+//! downloader screen in the TUI relies on: it hands the terminal over and lets
+//! the user read the transfer log. Converting that into an event stream is a
+//! separate refactor and deliberately out of scope here.
+
+rust_i18n::i18n!("../../locales", fallback = "en");
 
 mod archive;
 mod github;
 mod platform_matrix;
-mod state;
 
 use std::env;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use platform_matrix::detect_platform_dir;
 
 pub use github::fetch_repo_tags;
-pub use state::{check_nfqws_installed, check_strategies_installed};
 
 pub const ZAPRET_REPO: &str = "bol-van/zapret";
 pub const ZAPRET_REC_VER: &str = "v72.13";
@@ -26,15 +36,51 @@ pub const STRAT_REC_VER: &str = "9503dc045133000af8075e066f09bb469008e530";
 
 const STRAT_REPO_ZIP: &str = "https://github.com/Flowseal/zapret-discord-youtube/archive/refs/heads/main.zip";
 
-pub fn download_nfqws(version: &str) -> Result<(), String> {
+/// Where an install writes to.
+///
+/// The three directories are passed in rather than derived, because this crate
+/// has no opinion about caching: `zapret_wrapper::paths` owns that decision and
+/// is the only thing that should make it.
+#[derive(Clone, Debug)]
+pub struct InstallTargets {
+    /// Root for the temporary download artefacts.
+    pub cache_dir: PathBuf,
+    /// Where `nfqws` / `winws.exe` and, on Windows, the WinDivert files go.
+    pub runtime_bin_dir: PathBuf,
+    /// Root of the unpacked strategy repository.
+    pub strategies_dir: PathBuf,
+}
+
+/// Grant `CAP_NET_ADMIN` to a freshly installed `nfqws` so it can use nfqueue
+/// without full root.
+///
+/// Reports "the command ran and said no" separately from "there is no `setcap`
+/// on this machine", and stays quiet about the second case.
+fn try_set_cap(bin_path: &Path) -> Option<bool> {
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("setcap")
+            .args(["cap_net_admin+ep", &bin_path.to_string_lossy()])
+            .output()
+            .ok()
+            .map(|o| o.status.success())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = bin_path;
+        None
+    }
+}
+
+pub fn download_nfqws(targets: &InstallTargets, version: &str) -> Result<(), String> {
     if version == "skip" {
         return Ok(());
     }
 
     println!("{}", rust_i18n::t!("msg_chk_nfqws"));
 
-    let bin_dir = crate::paths::bin_runtime_dir();
-    let _ = fs::create_dir_all(&bin_dir);
+    let bin_dir = &targets.runtime_bin_dir;
+    let _ = fs::create_dir_all(bin_dir);
 
     let platform = detect_platform_dir()?;
     println!("{}{}", rust_i18n::t!("msg_det_plat"), platform);
@@ -48,7 +94,7 @@ pub fn download_nfqws(version: &str) -> Result<(), String> {
     );
 
     // Use local temp directory inside cache_dir to avoid Windows Defender blocks
-    let tmp_dir = crate::paths::cache_dir().join(".tmp_zapret_download");
+    let tmp_dir = targets.cache_dir.join(".tmp_zapret_download");
     let _ = fs::remove_dir_all(&tmp_dir);
     let _ = fs::create_dir_all(&tmp_dir);
     let tmp_archive = tmp_dir.join(&archive);
@@ -97,7 +143,7 @@ pub fn download_nfqws(version: &str) -> Result<(), String> {
                 println!("{}{}", rust_i18n::t!("msg_inst_nux_ok"), bin_name);
 
                 // Set CAP_NET_ADMIN so nfqws can use nfqueue without full root
-                if crate::process::try_set_cap(&bin_dir.join(bin_name)) == Some(true) {
+                if try_set_cap(&bin_dir.join(bin_name)) == Some(true) {
                     println!("{}", rust_i18n::t!("msg_setcap_ok"));
                 }
             } else {
@@ -112,12 +158,12 @@ pub fn download_nfqws(version: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub fn download_strategies(version: &str) -> Result<(), String> {
+pub fn download_strategies(targets: &InstallTargets, version: &str) -> Result<(), String> {
     if version == "skip" {
         return Ok(());
     }
 
-    let target_dir = crate::paths::cache_dir().join(crate::paths::REPO_DIR_NAME);
+    let target_dir = &targets.strategies_dir;
 
     let url = if version == "latest" {
         STRAT_REPO_ZIP.to_string()
@@ -139,31 +185,31 @@ pub fn download_strategies(version: &str) -> Result<(), String> {
         .map_err(|e| format!("{}{}", rust_i18n::t!("err_dl_strat_zip"), e))?;
     let mut body = req.into_reader();
 
-    let tmp_zip = crate::paths::cache_dir().join(".tmp_strategies.zip");
+    let tmp_zip = targets.cache_dir.join(".tmp_strategies.zip");
     let mut file = fs::File::create(&tmp_zip).map_err(|e| format!("{}{}", rust_i18n::t!("err_create_tmp_zip"), e))?;
     std::io::copy(&mut body, &mut file).map_err(|e| format!("{}{}", rust_i18n::t!("err_write_zip"), e))?;
 
     println!("{}", rust_i18n::t!("msg_ext_strat"));
-    archive::unpack_zip(&tmp_zip, &target_dir)?;
+    archive::unpack_zip(&tmp_zip, target_dir)?;
 
     let _ = fs::remove_file(tmp_zip);
     println!("{}", rust_i18n::t!("msg_strat_ok"));
     Ok(())
 }
 
-pub fn install_dependencies(nfqws_ver: &str, strat_ver: &str) -> Result<(), String> {
+pub fn install_dependencies(targets: &InstallTargets, nfqws_ver: &str, strat_ver: &str) -> Result<(), String> {
     println!("=======================================================");
     println!("{}", rust_i18n::t!("msg_inst_deps"));
     println!("=======================================================");
 
     let mut errors = Vec::new();
     if nfqws_ver != "skip" {
-        if let Err(e) = download_nfqws(nfqws_ver) {
+        if let Err(e) = download_nfqws(targets, nfqws_ver) {
             errors.push(format!("nfqws error: {}", e));
         }
     }
     if strat_ver != "skip" {
-        if let Err(e) = download_strategies(strat_ver) {
+        if let Err(e) = download_strategies(targets, strat_ver) {
             errors.push(format!("strategies error: {}", e));
         }
     }

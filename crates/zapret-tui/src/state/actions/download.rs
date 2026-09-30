@@ -1,7 +1,5 @@
 //! The downloader screens: category, zapret, strategies, and the two tag pickers.
 
-use zapret_core::download;
-
 use crate::state::screens::{ActiveScreen, DownloadDepsMenuState, DownloadSubmenuState, VersionTarget};
 use crate::state::AppState;
 
@@ -34,7 +32,7 @@ pub fn activate(app: &mut AppState) {
             }
             DownloadSubmenuState::SelectTag => {
                 app.status_message = Some(rust_i18n::t!("msg_fetch_zapret_tags").into_owned());
-                match download::fetch_repo_tags("bol-van/zapret") {
+                match zapret_fetch::fetch_repo_tags("bol-van/zapret") {
                     Ok(tags) => {
                         app.available_nfqws_tags = tags;
                         app.nfqws_tag_index = 0;
@@ -60,7 +58,7 @@ pub fn activate(app: &mut AppState) {
             }
             DownloadSubmenuState::SelectTag => {
                 app.status_message = Some(rust_i18n::t!("msg_fetch_strat_tags").into_owned());
-                match download::fetch_repo_tags("Flowseal/zapret-discord-youtube") {
+                match zapret_fetch::fetch_repo_tags("Flowseal/zapret-discord-youtube") {
                     Ok(tags) => {
                         app.available_strat_tags = tags;
                         app.strat_tag_index = 0;

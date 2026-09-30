@@ -1,13 +1,17 @@
-//! Single owner of external process launching.
+//! Single owner of the two things that have to be true before the daemon can
+//! start: it needs `CAP_NET_ADMIN`, and no daemon from a previous run may still
+//! be holding the queue.
 //!
-//! Anything that spawns a helper program goes through this module so the
-//! argument handling, the error contract and the platform split live in one
-//! place instead of being repeated per call site.
+//! Anything else that spawns a helper program opens its own `std::process::Command`;
+//! there is no shared argument handling to factor out at this size.
 
 use std::path::Path;
 use std::process::Command;
 
 /// Device that swallows output, spelled per platform.
+///
+/// Not a launch concern: it is the sink the network probes redirect stdout
+/// into, and it leaves with them.
 pub fn null_device() -> &'static str {
     if cfg!(target_os = "windows") {
         "NUL"
@@ -33,27 +37,6 @@ pub fn set_cap(bin_path: &Path) -> bool {
     {
         let _ = bin_path;
         true
-    }
-}
-
-/// Same as [`set_cap`], but reports whether `setcap` could be started at all.
-///
-/// The downloader distinguishes "the command ran and said no" from "there is no
-/// `setcap` on this machine" and stays quiet in the second case, which
-/// [`set_cap`] deliberately collapses into `true` for the runner.
-pub fn try_set_cap(bin_path: &Path) -> Option<bool> {
-    #[cfg(target_os = "linux")]
-    {
-        Command::new("setcap")
-            .args(["cap_net_admin+ep", &bin_path.to_string_lossy()])
-            .output()
-            .ok()
-            .map(|o| o.status.success())
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        let _ = bin_path;
-        None
     }
 }
 
