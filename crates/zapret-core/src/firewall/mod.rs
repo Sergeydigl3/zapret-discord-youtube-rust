@@ -77,12 +77,16 @@ pub(crate) fn notice(msg: &str) {
 /// nftables and iptables can bind rules to one output device; WinDivert filters
 /// the whole system and has no equivalent knob, so on Windows there is no
 /// interface to pass and none is offered.
+///
+/// `router` is Linux-only for the same reason: it adds the forwarding and
+/// masquerade rules that make the machine a gateway for another device.
 pub trait FirewallBackend: Send + Sync {
     fn setup(
         &self,
         tcp_ports: &str,
         udp_ports: &str,
         #[cfg(target_os = "linux")] interface: &str,
+        #[cfg(target_os = "linux")] router: bool,
     ) -> Result<(), String>;
     fn clear(&self) -> Result<(), String>;
 }

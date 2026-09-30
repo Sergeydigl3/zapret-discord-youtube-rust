@@ -11,6 +11,10 @@ use crate::paths;
 pub struct RunConfig {
     #[cfg(target_os = "linux")]
     pub interface: String,
+    /// Make this machine a gateway for another device. Linux-only, like
+    /// `interface`: the forwarding and masquerade rules only exist there.
+    #[cfg(target_os = "linux")]
+    pub router: bool,
     pub strategy: String,
     pub gamefilter_tcp: bool,
     pub gamefilter_udp: bool,
@@ -25,6 +29,8 @@ impl Default for RunConfig {
         Self {
             #[cfg(target_os = "linux")]
             interface: "any".to_string(),
+            #[cfg(target_os = "linux")]
+            router: false,
             strategy: String::new(),
             gamefilter_tcp: false,
             gamefilter_udp: false,
@@ -47,6 +53,11 @@ pub fn load_config(file: &str) -> Result<RunConfig, String> {
         #[cfg(target_os = "linux")]
         if let Some(val) = line.strip_prefix("interface=") {
             cfg.interface = val.trim().to_string();
+            continue;
+        }
+        #[cfg(target_os = "linux")]
+        if line == "router=true" {
+            cfg.router = true;
             continue;
         }
         if let Some(val) = line.strip_prefix("strategy=") {
@@ -74,7 +85,7 @@ pub fn load_config(file: &str) -> Result<RunConfig, String> {
 /// A function rather than a const because the interface key only exists on Linux.
 fn default_config_lines() -> Vec<&'static str> {
     #[cfg(target_os = "linux")]
-    let mut lines = vec!["interface=any"];
+    let mut lines = vec!["interface=any", "router=false"];
     #[cfg(not(target_os = "linux"))]
     let mut lines: Vec<&'static str> = Vec::new();
 
@@ -99,7 +110,7 @@ pub fn save_config(cfg: &RunConfig) -> Result<(), String> {
     let ttl = cfg.dpi_desync_ttl.map(|v| v.to_string()).unwrap_or_default();
     let mut content = String::new();
     #[cfg(target_os = "linux")]
-    content.push_str(&format!("interface={}\n", cfg.interface));
+    content.push_str(&format!("interface={}\nrouter={}\n", cfg.interface, cfg.router));
     content.push_str(&format!(
         "strategy={}\ngamefiltertcp={}\ngamefilterudp={}\nbackend={}\nactive_discord_fake={}\nactive_gamefilter_fake={}\ndpi_desync_ttl={}\n",
         cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp, cfg.backend, cfg.active_discord_fake,
@@ -121,6 +132,15 @@ pub fn save_ttl(ttl: Option<u8>) -> Result<(), String> {
     let path = config_path();
     let mut cfg = load_config(&path.to_string_lossy()).unwrap_or_default();
     cfg.dpi_desync_ttl = ttl;
+    save_config(&cfg)
+}
+
+/// Persist whether router mode is on.
+#[cfg(target_os = "linux")]
+pub fn save_router(router: bool) -> Result<(), String> {
+    let path = config_path();
+    let mut cfg = load_config(&path.to_string_lossy()).unwrap_or_default();
+    cfg.router = router;
     save_config(&cfg)
 }
 

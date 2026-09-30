@@ -31,6 +31,7 @@ menu_main_run: "🚀 Запустить"
 menu_main_quit: "🚪 Выход"
 
 menu_extended_title: "Расширенные настройки"
+menu_extended_router: "🌐 Режим роутера"
 menu_extended_back: "🔙 Назад"
 
 menu_group_setup: "Настройка"
@@ -127,6 +128,7 @@ help_dl_start: "💡 Действие: скачать и установить в
 help_gf_tcp: "💡 Переключатель: перехватывать TCP порты для игр. ←/→ или ENTER."
 help_gf_udp: "💡 Переключатель: перехватывать UDP порты для игр. ←/→ или ENTER."
 help_fakes: "💡 Подменю: замена активных файлов фейков для Discord и GameFilter."
+help_router: "💡 Проброс трафика других устройств через эту машину. Нужен интерфейс в интернет."
 help_fakes_sel: "💡 Выбор: какой фейк заменить (Discord или GameFilter)."
 help_fakes_select: "💡 Выбор: файл .bin из списка. ENTER применяет, ESC отменяет."
 
@@ -146,6 +148,7 @@ msg_zapret_started: "\nzapret запущен. Нажмите Ctrl+C для за�
 msg_zapret_stop: "\nОстановка nfqws..."
 msg_zapret_clear: "Очистка завершена."
 msg_err_firewall: "Настройки фаервола: "
+msg_err_router: "Режим роутера: "
 
 msg_dl_ok: "\n✅ Загрузка успешно завершена. Нажмите любую клавишу..."
 msg_dl_fail: "\n❌ Ошибка загрузки: "

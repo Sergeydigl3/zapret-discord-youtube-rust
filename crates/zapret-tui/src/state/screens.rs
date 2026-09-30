@@ -265,10 +265,17 @@ impl MainMenuState {
 pub enum ExtendedMenuState {
     Ttl,
     Fakes,
+    /// Make this machine a gateway for another device. Linux-only: the
+    /// forwarding and masquerade rules only exist there.
+    #[cfg(target_os = "linux")]
+    Router,
     Back,
 }
 
 impl ExtendedMenuState {
+    #[cfg(target_os = "linux")]
+    pub const ALL: [Self; 4] = [Self::Ttl, Self::Fakes, Self::Router, Self::Back];
+    #[cfg(not(target_os = "linux"))]
     pub const ALL: [Self; 3] = [Self::Ttl, Self::Fakes, Self::Back];
 
     pub fn next(self) -> Self {
