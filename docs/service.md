@@ -1,6 +1,6 @@
 # Service management
 
-`zapret-core::service` installs, starts, stops and removes zapret-rust as a
+`zapret-wrapper::service` installs, starts, stops and removes zapret-rust as a
 system service. One `ServiceManager` implementation per init system, one
 factory to pick the right one.
 
