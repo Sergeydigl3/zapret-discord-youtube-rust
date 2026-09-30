@@ -5,11 +5,11 @@ on:
     branches: [ "master" ]
     paths:
       - 'src/**'
+      - 'crates/**'
       - 'locales/**'
       - 'bin/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
-      - 'build.rs'
       - '.github/workflows/pr.yml'
       - '.github/actions/**'
 
