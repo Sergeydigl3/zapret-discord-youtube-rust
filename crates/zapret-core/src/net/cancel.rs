@@ -1,0 +1,41 @@
+//! Cancellation of a running autotune sweep.
+//!
+//! This lived inside the DTO module because the flag and the process control
+//! were declared together. Killing probe processes is process management, so it
+//! belongs next to the other process handling rather than among data types.
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+pub static CANCELLED: AtomicBool = AtomicBool::new(false);
+
+pub fn reset_cancel() {
+    CANCELLED.store(false, Ordering::Relaxed);
+}
+
+pub fn is_cancelled() -> bool {
+    CANCELLED.load(Ordering::Relaxed)
+}
+
+pub fn trigger_cancel() {
+    CANCELLED.store(true, Ordering::Relaxed);
+    kill_active_curls();
+}
+
+pub fn kill_active_curls() {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/IM", "curl.exe", "/T"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = std::process::Command::new("pkill")
+            .args(["-9", "curl"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+}
