@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "zapret-rust"
-version = "2.2.0"
+version = "3.0.0"
 edition = "2021"
 license = "MIT"
 description = "Zapret-Rust TUI implementation for DPI bypass"
