@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::time::Duration;
 
 use super::cancel::{is_cancelled, reset_cancel};
@@ -13,37 +12,19 @@ use super::types::{
     AutotuneConfig, AutotuneResults, DomainCheckResult, DomainProtocolCheck, PresetResult, StrategyCheckResult,
 };
 
-fn get_strategy_name(name: &str) -> String {
-    name.trim_end_matches(".bat").to_string()
-}
-
-fn strategy_dir() -> String {
-    crate::paths::repo_dir().to_string_lossy().into_owned()
-}
-
-fn load_strategy_files(indices: &[usize], all_strategies: &[String]) -> Vec<(String, String)> {
-    if indices.is_empty() {
-        return Vec::new();
-    }
-    let repo = strategy_dir();
-    let mut result = Vec::new();
-    for &idx in indices {
-        if idx >= all_strategies.len() {
-            continue;
-        }
-        let name = &all_strategies[idx];
-        let path = Path::new(&repo).join("custom-strategies").join(name);
-        let path = if path.exists() {
-            path
-        } else {
-            Path::new(&repo).join(name)
-        };
-        if !path.exists() {
-            continue;
-        }
-        result.push((get_strategy_name(name), path.to_string_lossy().to_string()));
-    }
-    result
+/// The strategies the sweep will test, as (display name, file name).
+///
+/// The file name is what goes into the run request; `strategy::resolve` decides
+/// where it actually lives, exactly as it does for the ordinary run. Resolving
+/// here as well used to be a second, subtly different copy of that rule, which
+/// is why the sweep skipped `<cache>/custom-strategies`.
+fn load_strategies(indices: &[usize], all_strategies: &[String]) -> Vec<(String, String)> {
+    indices
+        .iter()
+        .filter_map(|&idx| all_strategies.get(idx))
+        .filter(|name| crate::strategy::resolve(name).exists())
+        .map(|name| (name.trim_end_matches(".bat").to_string(), name.clone()))
+        .collect()
 }
 
 fn count_protocol_steps(config: &AutotuneConfig) -> usize {
@@ -98,7 +79,7 @@ pub fn run_all(
     let net_check_count = config.block_checks.count_enabled();
 
     let all_strategies = crate::strategy::get_strategies();
-    let loaded = load_strategy_files(&config.strategy_indices, &all_strategies);
+    let loaded = load_strategies(&config.strategy_indices, &all_strategies);
     let strat_count = loaded.len();
 
     let proto_steps = count_protocol_steps(config);
@@ -190,11 +171,11 @@ pub fn run_all(
         let mut working_names: std::collections::HashSet<String> = std::collections::HashSet::new();
 
         if !loaded.is_empty() && !blocked_domains.is_empty() {
-            for (strat_name, strat_path) in &loaded {
+            for (strat_name, strat_file) in &loaded {
                 println!("  {} {}", rust_i18n::t!("autotune_testing"), strat_name);
 
                 let started = {
-                    let req = crate::plan::RunRequest::new(strat_path, interface, false, false);
+                    let req = crate::plan::RunRequest::new(strat_file, interface, false, false);
                     crate::run::run_quiet(&req, backend)
                 };
                 done += 1;
