@@ -1,17 +1,12 @@
 #![cfg(target_os = "linux")]
 
+use nix::unistd::Uid;
 use std::os::unix::process::CommandExt;
 
 /// Ensures that the current process is running with root privileges.
 /// If not, it attempts to escalate privileges using pkexec or sudo.
 pub fn ensure_admin() {
-    let not_root = std::process::Command::new("id")
-        .arg("-u")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim() != "0")
-        .unwrap_or(true);
+    let not_root = !Uid::effective().is_root();
 
     if not_root {
         println!("{}", rust_i18n::t!("root_req"));
