@@ -20,12 +20,15 @@ mod fakes;
 mod gamefilter;
 mod lists;
 mod main;
+mod mouse;
 mod service;
 mod strategy;
 mod ttl;
 
 #[cfg(target_os = "windows")]
 mod defender;
+
+use ratatui::crossterm::event::MouseEvent;
 
 use super::screens::ActiveScreen;
 use super::AppState;
@@ -115,6 +118,15 @@ pub fn on_back(app: &mut AppState) {
     if !app.back() {
         app.should_quit = true;
     }
+}
+
+/// React to a mouse event.
+///
+/// A click is a press, so a screen that opens a submenu on Enter opens it on a
+/// click too, and the screen it lands on is re-read afterwards the same way a
+/// key press re-reads it.
+pub fn on_mouse(app: &mut AppState, event: MouseEvent) {
+    mouse::on_mouse(app, event);
 }
 
 /// Re-read whatever the current screen displays from the outside world.

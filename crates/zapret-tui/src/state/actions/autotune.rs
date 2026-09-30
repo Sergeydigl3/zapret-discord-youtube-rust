@@ -73,7 +73,7 @@ pub fn activate(app: &mut AppState) {
                 app.back();
             }
         },
-        ActiveScreen::AutotuneBlockChecksSubmenu => match app.autotune_block_checks_menu.index() {
+        ActiveScreen::AutotuneBlockChecksSubmenu => match app.autotune_block_checks_menu.check_index() {
             Some(i) => app.toggle_block_check(i),
             None => {
                 app.back();

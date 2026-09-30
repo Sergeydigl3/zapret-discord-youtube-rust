@@ -49,6 +49,26 @@ fn row_of(state: MainMenuState) -> usize {
     0
 }
 
+/// The state on a drawn row, headings included. The inverse of [`row_of`], and
+/// what a click on the main menu is turned into.
+pub fn state_at(row: usize) -> Option<MainMenuState> {
+    let mut at = row;
+    for group in MainMenuState::GROUPS {
+        if !group.title.is_empty() {
+            if at == 0 {
+                return None;
+            }
+            at -= 1;
+        }
+        let len = group.rows.len();
+        if at < len {
+            return Some(group.rows[at]);
+        }
+        at -= len;
+    }
+    None
+}
+
 /// The locale key of a row's name.
 ///
 /// The names themselves live next to the row in [`MainMenuState`]; this is only

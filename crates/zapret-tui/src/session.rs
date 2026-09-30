@@ -7,7 +7,7 @@
 //! sweep has anything new to say.
 
 use ratatui::backend::CrosstermBackend;
-use ratatui::crossterm::event::{Event, KeyCode, KeyEventKind};
+use ratatui::crossterm::event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind};
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::Terminal;
@@ -31,7 +31,7 @@ pub fn run_tui(app: &mut AppState, reader: &EventReader) -> Result<(), io::Error
     let rx = reader.rx();
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     // Drop events queued while the app was outside the TUI (e.g. keys pressed
@@ -62,6 +62,15 @@ pub fn run_tui(app: &mut AppState, reader: &EventReader) -> Result<(), io::Error
                         handle_key(app, key.code);
                     }
                 }
+                Ok(Event::Mouse(mouse)) => {
+                    actions::on_mouse(app, mouse);
+                    // A click is a press, so the screen the click landed on has
+                    // to be re-read the same way a key press re-reads it — but
+                    // only while there is no job, which owns the screen.
+                    if app.job.is_none() {
+                        actions::refresh_after_key(app);
+                    }
+                }
                 Ok(_) => {}
                 Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => {
@@ -78,6 +87,9 @@ pub fn run_tui(app: &mut AppState, reader: &EventReader) -> Result<(), io::Error
         }
     }
 
+    // The mouse has to be handed back explicitly: without this the shell that
+    // starts next inherits a console that reports every mouse move.
+    execute!(terminal.backend_mut(), DisableMouseCapture)?;
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
