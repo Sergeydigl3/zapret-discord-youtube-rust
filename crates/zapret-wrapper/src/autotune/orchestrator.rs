@@ -31,6 +31,10 @@ fn count_protocol_steps(config: &AutotuneConfig) -> usize {
     config.check_http as usize + config.check_tls12 as usize + config.check_tls13 as usize + config.check_quic as usize
 }
 
+/// Wait until the daemon the sweep just started is up.
+///
+/// The child handle is the answer: the sweep launched it, and nothing else can
+/// be mistaken for it.
 fn wait_for_nfqws(timeout: Duration) -> bool {
     let deadline = std::time::Instant::now() + timeout;
     let mut running = false;
@@ -38,7 +42,7 @@ fn wait_for_nfqws(timeout: Duration) -> bool {
         if is_cancelled() {
             return false;
         }
-        if zapret_core::daemon::is_running() || crate::platform::is_nfqws_running() {
+        if zapret_core::daemon::is_running() {
             running = true;
             break;
         }

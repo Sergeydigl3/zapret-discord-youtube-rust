@@ -6,7 +6,6 @@ use ratatui::Terminal;
 use std::io;
 use std::io::Write;
 use std::sync::mpsc::Receiver;
-use zapret_core::firewall::FirewallBackend;
 use zapret_wrapper::autotune::{self, cancel, CheckStatus, StrategyCheckResult};
 use zapret_wrapper::run;
 
@@ -50,10 +49,7 @@ pub fn run_autotune(
         .get(app.selected_interface)
         .map(|s| s.as_str())
         .unwrap_or("any");
-    #[cfg(target_os = "linux")]
-    let backend: &dyn FirewallBackend = &app.selected_backend;
-    #[cfg(target_os = "windows")]
-    let backend: &dyn FirewallBackend = &zapret_core::firewall::windivert::WinDivertBackend;
+    let backend = app.firewall_backend();
 
     let start_time = std::time::Instant::now();
     drain_events(rx);

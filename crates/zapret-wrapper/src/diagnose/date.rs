@@ -3,29 +3,31 @@ use std::process::Command;
 /// Timestamp header for a log section.
 ///
 /// Prefers the platform `date` / `cmd echo` so the output matches the local
-/// timezone; the hand-rolled civil-date conversion below is only the fallback
-/// for when that shell-out fails, and it is therefore always UTC.
+/// timezone; the hand-rolled civil-date conversion in [`utc_timestamp`] is only
+/// the fallback for when that shell-out fails, and it is therefore always UTC.
 pub(crate) fn timestamp() -> String {
-    #[cfg(target_os = "linux")]
-    if let Ok(output) = Command::new("date").args(["+%Y-%m-%d %H:%M:%S"]).output() {
-        if let Ok(s) = String::from_utf8(output.stdout) {
-            let t = s.trim().to_string();
-            if !t.is_empty() {
-                return t;
-            }
-        }
-    }
+    local_timestamp().unwrap_or_else(utc_timestamp)
+}
 
-    #[cfg(target_os = "windows")]
-    if let Ok(output) = Command::new("cmd").args(["/c", "echo %DATE% %TIME%"]).output() {
-        if let Ok(s) = String::from_utf8(output.stdout) {
-            let t = s.trim().to_string();
-            if !t.is_empty() {
-                return t;
-            }
-        }
+/// The local wall clock, spelled the way each platform spells it.
+fn local_timestamp() -> Option<String> {
+    let output = if cfg!(target_os = "windows") {
+        Command::new("cmd").args(["/c", "echo %DATE% %TIME%"]).output()
+    } else {
+        Command::new("date").args(["+%Y-%m-%d %H:%M:%S"]).output()
     }
+    .ok()?;
 
+    let t = String::from_utf8(output.stdout).ok()?.trim().to_string();
+    if t.is_empty() {
+        None
+    } else {
+        Some(t)
+    }
+}
+
+/// UTC, computed from the system clock, for when the platform command fails.
+fn utc_timestamp() -> String {
     let dur = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();

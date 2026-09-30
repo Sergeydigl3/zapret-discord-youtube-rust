@@ -81,38 +81,11 @@ pub(super) fn collect_system_info() -> Vec<String> {
         }
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        if let Ok(entries) = fs::read_dir("/sys/class/net") {
-            let mut interfaces: Vec<String> = entries
-                .flatten()
-                .filter_map(|e| e.file_name().into_string().ok())
-                .collect();
-            interfaces.sort();
-            let iface_str = if interfaces.is_empty() {
-                "none".to_string()
-            } else {
-                interfaces.join(", ")
-            };
-            info.push(format!("Interfaces: {}", iface_str));
-        }
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        let interfaces = crate::platform::get_interfaces();
-        info.push(format!("Interfaces: {}", interfaces.join(", ")));
-    }
+    info.push(format!("Interfaces: {}", interfaces_fact()));
 
     let cache_dir = crate::paths::cache_dir();
 
-    let bin_dir = cache_dir.join("bin");
-    let bin_name = if env::consts::OS == "windows" {
-        "winws.exe"
-    } else {
-        "nfqws"
-    };
-    let bin_path = bin_dir.join(bin_name);
+    let bin_path = crate::paths::binary_path();
     if bin_path.exists() {
         info.push("nfqws: installed".to_string());
         if let Ok(output) = Command::new(&bin_path).arg("--version").output() {
@@ -173,4 +146,29 @@ pub(super) fn collect_system_info() -> Vec<String> {
     info.push(format!("Cache dir: {}", cache_dir.display()));
 
     info
+}
+
+/// Network interfaces, sorted, as one line.
+///
+/// `/sys/class/net` is the only place Linux enumerates them; everywhere else
+/// `platform::get_interfaces` is the answer.
+fn interfaces_fact() -> String {
+    let mut interfaces: Vec<String> = if cfg!(target_os = "linux") {
+        fs::read_dir("/sys/class/net")
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter_map(|e| e.file_name().into_string().ok())
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        crate::platform::get_interfaces()
+    };
+    interfaces.sort();
+    if interfaces.is_empty() {
+        "none".to_string()
+    } else {
+        interfaces.join(", ")
+    }
 }

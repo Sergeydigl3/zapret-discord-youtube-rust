@@ -11,12 +11,7 @@ use crate::state::screens::ActiveScreen;
 use crate::state::AppState;
 
 pub fn activate(app: &mut AppState) {
-    #[cfg(target_os = "linux")]
     let mgr_opt = service::get_detected_manager();
-    #[cfg(target_os = "windows")]
-    let mgr_opt: Option<Box<dyn service::ServiceManager>> = Some(Box::new(service::windows::WindowsServiceManager));
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-    let mgr_opt: Option<Box<dyn service::ServiceManager>> = None;
 
     if let Some(mgr) = mgr_opt {
         let mut action_taken = true;

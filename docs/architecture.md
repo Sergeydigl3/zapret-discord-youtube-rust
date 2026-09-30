@@ -67,6 +67,21 @@ knowing:
    about the filesystem and not what the files mean.
 4. **The interface layer does not do I/O of its own** beyond the terminal. It
    calls the domain and renders the result.
+5. **A platform difference is a function, not a call site.** Whatever the OS
+   changes, the caller asks for the operation — "kill this image", "which
+   firewall backend", "what time is it" — and one definition of that function
+   knows about `pkill` versus `taskkill`. `#[cfg]` inside a function body
+   (`cfg!`, one tail expression) is how that is written; two `#[cfg]` blocks
+   around the same call in a caller is the duplication this replaces. Type-level
+   differences stay where they are: a field or an enum variant that only exists
+   on one OS is data, not a decision.
+6. **A process this program started is a handle, not a name.** `daemon` keeps
+   the `Child` it spawned, and `daemon::is_running` / `daemon::stop` answer
+   through it. Nothing scans the machine to find out whether our own zapret runs.
+   The scan (`platform::is_nfqws_running`, reached only through
+   `run::queue_in_use`) exists for the one question a handle cannot answer: is
+   somebody *else* — a managed service, a binary started by hand, a leftover of
+   an earlier run — holding the queue.
 
 ## Layers of `zapret-core`
 
@@ -80,8 +95,8 @@ L0  error             the error contract in one place
 |---|---|
 | `error` | The `ZResult` alias |
 | `firewall` | The `FirewallBackend` trait, the nftables/iptables backends and the WinDivert stub |
-| `process` | `set_cap` and `kill_stale_zapret` — the two things that must be true before the daemon can start |
-| `daemon` | `LaunchPlan`, `LaunchError`, `LaunchOutcome`, and the child-process registry |
+| `process` | A process *by name*, for the ones this program does not own: the daemon image (`winws.exe` / `nfqws`), killing leftovers, and asking whether somebody else's daemon runs. The one it started itself is a child handle in `daemon` |
+| `daemon` | `LaunchPlan`, `LaunchError`, `LaunchOutcome`, and the child handle of the daemon it started — the single source of truth for "is zapret running" and the only way it is stopped |
 
 `firewall` carries a `build.rs` that generates `firewall/backends/_backends.rs`
 from the files in `firewall/backends/`, keeping `nftables` first so it stays the
@@ -102,7 +117,7 @@ L0  paths               every path in the program
 |---|---|
 | `paths` | **Every** path: cache, repository, both `bin` directories, config, logs, and the install-state predicates |
 | `config` | `RunConfig` and nothing else — reading, writing and schema migration of the config file |
-| `platform` | Talking to the OS: privileges, running-process detection, interface enumeration, the null device |
+| `platform` | Talking to the OS: privileges, running-process detection, interface enumeration, the null device. Detection is a name; the `pgrep` / `tasklist` spelling is `zapret_core::process` |
 | `domains` | The domain list files. Shared by autotune and the TTL sweep, which is what keeps those two from forming a cycle |
 | `fakes` | The `.bin` payloads a strategy references, and which one is active |
 | `defender` | The Windows Defender exclusion (Windows only) |

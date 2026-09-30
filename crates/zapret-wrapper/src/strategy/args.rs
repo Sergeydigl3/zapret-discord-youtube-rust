@@ -6,6 +6,21 @@
 
 use super::parser::{GameFilterPorts, ParsedStrategy};
 
+/// The arguments that come before the strategy's own parameters.
+///
+/// Linux marks its packets and picks the queue number; Windows takes the
+/// winDivert filter ports, which are therefore not part of the strategy at all.
+fn platform_head(parsed: &ParsedStrategy) -> Vec<String> {
+    if cfg!(target_os = "windows") {
+        vec![
+            format!("--wf-tcp={}", parsed.tcp_ports),
+            format!("--wf-udp={}", parsed.udp_ports),
+        ]
+    } else {
+        vec!["--dpi-desync-fwmark=0x40000000".to_string(), "--qnum=200".to_string()]
+    }
+}
+
 /// Build the game filter ports block, or `None` when game filtering is off.
 pub fn game_filter(use_tcp: bool, use_udp: bool) -> Option<GameFilterPorts> {
     if use_tcp || use_udp {
@@ -21,14 +36,7 @@ pub fn game_filter(use_tcp: bool, use_udp: bool) -> Option<GameFilterPorts> {
 
 /// Render the daemon arguments for a parsed strategy.
 pub fn build_args(parsed: &ParsedStrategy, ttl: Option<u8>) -> Vec<String> {
-    #[cfg(target_os = "linux")]
-    let mut args = vec!["--dpi-desync-fwmark=0x40000000".to_string(), "--qnum=200".to_string()];
-
-    #[cfg(target_os = "windows")]
-    let mut args = vec![
-        format!("--wf-tcp={}", parsed.tcp_ports),
-        format!("--wf-udp={}", parsed.udp_ports),
-    ];
+    let mut args = platform_head(parsed);
 
     // Each strategy group is a separate desync profile: `--new` finalizes the
     // current profile and starts a fresh one, so TTL options must be injected

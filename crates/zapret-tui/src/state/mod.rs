@@ -249,32 +249,35 @@ impl AppState {
     }
 
     pub fn refresh_service_status(&mut self) {
-        #[cfg(target_os = "linux")]
-        {
-            if let Some(mgr) = zapret_wrapper::service::get_detected_manager() {
+        match zapret_wrapper::service::get_detected_manager() {
+            Some(mgr) => {
                 self.service_installed = mgr.is_installed();
                 self.service_active = mgr.is_active();
-            } else {
+            }
+            None => {
                 self.service_installed = false;
                 self.service_active = false;
             }
-        }
-        #[cfg(target_os = "windows")]
-        {
-            use zapret_wrapper::service::ServiceManager;
-            let mgr = zapret_wrapper::service::windows::WindowsServiceManager;
-            self.service_installed = mgr.is_installed();
-            self.service_active = mgr.is_active();
-        }
-        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
-        {
-            self.service_installed = false;
-            self.service_active = false;
         }
 
         let count = self.get_service_menu_count();
         if count > 0 && self.service_menu_index >= count {
             self.service_menu_index = count - 1;
+        }
+    }
+
+    /// The firewall the jobs run behind.
+    ///
+    /// The single place that answers "which backend on this platform": the menu
+    /// picks one on Linux, Windows has only WinDivert.
+    pub fn firewall_backend(&self) -> &dyn zapret_core::firewall::FirewallBackend {
+        #[cfg(target_os = "linux")]
+        {
+            &self.selected_backend
+        }
+        #[cfg(target_os = "windows")]
+        {
+            &zapret_core::firewall::windivert::WinDivertBackend
         }
     }
 
