@@ -2674,20 +2674,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "zapret-rust"
+name = "zapret-core"
 version = "2.1.0"
 dependencies = [
  "aes 0.8.4",
  "aes-gcm",
- "clap",
- "crossterm 0.27.0",
- "ctrlc",
  "flate2",
  "hmac 0.12.1",
- "inquire",
  "nftables",
  "nix 0.27.1",
- "ratatui",
  "regex",
  "rust-i18n",
  "serde_json",
@@ -2697,6 +2692,30 @@ dependencies = [
  "ureq",
  "windows-service",
  "zip",
+]
+
+[[package]]
+name = "zapret-rust"
+version = "2.1.0"
+dependencies = [
+ "clap",
+ "ctrlc",
+ "inquire",
+ "nix 0.27.1",
+ "rust-i18n",
+ "windows-service",
+ "zapret-core",
+ "zapret-tui",
+]
+
+[[package]]
+name = "zapret-tui"
+version = "2.1.0"
+dependencies = [
+ "crossterm 0.27.0",
+ "ratatui",
+ "rust-i18n",
+ "zapret-core",
 ]
 
 [[package]]
