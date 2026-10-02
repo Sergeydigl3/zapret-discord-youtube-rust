@@ -13,6 +13,26 @@ pub const PRESET_FILES: &[&str] = &[
     "autotune_custom.txt",
 ];
 
+/// The presets a sweep tests against before the user touches anything.
+///
+/// Discord and YouTube, because those are the two that a user of this program
+/// is here to unblock, and sweeping every preset costs several times as long for
+/// no extra answer. Named rather than written as indices: `PRESETS` is a list
+/// someone will edit, and `[0, 1]` would quietly start meaning something else
+/// the day a preset is added above them.
+pub const DEFAULT_PRESETS: &[&str] = &["Discord", "YouTube"];
+
+/// [`DEFAULT_PRESETS`] resolved to indices into [`PRESETS`].
+///
+/// A name that is not in the list is skipped rather than guessed at, so a renamed
+/// preset means "one fewer default", never "the wrong domains".
+pub fn default_preset_indices() -> Vec<usize> {
+    DEFAULT_PRESETS
+        .iter()
+        .filter_map(|name| PRESETS.iter().position(|preset| preset.name == *name))
+        .collect()
+}
+
 pub const PRESETS: &[DomainPreset] = &[
     DomainPreset {
         name: "Discord",

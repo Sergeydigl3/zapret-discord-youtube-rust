@@ -11,7 +11,7 @@ pub mod ttl;
 
 use std::path::{Path, PathBuf};
 
-pub use presets::{DomainPreset, PRESETS, PRESET_FILES};
+pub use presets::{default_preset_indices, DomainPreset, DEFAULT_PRESETS, PRESETS, PRESET_FILES};
 pub use ttl::TtlEvent;
 
 pub const CUSTOM_DOMAINS_FILE: &str = "autotune_custom.txt";

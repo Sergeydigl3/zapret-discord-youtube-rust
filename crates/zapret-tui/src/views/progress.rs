@@ -1,4 +1,4 @@
-﻿//! The screen a running sweep owns: one bar, one log, and a cancel key.
+//! The screen a running sweep owns: one bar, one log, and a cancel key.
 //!
 //! The bar is a plain [`Gauge`]. What makes it work is that nothing here waits
 //! on the job: the sweep runs on its own thread and pushes events into this
@@ -120,7 +120,7 @@ impl ProgressView {
                 // without this the log would sit empty for whole minutes.
                 self.phase = name.clone();
                 self.push(Line::from(Span::styled(
-                    format!(" в–ё {}", name),
+        format!(" ▸ {}", name),
                     Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
                 )));
             }
@@ -154,7 +154,7 @@ impl ProgressView {
                 self.done = finished(ttl) - 1;
                 self.phase = rust_i18n::t!("ttl_trying").replace("{}", &ttl.to_string());
                 self.push(Line::from(Span::styled(
-                    format!(" в–ё {}", self.phase),
+        format!(" ▸ {}", self.phase),
                     Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
                 )));
             }
@@ -171,7 +171,7 @@ impl ProgressView {
                     // argument. That line is the whole explanation.
                     for line in wrap(said, WRAP) {
                         self.push(Line::from(vec![
-                            Span::styled(" вњ– ", Theme::bad()),
+            Span::styled(" ✖ ", Theme::bad()),
                             Span::styled(line.to_string(), Style::default().fg(Color::Red)),
                         ]));
                     }
@@ -204,7 +204,7 @@ impl ProgressView {
 
     /// What the log holds, oldest first.
     ///
-    /// The frame loop never needs this вЂ” it paints the view вЂ” but a test on the
+    /// The frame loop never needs this — it paints the view — but a test on the
     /// other side of the thread boundary has no other way to see what a worker
     /// pushed in.
     #[cfg(test)]
@@ -325,13 +325,13 @@ impl ProgressView {
         let mut spans = Vec::new();
         if self.format == BarFormat::Percent {
             spans.push(Span::styled(format!("{} / {}", self.done, self.total), Theme::accent()));
-            spans.push(Span::raw("  В·  "));
+        spans.push(Span::raw("  ·  "));
         }
         spans.push(Span::styled(
             format!("{} {}", rust_i18n::t!("atv_elapsed"), clock(elapsed)),
             Style::default().fg(Color::White),
         ));
-        spans.push(Span::raw("  В·  "));
+        spans.push(Span::raw("  ·  "));
         spans.push(Span::styled(
             format!("{} {}", rust_i18n::t!("atv_eta"), eta),
             Style::default().fg(Color::Gray),
@@ -370,8 +370,8 @@ impl ProgressView {
 fn probe_line(level: LogLevel, text: &str) -> Line<'static> {
     let (style, mark) = match level {
         LogLevel::Info => (Style::default().fg(Color::Gray), " "),
-        LogLevel::Good => (Theme::ok(), "вњ”"),
-        LogLevel::Bad => (Theme::bad(), "вњ–"),
+        LogLevel::Good => (Theme::ok(), "✔"),
+        LogLevel::Bad => (Theme::bad(), "✖"),
     };
     Line::from(vec![
         Span::styled(format!(" {} ", mark), style),
@@ -414,8 +414,8 @@ mod tests {
         let mut view = ProgressView::new();
         assert!(view.log.is_empty());
 
-        view.apply(SweepEvent::Phase("Baseline checks вЂ” Discord".to_string()));
-        assert_eq!(view.phase, "Baseline checks вЂ” Discord");
+        view.apply(SweepEvent::Phase("Baseline checks — Discord".to_string()));
+        assert_eq!(view.phase, "Baseline checks — Discord");
         assert_eq!(view.log.len(), 1);
         assert!(view.log[0].spans[0].content.contains("Baseline checks"));
     }

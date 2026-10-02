@@ -106,11 +106,20 @@ pub struct AutotuneConfig {
 }
 
 impl Default for AutotuneConfig {
+    /// Discord and YouTube, and no plain HTTP.
+    ///
+    /// HTTP is off because it is the one protocol where a probe succeeds for
+    /// the wrong reason: a captive portal, a redirect, or a cache answers HTTP
+    /// while the site is still blocked on every other protocol. That makes it
+    /// read as a working strategy and send the user down the wrong one.
+    ///
+    /// Every strategy is selected by the caller, which is the only place that
+    /// knows what is installed — see `AppState::new`.
     fn default() -> Self {
         Self {
-            preset_indices: vec![0],
+            preset_indices: crate::domains::default_preset_indices(),
             num_requests: 3,
-            check_http: true,
+            check_http: false,
             check_tls12: true,
             check_tls13: true,
             check_quic: true,

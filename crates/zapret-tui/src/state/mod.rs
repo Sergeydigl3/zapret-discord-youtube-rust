@@ -133,6 +133,15 @@ impl AppState {
         let tcp_gamefilter = saved_cfg.as_ref().is_some_and(|cfg| cfg.gamefilter_tcp);
         let udp_gamefilter = saved_cfg.as_ref().is_some_and(|cfg| cfg.gamefilter_udp);
 
+        // The sweep starts with every installed strategy selected, because an
+        // empty selection sweeps nothing and reports that as a result. This is
+        // the one place that knows what is installed, so it is the one place
+        // that can say "all of them".
+        let autotune_config = AutotuneConfig {
+            strategy_indices: (0..strategies.len()).collect(),
+            ..AutotuneConfig::default()
+        };
+
         #[cfg(target_os = "linux")]
         let selected_backend = saved_cfg.as_ref().map_or_else(
             || LinuxBackend::from_config("nftables"),
@@ -190,7 +199,7 @@ impl AppState {
             lists_files: Vec::new(),
             domain_files,
 
-            autotune_config: AutotuneConfig::default(),
+            autotune_config,
             autotune_results: None,
             has_autotune_results_file: zapret_wrapper::autotune::load_results_file().is_some(),
             autotune_running: false,

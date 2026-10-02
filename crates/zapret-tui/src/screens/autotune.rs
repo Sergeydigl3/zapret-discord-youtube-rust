@@ -107,7 +107,9 @@ impl AutotuneMenu {
             format!("[ {} ]", preset_names.join(", "))
         };
 
-        let strategies = if c.strategy_indices.is_empty() && !state.strategies.is_empty() {
+        // An empty selection really does sweep nothing, so it is worth saying so
+        // rather than showing a count that reads like "0 out of 0 is fine".
+        let strategies = if c.strategy_indices.is_empty() {
             rust_i18n::t!("menu_autotune_strat_none").into_owned()
         } else {
             format!("{} / {}", c.strategy_indices.len(), state.strategies.len())
