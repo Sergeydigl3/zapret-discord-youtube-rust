@@ -1,5 +1,5 @@
 use crate::menus::{Menu, Row};
-use crate::state::screens::{FakesMenuState, FakesSelectTarget};
+use crate::state::screens::FakesSelectTarget;
 use crate::state::AppState;
 use crate::theme::Theme;
 use zapret_wrapper::fakes::FakesState;
@@ -29,11 +29,7 @@ pub fn render(app: &AppState) -> Menu {
         Row::new(rust_i18n::t!("menu_fakes_back")),
     ];
 
-    let index = match app.fakes_menu {
-        FakesMenuState::DiscordUdp => 0,
-        FakesMenuState::GameUdp => 1,
-        FakesMenuState::Back => 2,
-    };
+    let index = app.fakes_menu.index();
 
     Menu::new(rust_i18n::t!("menu_fakes_title"), rows).at(index)
 }

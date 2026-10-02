@@ -4,9 +4,7 @@
 //! the mouse needs both at once. Rather than have [`crate::draw`] call back into
 //! the event loop, every frame records where it put things here and the mouse
 //! handler reads the map back. The map is written once per frame and read once
-//! per click, so it is the cheapest possible place to keep the two in sync — and
-//! it cannot go stale, because it is rebuilt from the layout that was just drawn
-//! rather than remembered from an earlier one.
+//! per click, so it cannot go stale.
 
 use ratatui::layout::{Position, Rect};
 
@@ -28,10 +26,8 @@ pub struct HitMap {
 }
 
 impl HitMap {
-    /// Forget the last frame.
-    ///
-    /// Called at the top of every draw, so a row that has scrolled off or been
-    /// replaced by a different screen cannot be clicked.
+    /// Forget the last frame. Called at the top of every draw, so a row that has
+    /// scrolled off or been replaced by a different screen cannot be clicked.
     pub fn clear(&mut self) {
         self.menu.clear();
         self.area = Rect::default();
@@ -59,10 +55,10 @@ impl HitMap {
             return None;
         }
         let at = Position::new(column, row);
-        self.area
-            .contains(at)
-            .then(|| self.menu.iter().position(|rect| rect.contains(at)))
-            .flatten()
+        if !self.area.contains(at) {
+            return None;
+        }
+        self.menu.iter().position(|rect| rect.contains(at))
     }
 
     /// Whether the point is over the part of the screen the wheel scrolls.

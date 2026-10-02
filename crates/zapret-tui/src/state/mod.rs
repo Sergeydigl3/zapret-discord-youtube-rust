@@ -210,7 +210,6 @@ impl AppState {
             hit: crate::mouse::HitMap::default(),
             history: History::default(),
 
-            // The top of the menu, whichever row that is on this platform.
             main_menu: MainMenuState::first(),
             extended_menu: ExtendedMenuState::Ttl,
 

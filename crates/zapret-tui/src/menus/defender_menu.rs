@@ -1,5 +1,4 @@
 use crate::menus::{Menu, Row};
-use crate::state::screens::DefenderMenuState;
 use crate::state::AppState;
 use crate::theme::Theme;
 
@@ -22,11 +21,6 @@ pub fn render(app: &AppState) -> Menu {
         Row::new(rust_i18n::t!("menu_def_remove")),
         Row::new(rust_i18n::t!("menu_def_back")),
     ];
-    let index = match app.defender_menu {
-        DefenderMenuState::Add => FIRST_ACTION,
-        DefenderMenuState::Remove => FIRST_ACTION + 1,
-        DefenderMenuState::Back => FIRST_ACTION + 2,
-    };
 
-    Menu::new(rust_i18n::t!("menu_def_title"), rows).at(index)
+    Menu::new(rust_i18n::t!("menu_def_title"), rows).at(FIRST_ACTION + app.defender_menu.index())
 }

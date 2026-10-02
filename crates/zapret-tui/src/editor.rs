@@ -13,14 +13,8 @@ pub fn open_editor(file_path: &str) -> std::io::Result<std::process::ExitStatus>
         "notepad".to_string(), // Windows fallback
     ];
 
-    for editor in editors.iter() {
-        if editor.is_empty() {
-            continue;
-        }
-
-        let status = std::process::Command::new(editor).arg(file_path).status();
-
-        if let Ok(st) = status {
+    for editor in editors.iter().filter(|e| !e.is_empty()) {
+        if let Ok(st) = std::process::Command::new(editor).arg(file_path).status() {
             if st.success() || st.code().is_some() {
                 return Ok(st);
             }

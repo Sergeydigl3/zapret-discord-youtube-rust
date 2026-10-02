@@ -1,64 +1,40 @@
 use std::fs;
 use std::path::Path;
 
-/// Directory that contains the strategies repo (bat/sh scripts + lists).
-fn repo_dir() -> std::path::PathBuf {
-    crate::paths::repo_dir()
+/// Offered when neither the cache nor the repository holds a single strategy.
+const FALLBACK_STRATEGY: &str = "discord.bat";
+
+/// Names of the `*.bat` files directly inside `dir`, ignoring unreadable entries.
+fn bat_names(dir: &Path) -> Vec<String> {
+    fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| n.ends_with(".bat"))
+        .collect()
 }
 
-/// Collect all available strategy file names from the strategies repository.
-///
-/// Bundled custom strategies are ensured to exist first, then files are looked
-/// up in three locations:
-/// - `<cache>/custom-strategies/*.bat` (user/bundled custom strategies)
-/// - `<repo>/custom-strategies/*.bat`
-/// - `<repo>/*.bat` (only filenames starting with `general` or `discord`)
-///
-/// The list is sorted and deduplicated. A fallback of `["discord.bat"]` is
-/// returned when no files are found at all.
+/// Collect all available strategy file names: the custom-strategies directory
+/// next to the executable, the one inside the repository, and the `general*` /
+/// `discord*` files in the repository root. Sorted and deduplicated.
 pub fn get_strategies() -> Vec<String> {
     let _ = crate::strategy::assets::ensure_custom_strategies();
-    let repo = repo_dir();
-    let mut strats = Vec::new();
+    let repo = crate::paths::repo_dir();
 
-    // custom-strategies folder next to the executable
-    if let Ok(entries) = fs::read_dir(crate::paths::custom_strategies_dir()) {
-        for entry in entries.flatten() {
-            if let Ok(name) = entry.file_name().into_string() {
-                if name.ends_with(".bat") {
-                    strats.push(name);
-                }
-            }
-        }
-    }
-
-    // custom-strategies subfolder inside the repo
-    if let Ok(entries) = fs::read_dir(Path::new(&repo).join("custom-strategies")) {
-        for entry in entries.flatten() {
-            if let Ok(name) = entry.file_name().into_string() {
-                if name.ends_with(".bat") {
-                    strats.push(name);
-                }
-            }
-        }
-    }
-
-    // root of the repo
-    if let Ok(entries) = fs::read_dir(&repo) {
-        for entry in entries.flatten() {
-            if let Ok(name) = entry.file_name().into_string() {
-                if name.ends_with(".bat") && (name.starts_with("general") || name.starts_with("discord")) {
-                    strats.push(name);
-                }
-            }
-        }
-    }
+    let mut strats = bat_names(&crate::paths::custom_strategies_dir());
+    strats.extend(bat_names(&repo.join("custom-strategies")));
+    strats.extend(
+        bat_names(&repo)
+            .into_iter()
+            .filter(|n| n.starts_with("general") || n.starts_with("discord")),
+    );
 
     strats.sort();
     strats.dedup();
 
     if strats.is_empty() {
-        strats.push("discord.bat".to_string());
+        strats.push(FALLBACK_STRATEGY.to_string());
     }
 
     strats

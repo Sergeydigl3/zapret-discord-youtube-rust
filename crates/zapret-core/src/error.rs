@@ -1,7 +1,4 @@
-//! Result type shared by the whole core.
-//!
-//! The codebase still reports failures as human-readable strings; this alias
-//! exists so the error contract is stated in one place and can later be swapped
-//! for a real error enum without touching every signature at once.
+//! Result type shared by the whole core: failures are reported as
+//! human-readable strings, stated here once so the contract is in one place.
 
 pub type ZResult<T> = Result<T, String>;

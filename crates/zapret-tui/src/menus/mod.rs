@@ -1,13 +1,8 @@
 //! The row model every menu is drawn from.
 //!
-//! A menu used to be a hand-built `Vec<ListItem>` plus a hand-computed selected
-//! index, which meant fourteen files each repeating the same "am I the selected
-//! row, then pick my style" question, and any menu that got it subtly wrong
-//! showed a cursor in the wrong place. Now a menu says *what* it contains and
+//! A menu is data — a label per row, an optional value, and where the cursor is.
 //! [`crate::draw`] says what a selected row looks like, so the two cannot drift.
-//!
-//! A menu is data: a label per row, an optional value the row cycles through,
-//! and where the cursor is. Nothing here knows about the terminal.
+//! Nothing here knows about the terminal.
 
 pub mod autotune_menu;
 #[cfg(target_os = "windows")]
@@ -30,23 +25,17 @@ use ratatui::style::Style;
 pub struct Row {
     /// What this row is called.
     pub label: String,
-    /// What the setting on this row currently reads, drawn to the right of the
-    /// label. `None` for a row that has nothing to show — a command, or a way
-    /// back.
+    /// What the setting on this row currently reads. `None` for a row that has
+    /// nothing to show — a command, or a way back.
     pub value: Option<String>,
     /// The value's colour, when the value needs to say more than "here is the
-    /// current setting": an enabled toggle, for instance. `None` uses
-    /// [`Theme::value`](crate::theme::Theme::value).
+    /// current setting". `None` uses [`Theme::value`](crate::theme::Theme::value).
     pub value_style: Option<Style>,
-    /// Whether this row is part of the current choice: the active strategy, a
-    /// selected domain preset, a ticked protocol. The mark goes in the gutter
-    /// so it is visible without the cursor being anywhere near the row.
+    /// Whether this row is part of the current choice. The mark goes in the
+    /// gutter so it is visible without the cursor being anywhere near the row.
     pub marked: bool,
     /// Whether this row names a group of the rows below it rather than being
-    /// something the user can pick.
-    ///
-    /// A heading is drawn but never selected: a menu that highlights its own
-    /// section title makes the cursor look like it is on something.
+    /// something the user can pick. A heading is drawn but never selected.
     pub heading: bool,
 }
 
@@ -65,19 +54,17 @@ impl Row {
     /// A row that shows the setting it cycles through.
     pub fn value(label: impl Into<String>, value: impl Into<String>) -> Self {
         Self {
-            label: label.into(),
             value: Some(value.into()),
-            value_style: None,
-            marked: false,
-            heading: false,
+            ..Self::new(label)
         }
     }
 
     /// The name of the group of rows below, which cannot itself be picked.
     pub fn heading(label: impl Into<String>) -> Self {
-        let mut row = Self::new(label);
-        row.heading = true;
-        row
+        Self {
+            heading: true,
+            ..Self::new(label)
+        }
     }
 
     /// Give this row's value a colour of its own.
@@ -96,8 +83,7 @@ impl Row {
     ///
     /// A checkbox rather than [`Row::mark`] because the two mean different
     /// things: the mark says "this is the one", the box says "this is one of
-    /// the ones", and a multi-select that uses the first reads as though
-    /// picking a second option would move the first.
+    /// the ones".
     pub fn checked(label: impl Into<String>, checked: bool) -> Self {
         let (tick, style) = if checked {
             ("[x]", crate::theme::Theme::on())
@@ -113,8 +99,8 @@ pub struct Menu {
     pub rows: Vec<Row>,
     /// Sits on the frame's top border.
     pub title: String,
-    /// The row the cursor is on. Clamped to the rows when the menu is drawn, so
-    /// a screen that shrinks under a stale index still draws a cursor.
+    /// The row the cursor is on, clamped to the rows when the menu is drawn so a
+    /// screen that shrinks under a stale index still draws a cursor.
     pub index: usize,
 }
 
@@ -131,20 +117,6 @@ impl Menu {
     pub fn at(mut self, index: usize) -> Self {
         self.index = index.min(self.rows.len().saturating_sub(1));
         self
-    }
-
-    /// The row the cursor is on, if the menu has any rows at all.
-    pub fn selected(&self) -> Option<&Row> {
-        self.rows.get(self.index)
-    }
-
-    /// Whether the last row is the way out of this screen.
-    ///
-    /// Screens that end in a "Back" row navigate with `len + 1` as their bound,
-    /// which means the cursor is only ever on a real row for `0..len` and the
-    /// back row is `len`. This is that one line of arithmetic.
-    pub fn back_selected(&self) -> bool {
-        self.index >= self.rows.len()
     }
 }
 

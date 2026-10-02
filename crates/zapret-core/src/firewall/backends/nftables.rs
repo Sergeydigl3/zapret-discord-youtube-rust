@@ -2,7 +2,8 @@ use crate::firewall::{notice, FirewallBackend};
 use nftables::helper::{apply_ruleset, get_current_ruleset};
 use nftables::schema::Nftables;
 use serde_json::{json, Value};
-use std::process::{Command, Stdio};
+
+use super::tool_available;
 
 const NFT_TABLE: &str = "zapret";
 const NFT_CHAIN_POST: &str = "zapret_post";
@@ -13,13 +14,7 @@ const NFT_CHAIN_PNAT: &str = "zapret_pnat";
 pub struct NftablesBackend;
 
 pub fn is_available() -> bool {
-    Command::new("nft")
-        .arg("--version")
-        .stderr(Stdio::null())
-        .stdout(Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    tool_available("nft")
 }
 
 fn parse_ports(ports: &str) -> Vec<Value> {

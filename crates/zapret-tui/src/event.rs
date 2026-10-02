@@ -11,11 +11,9 @@ use std::sync::Arc;
 /// Read crossterm events on a dedicated thread and forward them over a channel.
 ///
 /// Exactly one reader is created for the whole process (in `main`), so at any
-/// moment only one thread waits on the console input handle. Spawning a fresh
-/// reader for every TUI session used to leak zombie reader threads that stayed
-/// blocked in `WaitForMultipleObjects` forever, and several waiters on the same
-/// input handle race for events and starve each other, which made the menu stop
-/// reacting to keys.
+/// moment only one thread waits on the console input handle: several waiters on
+/// the same handle race for events and starve each other, which makes the menu
+/// stop reacting to keys.
 ///
 /// The reader can be paused while an external program (e.g. the text editor)
 /// reads the terminal itself. While paused it stops polling the console, so the
@@ -30,6 +28,8 @@ pub fn spawn_event_reader() -> EventReader {
             continue;
         }
 
+        // A transient console error must not kill the reader and leave the UI
+        // without input, so every Err is a pause and a retry.
         match ratatui::crossterm::event::poll(std::time::Duration::from_millis(50)) {
             Ok(true) => match ratatui::crossterm::event::read() {
                 Ok(event) => {
@@ -37,17 +37,10 @@ pub fn spawn_event_reader() -> EventReader {
                         break;
                     }
                 }
-                Err(_) => {
-                    // Transient console error; keep the reader alive and retry
-                    // instead of dying and leaving the UI without input.
-                    std::thread::sleep(std::time::Duration::from_millis(20));
-                }
+                Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
             },
             Ok(false) => {}
-            Err(_) => {
-                // Transient console error; retry like above.
-                std::thread::sleep(std::time::Duration::from_millis(20));
-            }
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
         }
     });
     EventReader { rx, paused }
@@ -71,16 +64,16 @@ impl EventReader {
     /// Stop the reader from polling the terminal so a child process (editor,
     /// prompt, ...) can read stdin without racing this thread for input.
     ///
-    /// Blocks briefly until the reader thread is guaranteed to be off the
-    /// console handle. The caller must balance every `pause` with a `resume`.
+    /// Blocks briefly until the reader thread is guaranteed to be off the console
+    /// handle. The caller must balance every `pause` with a `resume`.
     pub fn pause(&self) {
         self.paused.store(true, Ordering::SeqCst);
-        // Polling has a 50 ms timeout, so give the thread a moment to notice
-        // the flag before returning to the caller.
+        // Polling has a 50 ms timeout, so give the thread a moment to notice the
+        // flag before returning to the caller.
         std::thread::sleep(std::time::Duration::from_millis(150));
     }
 
-    /// Allow the reader to poll the terminal again after a [`EventReader::pause`].
+    /// Allow the reader to poll the terminal again after an [`EventReader::pause`].
     pub fn resume(&self) {
         self.paused.store(false, Ordering::SeqCst);
     }
@@ -95,10 +88,8 @@ pub fn wait_for_key(rx: &Receiver<Event>) -> Result<(), io::Error> {
     drain_events(rx);
     loop {
         match rx.recv_timeout(std::time::Duration::from_millis(100)) {
-            Ok(Event::Key(_)) => break,
-            Ok(_) => continue,
-            Err(RecvTimeoutError::Timeout) => continue,
-            Err(RecvTimeoutError::Disconnected) => break,
+            Ok(Event::Key(_)) | Err(RecvTimeoutError::Disconnected) => break,
+            Ok(_) | Err(RecvTimeoutError::Timeout) => continue,
         }
     }
     Ok(())

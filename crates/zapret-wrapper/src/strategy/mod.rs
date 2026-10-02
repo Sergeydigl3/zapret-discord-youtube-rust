@@ -14,9 +14,7 @@ pub use parser::{parse_bat_file, GameFilterPorts};
 /// Resolve a strategy file name to the file that should actually be parsed.
 ///
 /// A custom strategy in the cache directory wins over one shipped in the
-/// repository, so user overrides survive a repository re-download. This is the
-/// single place that precedence is decided: discovery lists the names, the
-/// sweeps list the names, and both end up here.
+/// repository, so user overrides survive a repository re-download.
 pub fn resolve(strategy_file: &str) -> PathBuf {
     let repo_dir = crate::paths::repo_dir();
 

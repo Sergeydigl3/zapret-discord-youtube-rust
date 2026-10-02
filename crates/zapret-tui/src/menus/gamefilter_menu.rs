@@ -1,5 +1,4 @@
 use crate::menus::{toggles, Menu, Row};
-use crate::state::screens::GamefilterMenuState;
 use crate::state::AppState;
 
 pub fn render(app: &AppState) -> Menu {
@@ -9,11 +8,5 @@ pub fn render(app: &AppState) -> Menu {
     ]);
     rows.push(Row::new(rust_i18n::t!("menu_gf_back")));
 
-    let index = match app.gamefilter_menu {
-        GamefilterMenuState::Tcp => 0,
-        GamefilterMenuState::Udp => 1,
-        GamefilterMenuState::Back => 2,
-    };
-
-    Menu::new(rust_i18n::t!("menu_gf_title"), rows).at(index)
+    Menu::new(rust_i18n::t!("menu_gf_title"), rows).at(app.gamefilter_menu.index())
 }

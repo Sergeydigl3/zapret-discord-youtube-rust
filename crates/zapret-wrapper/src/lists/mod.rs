@@ -1,11 +1,19 @@
-//! List files shipped with the strategies repository.
-//!
-//! The directory is resolved by [`crate::paths::exe_relative_lists_dir`], which
-//! deliberately ignores `ZAPRET_CACHE_DIR`. See the note there before "fixing"
-//! that: it is the current behaviour, kept as is by the restructuring.
+//! List files shipped with the strategies repository, resolved relative to the
+//! executable by [`crate::paths::exe_relative_lists_dir`].
 
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// `ipset-all.txt` holding the sentinel that disables ipset entirely.
+const NONE_MARKER: &str = "203.0.113.113/32";
+
+/// Files a user edits by hand; they live in the downloaded repository rather
+/// than in the cache because that is where the strategies read them from.
+const USER_LIST_FILES: &[&str] = &[
+    "list-general-user.txt",
+    "list-exclude-user.txt",
+    "ipset-exclude-user.txt",
+];
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum IpsetMode {
@@ -23,7 +31,7 @@ impl std::fmt::Display for IpsetMode {
             IpsetMode::Loaded => rust_i18n::t!("ipset_loaded").into_owned(),
             IpsetMode::Custom => rust_i18n::t!("ipset_custom").into_owned(),
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -33,18 +41,9 @@ pub fn get_ipset_dir() -> PathBuf {
 
 /// Create the three user list files the original shell scripts create empty
 /// before every run, so a strategy that references them does not fail.
-///
-/// These are the files a user edits by hand, which is why they live in the
-/// downloaded repository rather than in the cache: the repository is where the
-/// rest of the lists are, and the strategies read them from their working
-/// directory.
 pub fn ensure_user_lists() {
     let lists_dir = crate::paths::repo_lists_dir();
-    for name in &[
-        "list-general-user.txt",
-        "list-exclude-user.txt",
-        "ipset-exclude-user.txt",
-    ] {
+    for name in USER_LIST_FILES {
         let path = lists_dir.join(name);
         if !path.exists() {
             let _ = fs::write(&path, "");
@@ -66,9 +65,8 @@ pub fn get_ipset_custom_path() -> PathBuf {
 
 /// True when `dir` is the `lists/` subdirectory rather than the repository root.
 ///
-/// [`crate::paths::exe_relative_lists_dir`] returns one of the two, and the
-/// listing rules differ: inside `lists/` every file counts, in the repository
-/// root only `*.txt` does.
+/// The two differ in what counts: inside `lists/` every file qualifies, in the
+/// repository root only `*.txt` does.
 fn is_lists_subdir(dir: &Path) -> bool {
     dir.file_name().is_some_and(|n| n == "lists")
         && dir
@@ -79,25 +77,17 @@ fn is_lists_subdir(dir: &Path) -> bool {
 
 /// Collect every list file the editor may open.
 pub fn get_lists_files() -> Vec<String> {
-    let mut files = Vec::new();
-
     let dir = get_ipset_dir();
-    if dir.exists() && dir.is_dir() {
-        let txt_only = !is_lists_subdir(&dir);
-        if let Ok(entries) = fs::read_dir(&dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if !path.is_file() {
-                    continue;
-                }
-                if txt_only && path.extension().is_none_or(|e| e != "txt") {
-                    continue;
-                }
-                files.push(path.to_string_lossy().into_owned());
-            }
-        }
-    }
-
+    let txt_only = !is_lists_subdir(&dir);
+    let mut files: Vec<String> = fs::read_dir(&dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .filter(|p| !txt_only || p.extension().is_some_and(|e| e == "txt"))
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
     files.sort();
     files
 }
@@ -106,27 +96,21 @@ pub fn get_lists_files() -> Vec<String> {
 pub fn determine_current_mode() -> IpsetMode {
     let path = get_ipset_all_path();
     if !path.exists() {
-        // If file doesn't exist, we can treat it as Any (empty) or Custom.
-        // Let's treat it as Any since it's effectively empty.
+        // A missing file is effectively an empty (Any) ipset.
         return IpsetMode::Any;
     }
 
-    let content = fs::read_to_string(&path).unwrap_or_default().trim().to_string();
-
-    if content == "203.0.113.113/32" {
-        return IpsetMode::None;
-    }
+    let raw = fs::read_to_string(&path).unwrap_or_default();
+    let content = raw.trim();
 
     if content.is_empty() {
         return IpsetMode::Any;
     }
-
-    let backup_path = get_ipset_backup_path();
-    if backup_path.exists() {
-        let backup_content = fs::read_to_string(&backup_path).unwrap_or_default().trim().to_string();
-        if content == backup_content {
-            return IpsetMode::Loaded;
-        }
+    if content == NONE_MARKER {
+        return IpsetMode::None;
+    }
+    if fs::read_to_string(get_ipset_backup_path()).unwrap_or_default().trim() == content {
+        return IpsetMode::Loaded;
     }
 
     IpsetMode::Custom
@@ -138,12 +122,9 @@ pub fn get_available_modes() -> Vec<IpsetMode> {
     }
 
     let mut modes = vec![IpsetMode::None, IpsetMode::Any, IpsetMode::Loaded];
-    let custom_path = get_ipset_custom_path();
-
-    if custom_path.exists() || determine_current_mode() == IpsetMode::Custom {
+    if get_ipset_custom_path().exists() || determine_current_mode() == IpsetMode::Custom {
         modes.push(IpsetMode::Custom);
     }
-
     modes
 }
 
@@ -155,15 +136,14 @@ pub fn apply_ipset_mode(old_mode: IpsetMode, new_mode: IpsetMode) {
         let _ = fs::create_dir_all(&dir);
     }
 
-    // Save custom mode if leaving it
+    // Leaving custom mode saves the current file as the custom one.
     if old_mode == IpsetMode::Custom && new_mode != IpsetMode::Custom && path.exists() {
-        let custom_path = get_ipset_custom_path();
-        let _ = fs::copy(&path, &custom_path);
+        let _ = fs::copy(&path, get_ipset_custom_path());
     }
 
     match new_mode {
         IpsetMode::None => {
-            let _ = fs::write(&path, "203.0.113.113/32\n");
+            let _ = fs::write(&path, format!("{NONE_MARKER}\n"));
         }
         IpsetMode::Any => {
             let _ = fs::write(&path, "");

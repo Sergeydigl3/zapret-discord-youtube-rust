@@ -1,19 +1,10 @@
-//! Process lifecycle for the zapret daemon.
+//! Process lifecycle for the zapret daemon: put the firewall in place, spawn
+//! `nfqws` / `winws`, keep its handle, tear it all down again.
 //!
-//! This is the launch kernel: given a fully resolved [`LaunchPlan`] it puts the
-//! firewall in place, grants the capability the queue needs, spawns
-//! `nfqws` / `winws`, keeps the child handle and tears everything down again.
-//!
-//! "Is zapret running?" is answered from that handle, never from a scan of the
-//! machine. The only zapret processes this program does not own are the ones it
-//! deliberately has to get out of the way of — a leftover of an earlier run, a
-//! service it does not manage — and [`free_queue`] deals with those by name.
-//!
-//! It deliberately knows nothing about strategies. It does not parse a `.bat`,
-//! does not know what an alias or a list is, does not read the configuration
-//! file, does not resolve a single path on its own and does not print or log a
-//! single line. Everything it needs arrives in the plan, everything it observes
-//! leaves as an outcome.
+//! Knows nothing about strategies. Everything arrives in a [`LaunchPlan`],
+//! everything observed leaves as a [`LaunchOutcome`]. The child handle is the
+//! only truth about "is zapret running"; zapret processes this program does not
+//! own are reached by name through [`free_queue`].
 
 use crate::firewall::FirewallBackend;
 use std::fs;

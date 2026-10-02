@@ -1,25 +1,8 @@
 //! One frame of the UI.
 //!
-//! Pure rendering: it reads [`AppState`] and paints. The shape is the same on
-//! every screen, so a menu, a picker and a report all sit in the same place and
-//! the eye does not have to find them again:
-//!
-//! ```text
-//! ┌ zapret-rust 2.1.0 ─────────────────────────────────────────────┐
-//! │ Main ▸ Autotune                                                │  where you are
-//! │ ┌ Blocking Checks ──────────────────────────────────────────┐ │
-//! │ │ ▌ 🌐 Domains            < Discord >                        │ │
-//! │ │   📋 Strategies         < 4 / 12 >                         │ │
-//! │ └────────────────────────────────────────────────────────────┘ │
-//! │ 💡 Submenu: pick the domain presets to test against.            │  what this row does
-//! │ nfqws ✔  strategies ✔  Windows Service: active                 │  what is installed
-//! ├────────────────────────────────────────────────────────────────┤
-//! │ ↑↓ move  ←→ change  ⏎ open  esc back                           │  what the keys do
-//! └────────────────────────────────────────────────────────────────┘
-//! ```
-//!
-//! Only the middle block changes. Everything around it is chrome, drawn here
-//! once so no screen has to know about it.
+//! Pure rendering: it reads [`AppState`] and paints. A title, a list or a report,
+//! a help line and a status line — the same shape on every screen, so the eye
+//! does not have to find them again.
 
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -38,10 +21,9 @@ use crate::state::{
 use crate::theme::Theme;
 use crate::views;
 
-/// The bar in the gutter on the row the cursor is on.
-///
-/// Two cells wide, and that width is the gutter every other row pads itself
-/// out to, so a row's text never shifts sideways when the cursor moves onto it.
+/// The bar in the gutter on the row the cursor is on. Two cells wide, and that
+/// width is the gutter every other row pads itself out to, so a row's text never
+/// shifts sideways when the cursor moves onto it.
 const MARKER: &str = "▌ ";
 
 /// Screens that show what is installed under the menu, because on those screens
@@ -64,9 +46,8 @@ fn shows_status_line(screen: ActiveScreen) -> bool {
 
 /// `Main ▸ Autotune ▸ Domains`, cut rather than wrapped if the terminal is narrow.
 fn breadcrumb(app: &AppState) -> Line<'static> {
-    let trail = app.history.trail(app.active_screen);
     let mut spans = vec![Span::styled(" ", Theme::crumb())];
-    for (i, screen) in trail.iter().enumerate() {
+    for (i, screen) in app.history.trail(app.active_screen).iter().enumerate() {
         if i > 0 {
             spans.push(Span::styled(" ▸ ", Theme::frame()));
         }
@@ -77,12 +58,14 @@ fn breadcrumb(app: &AppState) -> Line<'static> {
     Line::from(spans)
 }
 
-/// The key hints on the bottom border. The same on every screen, because the
-/// keys do not change — only what they act on does, and that is the help line.
+/// The key hints on the bottom border. The same on every screen, because the keys
+/// do not change — only what they act on does, and that is the help line.
 fn key_hints() -> Line<'static> {
-    let keys = [("↑↓", "move"), ("←→", "change"), ("⏎", "open"), ("esc", "back")];
     let mut spans = vec![Span::raw(" ")];
-    for (i, (key, what)) in keys.iter().enumerate() {
+    for (i, (key, what)) in [("↑↓", "move"), ("←→", "change"), ("⏎", "open"), ("esc", "back")]
+        .iter()
+        .enumerate()
+    {
         if i > 0 {
             spans.push(Span::styled("   ", Theme::frame()));
         }
@@ -142,10 +125,9 @@ fn service_line(app: &AppState) -> Line<'static> {
     Line::from(spans)
 }
 
-/// Cut a styled line to `width` cells, keeping every span's colour.
-///
-/// The status line is built from spans that each carry their own colour, so it
-/// cannot go through [`views::fit`], which would flatten it to plain text.
+/// Cut a styled line to `width` cells, keeping every span's colour. The status
+/// line is built from spans that each carry their own colour, so it cannot go
+/// through [`views::fit`], which would flatten it to plain text.
 fn clip(line: Line<'static>, width: u16) -> Line<'static> {
     let mut used = 0usize;
     let mut spans = Vec::new();
@@ -222,17 +204,16 @@ fn menu_for(app: &AppState) -> Menu {
 ///
 /// The gutter is the mark, then [`MARKER`]'s two cells. On the selected row
 /// ratatui draws the highlight symbol there instead, which is why the padding is
-/// only added to the rows that are *not* selected: same width either way, so
-/// the labels line up.
+/// only added to the rows that are *not* selected: same width either way, so the
+/// labels line up.
 fn list_items(menu: &Menu) -> Vec<ListItem<'static>> {
     let gutter = MARKER.width();
     menu.rows
         .iter()
         .enumerate()
         .map(|(i, row)| {
-            // A heading is scenery. It gets the gutter padding like any other
-            // row so nothing shifts, but it keeps its own colour and never
-            // carries a value, because there is nothing there to set.
+            // A heading is scenery: it keeps its own colour and never carries a
+            // value, because there is nothing there to set.
             let style = if row.heading { Theme::heading() } else { Theme::label() };
             let mut spans = vec![Span::styled(if row.marked { "●" } else { " " }, Theme::accent())];
             if i != menu.index {
@@ -310,20 +291,16 @@ fn draw_menu(f: &mut Frame, app: &mut AppState, area: Rect) {
     let mut state = ListState::default().with_selected(Some(menu.index));
     f.render_stateful_widget(list, list_area, &mut state);
 
-    // Tell the mouse where every visible row landed.
-    //
-    // `List` has already scrolled itself by now, so `state.offset()` is the row
-    // at the top of the area, and a row is exactly one line tall — which is why
-    // this is arithmetic rather than something the widget hands back.
-    let visible = menu
-        .rows
-        .len()
-        .saturating_sub(state.offset())
-        .min(list_area.height as usize);
-    let rows = (state.offset()..state.offset() + visible)
-        .map(|row| Rect {
+    // Tell the mouse where every visible row landed. `List` has already scrolled
+    // itself by now, so `state.offset()` is the row at the top of the area, and a
+    // row is exactly one line tall — which is why this is arithmetic rather than
+    // something the widget hands back.
+    let offset = state.offset();
+    let visible = menu.rows.len().saturating_sub(offset).min(list_area.height as usize);
+    let rows = (0..visible)
+        .map(|i| Rect {
             x: list_area.x,
-            y: list_area.y + (row - state.offset()) as u16,
+            y: list_area.y + i as u16,
             width: list_area.width,
             height: 1,
         })
@@ -335,7 +312,7 @@ fn draw_menu(f: &mut Frame, app: &mut AppState, area: Rect) {
     let rows = menu.rows.len();
     if rows as u16 > list_area.height && list_area.height > 1 {
         let mut scroll = ScrollbarState::new(rows)
-            .position(state.offset().min(rows.saturating_sub(1)))
+            .position(offset.min(rows.saturating_sub(1)))
             .viewport_content_length(list_area.height as usize);
         f.render_stateful_widget(
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -386,18 +363,8 @@ fn help_key(app: &AppState) -> &'static str {
             DownloadDepsMenuState::DownloadDefaults => "help_dl_def",
             DownloadDepsMenuState::Back => "help_back",
         },
-        ActiveScreen::DownloadZapretSubmenu => match app.download_zapret_menu {
-            DownloadSubmenuState::Version => "help_dl_ver",
-            DownloadSubmenuState::SelectTag => "help_dl_tag",
-            DownloadSubmenuState::Start => "help_dl_start",
-            DownloadSubmenuState::Back => "help_back",
-        },
-        ActiveScreen::DownloadStrategiesSubmenu => match app.download_strategies_menu {
-            DownloadSubmenuState::Version => "help_dl_ver",
-            DownloadSubmenuState::SelectTag => "help_dl_tag",
-            DownloadSubmenuState::Start => "help_dl_start",
-            DownloadSubmenuState::Back => "help_back",
-        },
+        ActiveScreen::DownloadZapretSubmenu => download_help(app.download_zapret_menu),
+        ActiveScreen::DownloadStrategiesSubmenu => download_help(app.download_strategies_menu),
         ActiveScreen::GamefilterSubmenu => match app.gamefilter_menu {
             GamefilterMenuState::Tcp => "help_gf_tcp",
             GamefilterMenuState::Udp => "help_gf_udp",
@@ -445,6 +412,16 @@ fn help_key(app: &AppState) -> &'static str {
     }
 }
 
+/// Both downloader submenus are the same four rows, so they get the same help.
+fn download_help(state: DownloadSubmenuState) -> &'static str {
+    match state {
+        DownloadSubmenuState::Version => "help_dl_ver",
+        DownloadSubmenuState::SelectTag => "help_dl_tag",
+        DownloadSubmenuState::Start => "help_dl_start",
+        DownloadSubmenuState::Back => "help_back",
+    }
+}
+
 // -------------------------------------------------------------------- frame --
 
 pub fn draw(f: &mut Frame, app: &mut AppState) {
@@ -471,21 +448,12 @@ pub fn draw(f: &mut Frame, app: &mut AppState) {
     // The status line is only reserved on the screens that show it, rather than
     // left empty on the rest.
     let with_status = shows_status_line(app.active_screen);
-    let [crumbs, body, help, status] = Layout::vertical(if with_status {
-        [
-            Constraint::Length(1),
-            Constraint::Fill(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ]
-    } else {
-        [
-            Constraint::Length(1),
-            Constraint::Fill(1),
-            Constraint::Length(1),
-            Constraint::Length(0),
-        ]
-    })
+    let [crumbs, body, help, status] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Fill(1),
+        Constraint::Length(1),
+        Constraint::Length(u16::from(with_status)),
+    ])
     .areas(inner);
 
     f.render_widget(Paragraph::new(breadcrumb(app)), crumbs);

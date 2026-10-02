@@ -2,8 +2,8 @@
 //!
 //! The rows come from `MainMenuState::GROUPS` and the cursor from that same
 //! list's index, so a row cannot exist in the menu without being reachable by
-//! the arrows, or vice versa. The headings between the groups are drawn from
-//! the same place and are not part of the cursor.
+//! the arrows, or vice versa. The headings are drawn from the same place and are
+//! not part of the cursor.
 
 use crate::menus::{Menu, Row};
 use crate::state::screens::MainMenuState;
@@ -29,10 +29,9 @@ pub fn render(app: &AppState) -> Menu {
     Menu::new(rust_i18n::t!("menu_main_title"), rows).at(row_of(app.main_menu))
 }
 
-/// Where a row ends up once the headings are counted.
-///
-/// `MainMenuState::index` cannot answer this on its own: it counts selectable
-/// rows, and the drawn list has a heading in front of every group but the last.
+/// Where a row ends up once the headings are counted, and the inverse of
+/// [`state_at`] — the group list is drawn with headings, so a group row's
+/// number is not the cursor's.
 fn row_of(state: MainMenuState) -> usize {
     let mut row = 0usize;
     for group in MainMenuState::GROUPS {
@@ -49,8 +48,8 @@ fn row_of(state: MainMenuState) -> usize {
     0
 }
 
-/// The state on a drawn row, headings included. The inverse of [`row_of`], and
-/// what a click on the main menu is turned into.
+/// The state on a drawn row, headings included. What a click on the main menu
+/// is turned into.
 pub fn state_at(row: usize) -> Option<MainMenuState> {
     let mut at = row;
     for group in MainMenuState::GROUPS {
@@ -70,10 +69,6 @@ pub fn state_at(row: usize) -> Option<MainMenuState> {
 }
 
 /// The locale key of a row's name.
-///
-/// The names themselves live next to the row in [`MainMenuState`]; this is only
-/// the one line that has to know which key goes with which variant, and the
-/// match is over the same list the menu is drawn from.
 fn label_key(state: MainMenuState) -> &'static str {
     match state {
         #[cfg(target_os = "windows")]
@@ -105,13 +100,10 @@ fn value_of(app: &AppState, state: MainMenuState) -> Option<String> {
         MainMenuState::Interface => Some(app.interface().to_string()),
         MainMenuState::Strategy => Some(app.strategies.get(app.selected_strategy).cloned().unwrap_or_default()),
         MainMenuState::GamefilterSettings => {
-            let mut parts: Vec<&str> = Vec::new();
-            if app.tcp_gamefilter {
-                parts.push("TCP");
-            }
-            if app.udp_gamefilter {
-                parts.push("UDP");
-            }
+            let parts: Vec<&str> = [app.tcp_gamefilter.then_some("TCP"), app.udp_gamefilter.then_some("UDP")]
+                .into_iter()
+                .flatten()
+                .collect();
             Some(if parts.is_empty() {
                 rust_i18n::t!("val_off").into_owned()
             } else {
@@ -126,11 +118,11 @@ fn value_of(app: &AppState, state: MainMenuState) -> Option<String> {
                 .map(|m| m.to_string())
                 .unwrap_or_else(|| rust_i18n::t!("val_none").into_owned()),
         ),
-        MainMenuState::ListsEditor => None,
-        MainMenuState::Autotune => None,
-        MainMenuState::Extended => None,
-        MainMenuState::ServiceSettings => None,
-        MainMenuState::Run => None,
-        MainMenuState::Quit => None,
+        MainMenuState::ListsEditor
+        | MainMenuState::Autotune
+        | MainMenuState::Extended
+        | MainMenuState::ServiceSettings
+        | MainMenuState::Run
+        | MainMenuState::Quit => None,
     }
 }

@@ -10,12 +10,13 @@ use crate::theme::Theme;
 /// `ON`/`OFF` for a protocol, in the one order every transport is written in.
 fn protocol_status(app: &AppState) -> String {
     let mark = |on: bool| if on { "on" } else { "off" };
+    let c = &app.autotune_config;
     format!(
         "HTTP:{} T1.2:{} T1.3:{} QUIC:{}",
-        mark(app.autotune_config.check_http),
-        mark(app.autotune_config.check_tls12),
-        mark(app.autotune_config.check_tls13),
-        mark(app.autotune_config.check_quic)
+        mark(c.check_http),
+        mark(c.check_tls12),
+        mark(c.check_tls13),
+        mark(c.check_quic)
     )
 }
 
@@ -32,8 +33,8 @@ fn block_check_status(app: &AppState) -> (String, Style) {
 }
 
 pub fn render_config(app: &AppState) -> Menu {
-    let preset_names: Vec<&str> = app
-        .autotune_config
+    let c = &app.autotune_config;
+    let preset_names: Vec<&str> = c
         .preset_indices
         .iter()
         .filter_map(|&i| PRESETS.get(i).map(|p| p.name))
@@ -54,17 +55,13 @@ pub fn render_config(app: &AppState) -> Menu {
         };
         format!("< {}{caret} >", app.autotune_request_buf)
     } else {
-        format!("< {} >", app.autotune_config.num_requests)
+        format!("< {} >", c.num_requests)
     };
 
-    let strategies = if app.autotune_config.strategy_indices.is_empty() && !app.strategies.is_empty() {
+    let strategies = if c.strategy_indices.is_empty() && !app.strategies.is_empty() {
         rust_i18n::t!("menu_autotune_strat_none").into_owned()
     } else {
-        format!(
-            "{} / {}",
-            app.autotune_config.strategy_indices.len(),
-            app.strategies.len()
-        )
+        format!("{} / {}", c.strategy_indices.len(), app.strategies.len())
     };
 
     let (block_checks, block_style) = block_check_status(app);
@@ -122,52 +119,28 @@ pub fn render_domain_files(app: &AppState) -> Menu {
 }
 
 pub fn render_protocols(app: &AppState, cursor: AutotuneProtocolsState) -> Menu {
+    let c = &app.autotune_config;
     let mut rows = toggles([
-        (
-            rust_i18n::t!("menu_autotune_http").to_string(),
-            app.autotune_config.check_http,
-        ),
-        (
-            rust_i18n::t!("menu_autotune_tls12").to_string(),
-            app.autotune_config.check_tls12,
-        ),
-        (
-            rust_i18n::t!("menu_autotune_tls13").to_string(),
-            app.autotune_config.check_tls13,
-        ),
-        (
-            rust_i18n::t!("menu_autotune_quic").to_string(),
-            app.autotune_config.check_quic,
-        ),
+        (rust_i18n::t!("menu_autotune_http").to_string(), c.check_http),
+        (rust_i18n::t!("menu_autotune_tls12").to_string(), c.check_tls12),
+        (rust_i18n::t!("menu_autotune_tls13").to_string(), c.check_tls13),
+        (rust_i18n::t!("menu_autotune_quic").to_string(), c.check_quic),
     ]);
     rows.push(Row::new(rust_i18n::t!("menu_autotune_back")));
 
-    let index = match cursor {
-        AutotuneProtocolsState::Http => 0,
-        AutotuneProtocolsState::Tls12 => 1,
-        AutotuneProtocolsState::Tls13 => 2,
-        AutotuneProtocolsState::Quic => 3,
-        AutotuneProtocolsState::Back => 4,
-    };
-
-    Menu::new(rust_i18n::t!("tui_title_autotune_proto"), rows).at(index)
+    Menu::new(rust_i18n::t!("tui_title_autotune_proto"), rows).at(cursor.index())
 }
 
 pub fn render_blockchecks(app: &AppState, cursor: AutotuneBlockChecksState) -> Menu {
-    let all = BlockCheckType::all();
     let mut rows = toggles(
-        all.iter()
+        BlockCheckType::all()
+            .iter()
             .enumerate()
             .map(|(i, ty)| (ty.name().to_string(), app.autotune_config.block_checks.get(i))),
     );
     rows.push(Row::new(rust_i18n::t!("menu_autotune_back")));
 
-    let index = match cursor {
-        AutotuneBlockChecksState::Back => BlockCheckType::all().len(),
-        other => other.index(),
-    };
-
-    Menu::new(rust_i18n::t!("tui_title_autotune_bc"), rows).at(index)
+    Menu::new(rust_i18n::t!("tui_title_autotune_bc"), rows).at(cursor.index())
 }
 
 pub fn render_presets(app: &AppState) -> Menu {

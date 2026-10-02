@@ -1,7 +1,4 @@
-//! Fixed-DPI-TTL sweep.
-//!
-//! Depends on `domains` for the domain list file only. The autotune feature is
-//! not involved, which is what keeps the two features from forming a cycle.
+//! Fixed-DPI-TTL sweep. Depends on `domains` for the domain list file only.
 
 use std::time::Duration;
 
@@ -36,10 +33,7 @@ pub fn ensure_ttl_file() -> Result<(), String> {
             .map_err(|e| format!("Cannot create directory '{}': {}", parent.display(), e))?;
     }
     let mut content = format!("# {}\n", rust_i18n::t!("domain_file_header_ttl"));
-    for d in TEST_DOMAINS {
-        content.push_str(d);
-        content.push('\n');
-    }
+    content.extend(TEST_DOMAINS.iter().map(|d| format!("{d}\n")));
     std::fs::write(&path, content).map_err(|e| format!("Cannot write '{}': {}", path.display(), e))
 }
 
@@ -56,11 +50,8 @@ fn get_test_domains() -> Vec<String> {
 /// Check that the domain is reachable over TLS 1.3.
 ///
 /// `-k` skips certificate verification: the probe only checks that the TCP/TLS
-/// connection gets through the DPI, and `googlevideo.com` (apex of YouTube's
-/// video CDN) serves a wildcard cert that does not match the bare hostname.
-///
-/// The autotune probes run their own curl checks with different arguments and
-/// different timeouts, so this one is deliberately not shared with them.
+/// connection gets through the DPI, and `googlevideo.com` serves a wildcard cert
+/// that does not match the bare hostname.
 fn curl_tls_ok(domain: &str) -> bool {
     std::process::Command::new("curl")
         .arg("-s")
@@ -74,7 +65,7 @@ fn curl_tls_ok(domain: &str) -> bool {
             "-o",
             crate::platform::null_device(),
         ])
-        .arg(format!("https://{}", domain))
+        .arg(format!("https://{domain}"))
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
@@ -146,7 +137,7 @@ pub fn autopick_ttl(
         #[cfg(target_os = "linux")]
         let req = req.with_interface(interface);
         if let Err(e) = crate::run::run_quiet(&req, backend, &capture) {
-            let line = format!("{}: {}", strategy_file, e);
+            let line = format!("{strategy_file}: {e}");
             if !on_event(TtlEvent::Refused(ttl, line)) {
                 crate::run::stop_quiet(backend);
                 return Err(rust_i18n::t!("ttl_err_cancelled").into_owned());
@@ -155,8 +146,7 @@ pub fn autopick_ttl(
         }
 
         if !wait_for_nfqws(Duration::from_secs(3)) {
-            // Whatever winws printed on its way out is the answer to why this
-            // hop count was skipped, so it is reported rather than dropped.
+            // Whatever winws printed on its way out explains the skip.
             let said = crate::run::read_launch_output(&capture);
             crate::run::stop_quiet(backend);
             if !on_event(TtlEvent::Refused(ttl, said)) {
@@ -168,9 +158,7 @@ pub fn autopick_ttl(
         let mut all_ok = true;
         for domain in &domains {
             let ok = curl_tls_ok(domain);
-            if !ok {
-                all_ok = false;
-            }
+            all_ok &= ok;
             if !on_event(TtlEvent::Probed {
                 domain: domain.clone(),
                 ok,

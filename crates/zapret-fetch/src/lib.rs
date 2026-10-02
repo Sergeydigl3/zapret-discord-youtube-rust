@@ -1,20 +1,9 @@
-//! Downloading and installing the zapret runtime binary and the strategy
-//! repository.
+//! Downloading and installing the zapret runtime binary and the strategy repository.
 //!
-//! The crate knows nothing about where the application keeps its files and
-//! nothing about what a strategy is: the caller hands over an
-//! [`InstallTargets`] and gets files on disk. Everything that lands here is
-//! reached later through `zapret_wrapper::paths`.
-//!
-//! The zone is split by concern: `platform_matrix` maps the running OS and
-//! architecture onto a release directory, `github` talks to the GitHub API, and
-//! `archive` unpacks what was downloaded. This module keeps the two top-level
-//! operations and the version constants the interface refers to.
-//!
-//! Progress is written straight to stdout with `println!`, which is what the
-//! downloader screen in the TUI relies on: it hands the terminal over and lets
-//! the user read the transfer log. Converting that into an event stream is a
-//! separate refactor and deliberately out of scope here.
+//! The caller hands over an [`InstallTargets`] and gets files on disk: this crate
+//! has no opinion about where anything lives. Progress goes straight to stdout,
+//! because the TUI downloader hands the terminal over and lets the user read the
+//! transfer log.
 
 rust_i18n::i18n!("../../locales", fallback = "en");
 

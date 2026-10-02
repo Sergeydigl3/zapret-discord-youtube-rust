@@ -1,15 +1,17 @@
 //! Turning a parsed strategy into a command line for the daemon.
-//!
-//! The game-filter defaults and the argument list live together because they are
-//! the two halves of the same conversion: the parser needs to know which
-//! placeholders to expand, and the expansion needs the platform head.
 
 use super::parser::{GameFilterPorts, ParsedStrategy};
 
+/// Port range game filtering is applied to.
+const GAME_FILTER_PORTS: &str = "1024-65535";
+
+/// Upper bound of the autottl sweep; winws walks up to it on its own.
+const AUTOTTL_MAX: u8 = 20;
+
 /// The arguments that come before the strategy's own parameters.
 ///
-/// Linux marks its packets and picks the queue number; Windows takes the
-/// winDivert filter ports, which are therefore not part of the strategy at all.
+/// Windows takes the winDivert filter ports, which are therefore not part of the
+/// strategy at all; Linux marks its packets and picks the queue number.
 fn platform_head(parsed: &ParsedStrategy) -> Vec<String> {
     if cfg!(target_os = "windows") {
         vec![
@@ -23,28 +25,20 @@ fn platform_head(parsed: &ParsedStrategy) -> Vec<String> {
 
 /// Build the game filter ports block, or `None` when game filtering is off.
 pub fn game_filter(use_tcp: bool, use_udp: bool) -> Option<GameFilterPorts> {
-    if use_tcp || use_udp {
-        Some(GameFilterPorts {
-            ports: "1024-65535".to_string(),
-            tcp_ports: "1024-65535".to_string(),
-            udp_ports: "1024-65535".to_string(),
+    (use_tcp || use_udp).then(|| GameFilterPorts {
+            ports: GAME_FILTER_PORTS.to_string(),
+            tcp_ports: GAME_FILTER_PORTS.to_string(),
+            udp_ports: GAME_FILTER_PORTS.to_string(),
         })
-    } else {
-        None
     }
-}
 
 /// The two flags that pin the DPI TTL of the desync'd packets.
 ///
-/// A fixed lower bound, not a fixed value: the desync is told to start at `ttl`
-/// and walk up to 20, so the sweep measures the lowest hop count that survives
-/// without also giving up the room winws would otherwise have to adapt.
-///
-/// A fixed value has to be written into every profile, and before the `--new`
-/// that closes it — see [`build_args`].
+/// A fixed lower bound, not a fixed value: winws starts at `ttl` and walks up to
+/// `AUTOTTL_MAX`, so the sweep still measures the lowest hop count that survives.
 fn push_ttl(args: &mut Vec<String>, ttl: u8) {
-    args.push(format!("--dpi-desync-autottl=1:{}-{}", ttl, 20));
-    args.push(format!("--dpi-desync-autottl6=1:{}-{}", ttl, 20));
+    args.push(format!("--dpi-desync-autottl=1:{ttl}-{AUTOTTL_MAX}"));
+    args.push(format!("--dpi-desync-autottl6=1:{ttl}-{AUTOTTL_MAX}"));
 }
 
 /// Render the daemon arguments for a parsed strategy.

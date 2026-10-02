@@ -1,52 +1,50 @@
-//! Talking to the GitHub API.
-//!
-//! Two things need the network: listing the tags of a repository so the UI can
-//! offer them, and turning the `latest` selector into a concrete release tag
-//! before a download URL can be built.
+//! Talking to the GitHub API: listing a repository's tags, and turning the
+//! `latest` selector into a concrete release tag.
+
+/// Ask the API for a JSON body, treating any failure as "no answer".
+fn get_json(url: &str, agent: &str) -> serde_json::Value {
+    ureq::get(url)
+        .set("User-Agent", agent)
+        .call()
+        .ok()
+        .and_then(|req| req.into_string().ok())
+        .and_then(|body| serde_json::from_str(&body).ok())
+        .unwrap_or_default()
+}
 
 pub fn fetch_repo_tags(repo: &str) -> Result<Vec<String>, String> {
     let url = format!("https://api.github.com/repos/{}/tags", repo);
-    let req = ureq::get(&url)
+    let body = ureq::get(&url)
         .set("User-Agent", "zapret-rust-tui")
         .call()
-        .map_err(|e| format!("{}{}: {}", rust_i18n::t!("err_fetch_tags"), repo, e))?;
-
-    let json_str = req
+        .map_err(|e| format!("{}{}: {}", rust_i18n::t!("err_fetch_tags"), repo, e))?
         .into_string()
         .map_err(|e| format!("{}{}", rust_i18n::t!("err_read_tags"), e))?;
-    let tags_json: serde_json::Value =
-        serde_json::from_str(&json_str).map_err(|e| format!("{}{}", rust_i18n::t!("err_parse_tags"), e))?;
-    let mut tags = Vec::new();
+    let parsed: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("{}{}", rust_i18n::t!("err_parse_tags"), e))?;
 
-    if let Some(arr) = tags_json.as_array() {
-        for item in arr {
-            if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
-                tags.push(name.to_string());
-            }
-        }
-    }
-
-    Ok(tags)
+    Ok(parsed
+        .as_array()
+        .map(|tags| {
+            tags.iter()
+                .filter_map(|tag| tag.get("name")?.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default())
 }
 
-/// Resolve a version selector to a concrete release tag.
-/// `latest` queries the GitHub releases API and falls back to `ZAPRET_REC_VER`.
+/// Resolve a version selector to a concrete release tag, falling back to the
+/// pinned recommendation when the API cannot answer.
 pub(crate) fn resolve_tag(version: &str) -> Result<String, String> {
-    if version == "latest" {
-        println!("{}", rust_i18n::t!("msg_fetch_rel"));
-        let latest_url = format!("https://api.github.com/repos/{}/releases/latest", crate::ZAPRET_REPO);
-        let req = ureq::get(&latest_url)
-            .set("User-Agent", "zapret-rust")
-            .call()
-            .map_err(|e| format!("{}{}", rust_i18n::t!("err_fetch_rel"), e))?;
-
-        let json_str = req.into_string().unwrap_or_else(|_| "{}".to_string());
-        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap_or_default();
-        return Ok(parsed
-            .get("tag_name")
-            .and_then(|t| t.as_str())
-            .unwrap_or(crate::ZAPRET_REC_VER)
-            .to_string());
+    if version != "latest" {
+        return Ok(version.to_string());
     }
-    Ok(version.to_string())
+    println!("{}", rust_i18n::t!("msg_fetch_rel"));
+    let url = format!("https://api.github.com/repos/{}/releases/latest", crate::ZAPRET_REPO);
+    let parsed = get_json(&url, "zapret-rust");
+    Ok(parsed
+        .get("tag_name")
+        .and_then(|t| t.as_str())
+        .unwrap_or(crate::ZAPRET_REC_VER)
+        .to_string())
 }

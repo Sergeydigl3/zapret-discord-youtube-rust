@@ -1,5 +1,5 @@
 use crate::menus::{Menu, Row};
-use crate::state::screens::{DownloadSubmenuState, VersionTarget};
+use crate::state::screens::VersionTarget;
 use crate::state::AppState;
 
 /// The downloader's version picker.
@@ -55,24 +55,19 @@ pub fn render(app: &AppState, is_zapret: bool) -> Menu {
         .collect::<Vec<String>>()
         .join(" ");
 
-    let mut rows = vec![Row::value(
-        if is_zapret {
-            rust_i18n::t!("menu_subdl_title_zapret").to_string()
-        } else {
-            rust_i18n::t!("menu_subdl_title_strat").to_string()
-        },
-        version_value,
-    )];
-    rows.push(Row::new(rust_i18n::t!("menu_subdl_tag")));
-    rows.push(Row::new(rust_i18n::t!("menu_subdl_start")));
-    rows.push(Row::new(rust_i18n::t!("menu_subdl_back")));
-
-    let index = match menu_state {
-        DownloadSubmenuState::Version => 0,
-        DownloadSubmenuState::SelectTag => 1,
-        DownloadSubmenuState::Start => 2,
-        DownloadSubmenuState::Back => 3,
-    };
+    let rows = vec![
+        Row::value(
+            if is_zapret {
+                rust_i18n::t!("menu_subdl_title_zapret").to_string()
+            } else {
+                rust_i18n::t!("menu_subdl_title_strat").to_string()
+            },
+            version_value,
+        ),
+        Row::new(rust_i18n::t!("menu_subdl_tag")),
+        Row::new(rust_i18n::t!("menu_subdl_start")),
+        Row::new(rust_i18n::t!("menu_subdl_back")),
+    ];
 
     let title = if is_zapret {
         rust_i18n::t!("tui_title_download_zapret")
@@ -80,5 +75,5 @@ pub fn render(app: &AppState, is_zapret: bool) -> Menu {
         rust_i18n::t!("tui_title_download_strat")
     };
 
-    Menu::new(title, rows).at(index)
+    Menu::new(title, rows).at(menu_state.index())
 }

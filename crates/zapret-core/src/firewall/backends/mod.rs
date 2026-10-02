@@ -1,4 +1,15 @@
 use super::FirewallBackend;
+use std::process::{Command, Stdio};
+
+/// Whether a backend's CLI tool is on this machine.
+pub(crate) fn tool_available(tool: &str) -> bool {
+    Command::new(tool)
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
 
 macro_rules! define_backends {
     (

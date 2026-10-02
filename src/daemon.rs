@@ -1,11 +1,5 @@
-//! Windows service runtime.
-//!
-//! The binary's second entry point: when the SCM starts the process with
-//! `--service`, this hands control to the dispatcher and then boots the whole
-//! application (config load, WinDivert backend, zapret loop) instead of the
-//! TUI. It lives in the binary rather than in `zapret_wrapper::service` because
-//! it is a process entry point, not a service manager - the SCM client there is
-//! the other half of the same service.
+//! Windows service runtime: the binary's second entry point. With `--service`
+//! the SCM hands control to the dispatcher, which boots the app without the TUI.
 
 #![cfg(target_os = "windows")]
 

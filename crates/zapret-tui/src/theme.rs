@@ -2,12 +2,9 @@
 //!
 //! Every colour in the app comes from here, which is what keeps a menu, a table
 //! and a progress bar reading as one program rather than three. Nothing outside
-//! this file names a colour.
-//!
-//! Two greys carry the structure: [`Theme::frame`] for the borders and anything
-//! that is scenery, and [`Theme::selection`] for the band behind the row the
-//! cursor is on. Everything else is reserved for meaning — cyan for a value,
-//! green for on, red for bad, yellow for a warning.
+//! this file names a colour. Two greys carry the structure — [`Theme::frame`]
+//! for the borders and scenery, [`Theme::selection`] for the band behind the
+//! cursor row — and everything else is reserved for meaning.
 
 use ratatui::style::{Color, Modifier, Style};
 
@@ -17,15 +14,12 @@ const FRAME: Color = Color::Indexed(238);
 /// The selected row's band. One step back from the frame, so the row reads as
 /// raised off the background without becoming a slab of colour.
 const BAND: Color = Color::Indexed(240);
-
 pub struct Theme;
 
 impl Theme {
-    /// The band behind the selected row.
-    ///
-    /// Background only. Ratatui patches this over the whole row, so a
-    /// foreground set here would flatten a row's label and its value into one
-    /// colour; the band's job is to say *which* row, not what is in it.
+    /// The band behind the selected row: background only. Ratatui patches this
+    /// over the whole row, so a foreground here would flatten a row's label and
+    /// its value into one colour.
     pub fn selection() -> Style {
         Style::default().bg(BAND).add_modifier(Modifier::BOLD)
     }
