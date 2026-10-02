@@ -1,23 +1,9 @@
 //! The row model every menu is drawn from.
 //!
 //! A menu is data — a label per row, an optional value, and where the cursor is.
-//! [`crate::draw`] says what a selected row looks like, so the two cannot drift.
-//! Nothing here knows about the terminal.
-
-pub mod autotune_menu;
-#[cfg(target_os = "windows")]
-pub mod defender_menu;
-pub mod download_menu;
-pub mod download_submenu;
-pub mod extended_menu;
-pub mod fakes_menu;
-pub mod gamefilter_menu;
-pub mod lists_menu;
-pub mod main_menu;
-pub mod service_menu;
-pub mod strategy_menu;
-pub mod tag_menu;
-pub mod ttl_menu;
+//! [`crate::menu::MenuList`] says what a selected row looks like and where it sat
+//! on screen, so a row cannot drift from how it is painted. Nothing here knows
+//! about the terminal.
 
 use ratatui::style::Style;
 
@@ -94,33 +80,16 @@ impl Row {
     }
 }
 
-/// A whole menu: its rows, the title on its frame, and where the cursor is.
-pub struct Menu {
-    pub rows: Vec<Row>,
-    /// Sits on the frame's top border.
-    pub title: String,
-    /// The row the cursor is on, clamped to the rows when the menu is drawn so a
-    /// screen that shrinks under a stale index still draws a cursor.
-    pub index: usize,
+/// The row that closes every menu.
+///
+/// One key rather than eleven, because it is one row: "Back" is the same word
+/// wherever it stands, and a locale entry per screen only means eleven places to
+/// forget one.
+pub fn back() -> Row {
+    Row::new(rust_i18n::t!("menu_back"))
 }
 
-impl Menu {
-    pub fn new(title: impl Into<String>, rows: Vec<Row>) -> Self {
-        Self {
-            rows,
-            title: title.into(),
-            index: 0,
-        }
-    }
-
-    /// Put the cursor on a row, clamped to what the menu actually holds.
-    pub fn at(mut self, index: usize) -> Self {
-        self.index = index.min(self.rows.len().saturating_sub(1));
-        self
-    }
-}
-
-/// A menu of toggles, which is three screens in three different files.
+/// A menu of toggles, which is four screens in four different files.
 ///
 /// The value is bracketed rather than a bare `ON`/`OFF` so a row that is not
 /// selected still reads as a control, and coloured so the state is visible

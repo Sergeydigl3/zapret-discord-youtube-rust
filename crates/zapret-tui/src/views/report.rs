@@ -20,7 +20,7 @@ use zapret_wrapper::autotune::{AutotuneResults, CheckStatus, DomainProtocolCheck
 use crate::state::screens::AutotuneReportTab;
 use crate::theme::Theme;
 
-use super::{fit, frame};
+use super::{clock, fit, frame};
 
 /// One column of a table: its heading, its width (padding included) and where
 /// its text sits.
@@ -648,8 +648,10 @@ pub fn build(results: &AutotuneResults, tab: AutotuneReportTab, width: u16) -> V
 ///
 /// The clamp writes through because either tab grows taller than any terminal,
 /// and a scroll offset that is never pulled back makes the view look stuck at
-/// the bottom.
-pub fn render(f: &mut Frame, area: Rect, results: &AutotuneResults, tab: AutotuneReportTab, scroll: &mut usize) {
+/// the bottom. The clamped offset is returned so the caller — the report screen,
+/// which owns the scrollbar — is drawing the bar for the offset actually in
+/// use rather than the one that was asked for.
+pub fn render(f: &mut Frame, area: Rect, results: &AutotuneResults, tab: AutotuneReportTab, scroll: &mut usize) -> usize {
     let block = frame(None).title(tab_title(tab));
     let inner = block.inner(area);
     let lines = build(results, tab, inner.width);
@@ -663,11 +665,7 @@ pub fn render(f: &mut Frame, area: Rect, results: &AutotuneResults, tab: Autotun
         .block(block)
         .scroll(((*scroll).min(u16::MAX as usize) as u16, 0));
     f.render_widget(paragraph, area);
-}
-
-/// `mm:ss`, matching the progress screen.
-fn clock(secs: u64) -> String {
-    format!("{:02}:{:02}", secs / 60, secs % 60)
+    *scroll
 }
 
 #[cfg(test)]
@@ -888,7 +886,7 @@ mod tests {
         let results = sample();
         let mut scroll = 9999;
         terminal
-            .draw(|f| render(f, f.area(), &results, AutotuneReportTab::Details, &mut scroll))
+            .draw(|f| { render(f, f.area(), &results, AutotuneReportTab::Details, &mut scroll); })
             .unwrap();
 
         let lines = build(&results, AutotuneReportTab::Details, 58);

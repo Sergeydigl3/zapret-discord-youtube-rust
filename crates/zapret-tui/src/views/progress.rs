@@ -1,4 +1,4 @@
-//! The screen a running sweep owns: one bar, one log, and a cancel key.
+﻿//! The screen a running sweep owns: one bar, one log, and a cancel key.
 //!
 //! The bar is a plain [`Gauge`]. What makes it work is that nothing here waits
 //! on the job: the sweep runs on its own thread and pushes events into this
@@ -12,15 +12,17 @@ use std::time::Instant;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Gauge, Paragraph};
+use ratatui::widgets::{Gauge, Paragraph, Wrap};
 use ratatui::Frame;
+use tui_realm_stdlib::components::Spinner;
+use tuirealm::component::Component;
 use unicode_width::UnicodeWidthStr;
 use zapret_wrapper::autotune::{LogLevel, SweepEvent};
 use zapret_wrapper::domains::TtlEvent;
 
 use crate::theme::Theme;
 
-use super::{fit, frame};
+use super::{clock, fit, frame};
 
 /// How many log lines the screen keeps. Older ones fall off the top, so a long
 /// sweep cannot grow without bound.
@@ -28,7 +30,7 @@ const LOG_CAPACITY: usize = 500;
 
 /// Braille spinner: it animates from the clock rather than from a tick counter,
 /// so it keeps turning even while the sweep is busy and reporting nothing.
-const SPINNER: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const SPINNER: &str = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
 
 const SPINNER_FRAME_MS: u128 = 120;
 
@@ -118,7 +120,7 @@ impl ProgressView {
                 // without this the log would sit empty for whole minutes.
                 self.phase = name.clone();
                 self.push(Line::from(Span::styled(
-                    format!(" ▸ {}", name),
+                    format!(" в–ё {}", name),
                     Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
                 )));
             }
@@ -152,7 +154,7 @@ impl ProgressView {
                 self.done = finished(ttl) - 1;
                 self.phase = rust_i18n::t!("ttl_trying").replace("{}", &ttl.to_string());
                 self.push(Line::from(Span::styled(
-                    format!(" ▸ {}", self.phase),
+                    format!(" в–ё {}", self.phase),
                     Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
                 )));
             }
@@ -169,7 +171,7 @@ impl ProgressView {
                     // argument. That line is the whole explanation.
                     for line in wrap(said, WRAP) {
                         self.push(Line::from(vec![
-                            Span::styled(" ✖ ", Theme::bad()),
+                            Span::styled(" вњ– ", Theme::bad()),
                             Span::styled(line.to_string(), Style::default().fg(Color::Red)),
                         ]));
                     }
@@ -202,7 +204,7 @@ impl ProgressView {
 
     /// What the log holds, oldest first.
     ///
-    /// The frame loop never needs this — it paints the view — but a test on the
+    /// The frame loop never needs this вЂ” it paints the view вЂ” but a test on the
     /// other side of the thread boundary has no other way to see what a worker
     /// pushed in.
     #[cfg(test)]
@@ -229,9 +231,19 @@ impl ProgressView {
         }
     }
 
-    fn spinner(&self) -> &'static str {
+    /// The spinner, stepped by hand rather than per frame: this screen repaints
+    /// every 50 ms and the spinner has to keep its own clock or it turns three
+    /// times too fast.
+    fn spinner(&self) -> Spinner {
+        let mut spinner = Spinner::default()
+            .sequence(SPINNER)
+            .style(Theme::accent())
+            .manual_step();
         let tick = (self.started.elapsed().as_millis() / SPINNER_FRAME_MS) as usize;
-        SPINNER[tick % SPINNER.len()]
+        for _ in 0..=tick {
+            spinner.states.step();
+        }
+        spinner
     }
 
     /// Seconds left, extrapolated from the average step so far.
@@ -276,17 +288,29 @@ impl ProgressView {
     }
 
     fn render_bar(&self, f: &mut Frame, area: Rect) {
-        // The title sits on the top border, so it has to leave the corners and
-        // the closing rule alone even when the step name is long.
-        let title = format!("{} {}  {}", self.spinner(), self.title, self.phase);
+        // The title sits on the top border, so it has to leave the corners, the
+        // spinner and the closing rule alone even when the step name is long.
+        let title = format!("  {}  {}", self.title, self.phase);
         let title = fit(&title, area.width.saturating_sub(6));
         let gauge = Gauge::default()
-            .block(frame(Some(Span::styled(format!("{} ", title), Theme::accent()))))
+            .block(frame(Some(Span::styled(format!("{title} "), Theme::accent()))))
             .gauge_style(Style::default().fg(Color::Cyan))
             .use_unicode(true)
             .ratio(self.ratio())
             .label(self.label());
         f.render_widget(gauge, area);
+        // The spinner is its own widget in the gap the title left for it, rather
+        // than a character inside the title — so it cannot be cut off by a long
+        // step name and cannot make the bar's border move.
+        self.spinner().view(
+            f,
+            Rect {
+                x: area.x + 2,
+                y: area.y,
+                width: 1,
+                height: 1,
+            },
+        );
     }
 
     fn render_stats(&self, f: &mut Frame, area: Rect) {
@@ -301,13 +325,13 @@ impl ProgressView {
         let mut spans = Vec::new();
         if self.format == BarFormat::Percent {
             spans.push(Span::styled(format!("{} / {}", self.done, self.total), Theme::accent()));
-            spans.push(Span::raw("  ·  "));
+            spans.push(Span::raw("  В·  "));
         }
         spans.push(Span::styled(
             format!("{} {}", rust_i18n::t!("atv_elapsed"), clock(elapsed)),
             Style::default().fg(Color::White),
         ));
-        spans.push(Span::raw("  ·  "));
+        spans.push(Span::raw("  В·  "));
         spans.push(Span::styled(
             format!("{} {}", rust_i18n::t!("atv_eta"), eta),
             Style::default().fg(Color::Gray),
@@ -330,7 +354,15 @@ impl ProgressView {
         } else {
             self.log.iter().cloned().collect()
         };
-        f.render_widget(Paragraph::new(body).block(block).scroll((scroll, 0)), area);
+        // Whatever still does not fit the pane is wrapped rather than cut: a log
+        // line is the explanation, and half an explanation is worse than none.
+        f.render_widget(
+            Paragraph::new(body)
+                .block(block)
+                .wrap(Wrap { trim: false })
+                .scroll((scroll, 0)),
+            area,
+        );
     }
 }
 
@@ -338,18 +370,13 @@ impl ProgressView {
 fn probe_line(level: LogLevel, text: &str) -> Line<'static> {
     let (style, mark) = match level {
         LogLevel::Info => (Style::default().fg(Color::Gray), " "),
-        LogLevel::Good => (Theme::ok(), "✔"),
-        LogLevel::Bad => (Theme::bad(), "✖"),
+        LogLevel::Good => (Theme::ok(), "вњ”"),
+        LogLevel::Bad => (Theme::bad(), "вњ–"),
     };
     Line::from(vec![
         Span::styled(format!(" {} ", mark), style),
         Span::styled(format!(" {}", text), style),
     ])
-}
-
-/// `mm:ss`, which is as precise as these estimates deserve.
-fn clock(secs: u64) -> String {
-    format!("{:02}:{:02}", secs / 60, secs % 60)
 }
 
 #[cfg(test)]
@@ -387,8 +414,8 @@ mod tests {
         let mut view = ProgressView::new();
         assert!(view.log.is_empty());
 
-        view.apply(SweepEvent::Phase("Baseline checks — Discord".to_string()));
-        assert_eq!(view.phase, "Baseline checks — Discord");
+        view.apply(SweepEvent::Phase("Baseline checks вЂ” Discord".to_string()));
+        assert_eq!(view.phase, "Baseline checks вЂ” Discord");
         assert_eq!(view.log.len(), 1);
         assert!(view.log[0].spans[0].content.contains("Baseline checks"));
     }
@@ -472,3 +499,4 @@ mod tests {
         assert_eq!(first, second, "a repaint with no event changed nothing");
     }
 }
+

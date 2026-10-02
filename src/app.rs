@@ -120,10 +120,16 @@ pub fn run(args: Cli) {
     loop {
         if is_interactive {
             let mut app = AppState::new(strategy::get_strategies());
-            if let Err(e) = zapret_tui::run_tui(&mut app, &reader) {
-                println!("{}{}", rust_i18n::t!("err_tui"), e);
-                exit(1);
-            }
+            // The TUI hands the state back rather than mutating a borrowed one:
+            // its model owns the state while it runs, and the choices the user
+            // made are read off the value that comes out.
+            app = match zapret_tui::run_tui(app, &reader) {
+                Ok(app) => app,
+                Err(e) => {
+                    println!("{}{}", rust_i18n::t!("err_tui"), e);
+                    exit(1);
+                }
+            };
 
             #[cfg(target_os = "linux")]
             {

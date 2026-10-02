@@ -14,6 +14,20 @@ const FRAME: Color = Color::Indexed(238);
 /// The selected row's band. One step back from the frame, so the row reads as
 /// raised off the background without becoming a slab of colour.
 const BAND: Color = Color::Indexed(240);
+
+/// What a setting looks like when it is on, its title, the key in the hint line
+/// and the one thing the eye should land on first: all the same cyan, because
+/// they are all the same kind of signal.
+fn accent() -> Style {
+    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+}
+
+/// A fact rather than a choice, and a setting the user has turned off: also all
+/// the same grey, because they are all "nothing to act on here".
+fn muted() -> Style {
+    Style::default().fg(Color::DarkGray)
+}
+
 pub struct Theme;
 
 impl Theme {
@@ -37,7 +51,7 @@ impl Theme {
 
     /// The value a row is showing — the setting this row cycles through.
     pub fn value() -> Style {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        accent()
     }
 
     /// A setting the user has turned on.
@@ -47,13 +61,13 @@ impl Theme {
 
     /// A setting the user has turned off.
     pub fn off() -> Style {
-        Style::default().fg(Color::DarkGray)
+        muted()
     }
 
     /// Something that is a fact rather than a choice: the file currently in
     /// use, a count, a line of explanation.
     pub fn muted() -> Style {
-        Style::default().fg(Color::DarkGray)
+        muted()
     }
 
     /// Borders, rules and every other piece of scenery.
@@ -61,24 +75,30 @@ impl Theme {
         Style::default().fg(FRAME)
     }
 
+    /// The frame's colour on its own, for the places that take a colour rather
+    /// than a style — a stdlib component's border, for one.
+    pub fn frame_color() -> Color {
+        FRAME
+    }
+
     /// The title on a frame.
     pub fn title() -> Style {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        accent()
     }
 
     /// The breadcrumb under the top border: where in the app you are.
     pub fn crumb() -> Style {
-        Style::default().fg(Color::DarkGray)
+        muted()
     }
 
     /// The one thing the eye should land on first.
     pub fn accent() -> Style {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        accent()
     }
 
     /// A key name in the hint line.
     pub fn key() -> Style {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        accent()
     }
 
     pub fn ok() -> Style {

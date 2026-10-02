@@ -2,7 +2,8 @@
 //!
 //! The editor and the background event reader share stdin, so the reader has to
 //! be paused for the duration, otherwise the two fight over keystrokes and the
-//! editor misses keys.
+//! editor misses keys. The listener's port is locked by the caller, for the same
+//! reason: it is a second reader of the same channel.
 
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::event::Event;
@@ -14,7 +15,7 @@ use crate::editor::open_editor;
 use crate::event::drain_events;
 use crate::event::EventReader;
 use crate::screen::{begin_external_output, end_external_output};
-use crate::state::{ActiveScreen, AppState};
+use crate::state::AppState;
 
 pub fn open_in_editor(
     app: &mut AppState,
@@ -23,7 +24,6 @@ pub fn open_in_editor(
     rx: &Receiver<Event>,
     reader: &EventReader,
 ) -> Result<(), io::Error> {
-    let return_screen = app.active_screen;
     reader.pause();
 
     begin_external_output(terminal)?;
@@ -42,9 +42,11 @@ pub fn open_in_editor(
             .unwrap_or_default()
             .to_string_lossy()
     ));
-    app.active_screen = return_screen;
-    if return_screen == ActiveScreen::ListsEditorSubmenu {
-        app.refresh_ipset_status();
-    }
+    // The screen is not restored on purpose: the editor was opened from a file
+    // row and the row the user chose is still under the cursor. Only the list of
+    // files itself has to be re-read, since one of them may have just been
+    // created, renamed or deleted.
+    app.lists_files = zapret_wrapper::lists::get_lists_files();
+    app.refresh_ipset_status();
     Ok(())
 }

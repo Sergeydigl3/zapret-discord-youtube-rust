@@ -1,0 +1,16 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "mcp": {
+    "docs-rs": {
+      "type": "local",
+      "command": [
+        "cmd",
+        "/c",
+        "pnpm",
+        "dlx",
+        "@nuskey8/docs-rs-mcp@1.0.1"
+      ],
+      "enabled": true
+    }
+  }
+}

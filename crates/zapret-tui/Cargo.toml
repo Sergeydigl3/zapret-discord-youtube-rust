@@ -11,4 +11,6 @@ zapret-fetch = { path = "../zapret-fetch" }
 zapret-wrapper = { path = "../zapret-wrapper" }
 ratatui = "0.30.0"
 rust-i18n = "4.1.0"
+tuirealm = "4.1.0"
+tui-realm-stdlib = "4.1.0"
 unicode-width = "0.1"
