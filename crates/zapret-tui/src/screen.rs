@@ -5,7 +5,7 @@
 //! external program; see [`begin_external_output`].
 
 use ratatui::backend::CrosstermBackend;
-use ratatui::crossterm::event::Event;
+use ratatui::crossterm::event::{DisableMouseCapture, EnableMouseCapture, Event};
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::enable_raw_mode;
 #[cfg(target_os = "windows")]
@@ -55,7 +55,7 @@ pub fn setup_console() {}
 /// reader, which makes the menu stop reacting to keys afterwards.
 #[cfg(target_os = "windows")]
 pub fn begin_external_output(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), io::Error> {
-    execute!(terminal.backend_mut(), Clear(ClearType::All))?;
+    execute!(terminal.backend_mut(), DisableMouseCapture, Clear(ClearType::All))?;
     terminal.show_cursor()?;
     Ok(())
 }
@@ -63,7 +63,10 @@ pub fn begin_external_output(terminal: &mut Terminal<CrosstermBackend<io::Stdout
 #[cfg(not(target_os = "windows"))]
 pub fn begin_external_output(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<(), io::Error> {
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    // Without this the terminal keeps reporting mouse moves while the child
+    // program owns the console, and those escape sequences are read as input
+    // by the editor or shell instead of being interpreted as mouse events.
+    execute!(terminal.backend_mut(), DisableMouseCapture, LeaveAlternateScreen)?;
     terminal.show_cursor()?;
     Ok(())
 }
@@ -74,6 +77,7 @@ pub fn end_external_output(
     rx: &Receiver<Event>,
 ) -> Result<(), io::Error> {
     enable_raw_mode()?;
+    execute!(terminal.backend_mut(), EnableMouseCapture)?;
     terminal.clear()?;
     drain_events(rx);
     Ok(())
@@ -85,7 +89,7 @@ pub fn end_external_output(
     rx: &Receiver<Event>,
 ) -> Result<(), io::Error> {
     enable_raw_mode()?;
-    execute!(terminal.backend_mut(), EnterAlternateScreen)?;
+    execute!(terminal.backend_mut(), EnterAlternateScreen, EnableMouseCapture)?;
     terminal.clear()?;
     drain_events(rx);
     Ok(())
