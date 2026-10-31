@@ -1,7 +1,7 @@
 //! Everything zapret-rust knows about zapret, wrapped around a launch kernel.
 //!
 //! `zapret-core` knows how to put firewall rules in place and start `nfqws`.
-//! This crate knows what a *strategy* is: that a `.bat` file has to be parsed
+//! This crate knows what a *strategy* is: that a strategy file has to be parsed
 //! into an argument vector, that `ACTIVE_DISCORD_UDP.bin` is an alias for
 //! whichever payload the user picked, that a domain list is a text file next to
 //! the binary, that a fixed DPI TTL has to be injected into every `--new` group.

@@ -12,7 +12,7 @@
 //! │ │   📋 Strategies         < 4 / 12 >                         │ │
 //! │ └────────────────────────────────────────────────────────────┘ │
 //! │ 💡 Submenu: pick the domain presets to test against.            │  what this row does
-//! │ nfqws ✔  strategies ✔  Windows Service: active                 │  what is installed
+//! │ nfqws2 ✔  strategies ✔  Windows Service: active                 │  what is installed
 //! ├────────────────────────────────────────────────────────────────┤
 //! │ ↑↓ move  ←→ change  ⏎ open  esc back                           │  what the keys do
 //! └────────────────────────────────────────────────────────────────┘
@@ -136,7 +136,7 @@ fn service_line(app: &AppState) -> Line<'static> {
         Span::styled(format!(" {state}"), Style::default().fg(color)),
         Span::styled("   ", Theme::frame()),
     ];
-    spans.extend(chip("nfqws", app.nfqws_installed));
+    spans.extend(chip("nfqws2", app.nfqws_installed));
     spans.extend(chip("strategies", app.strategies_installed));
 
     Line::from(spans)

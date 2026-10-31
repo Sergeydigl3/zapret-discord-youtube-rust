@@ -25,7 +25,7 @@ fn load_strategies(indices: &[usize], all_strategies: &[String]) -> Vec<(String,
         .iter()
         .filter_map(|&idx| all_strategies.get(idx))
         .filter(|name| crate::strategy::resolve(name).exists())
-        .map(|name| (name.trim_end_matches(".bat").to_string(), name.clone()))
+        .map(|name| (name.trim_end_matches(".txt").to_string(), name.clone()))
         .collect()
 }
 

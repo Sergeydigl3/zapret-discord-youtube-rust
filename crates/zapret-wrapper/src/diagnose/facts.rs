@@ -112,7 +112,7 @@ pub(super) fn collect_system_info() -> Vec<String> {
         if let Ok(entries) = fs::read_dir(&strat_dir) {
             for entry in entries.flatten() {
                 if let Ok(name) = entry.file_name().into_string() {
-                    if name.ends_with(".bat") {
+                    if name.ends_with(".txt") {
                         count += 1;
                     }
                 }
@@ -121,7 +121,7 @@ pub(super) fn collect_system_info() -> Vec<String> {
         if let Ok(entries) = fs::read_dir(strat_dir.join("custom-strategies")) {
             for entry in entries.flatten() {
                 if let Ok(name) = entry.file_name().into_string() {
-                    if name.ends_with(".bat") {
+                    if name.ends_with(".txt") {
                         count += 1;
                     }
                 }
@@ -131,9 +131,9 @@ pub(super) fn collect_system_info() -> Vec<String> {
         let ver = fs::read_to_string(&version_file).unwrap_or_default();
         let ver_str = ver.trim();
         if ver_str.is_empty() {
-            info.push(format!("Strategies: {} .bat files", count));
+            info.push(format!("Strategies: {} .txt files", count));
         } else {
-            info.push(format!("Strategies: {} .bat files (version {})", count, ver_str));
+            info.push(format!("Strategies: {} .txt files (version {})", count, ver_str));
         }
     } else {
         info.push("Strategies: not installed".to_string());

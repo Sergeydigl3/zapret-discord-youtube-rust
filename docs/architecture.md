@@ -31,7 +31,7 @@ between them is `zapret_core::daemon::LaunchPlan`:
 
 ```rust
 pub struct LaunchPlan {
-    pub binary: PathBuf,   // nfqws or winws.exe
+    pub binary: PathBuf,   // nfqws2 or winws2.exe
     pub work_dir: PathBuf, // the daemon's cwd: bin/ and lists/ resolve against it
     pub args: Vec<String>, // the complete argv, platform head already applied
     pub tcp_ports: String, // the range the firewall has to divert
@@ -95,7 +95,7 @@ L0  error             the error contract in one place
 |---|---|
 | `error` | The `ZResult` alias |
 | `firewall` | The `FirewallBackend` trait, the nftables/iptables backends and the WinDivert stub |
-| `process` | A process *by name*, for the ones this program does not own: the daemon image (`winws.exe` / `nfqws`), killing leftovers, and asking whether somebody else's daemon runs. The one it started itself is a child handle in `daemon` |
+| `process` | A process *by name*, for the ones this program does not own: the daemon image (`winws2.exe` / `nfqws2`), killing leftovers, and asking whether somebody else's daemon runs. The one it started itself is a child handle in `daemon` |
 | `daemon` | `LaunchPlan`, `LaunchError`, `LaunchOutcome`, and the child handle of the daemon it started — the single source of truth for "is zapret running" and the only way it is stopped |
 
 `firewall` carries a `build.rs` that generates `firewall/backends/_backends.rs`
@@ -122,7 +122,7 @@ L0  paths               every path in the program
 | `fakes` | The `.bin` payloads a strategy references, and which one is active |
 | `defender` | The Windows Defender exclusion (Windows only) |
 | `lists` | The list files (`ipset-all.txt` and friends): the directory, the available modes, applying one, and the user lists a run expects to exist |
-| `strategy` | `.bat` parsing, the bundled strategies, discovery of what is on disk, name resolution, and the `.bat` to argv conversion in `strategy::args` |
+| `strategy` | strategy-file parsing, the bundled presets, discovery of what is on disk, name resolution, and the file-to-argv conversion in `strategy::args` |
 | `plan` | `RunRequest` and its resolution into a `LaunchPlan` |
 | `run` | Running a request: console output and the launch log |
 | `service` | One `ServiceManager` per init system. The managers are dumb: they write a unit and shell out |
@@ -150,17 +150,19 @@ depending on each other.
 ### Strategy names are resolved in one place
 
 `strategy::resolve` is the only function that turns a strategy *name* into a
-file. It checks `<cache>/custom-strategies` before `<repo>/custom-strategies`
-before `<repo>`, so a user strategy survives a repository re-download. Discovery
-lists the names, the TTL sweep lists the name, autotune lists the name — and all
-of them end up at the same resolver. Do not add a second copy; one existed once
-and autotune ended up skipping user overrides the ordinary run honoured.
+file. It checks `<cache>/custom-strategies` before
+`<repo>/custom-strategies`, so a user strategy survives a repository
+re-download. The repository root is not consulted: it is the lists provider,
+and the strategy files it ships describe a foreign engine. Discovery lists the
+names, the TTL sweep lists the name, autotune lists the name — and all of them
+end up at the same resolver. Do not add a second copy; one existed once and
+autotune ended up skipping user overrides the ordinary run honoured.
 
 ### Two directories called `bin`
 
 Both exist on disk and both are reachable through `paths`:
 
-- `paths::bin_runtime_dir()` — `<cache>/bin`, where `nfqws` / `winws.exe` is installed.
+- `paths::bin_runtime_dir()` — `<cache>/bin`, where `nfqws2` / `winws2.exe` and the `lua/` scripts are installed.
 - `paths::bin_assets_dir()` — `<repo>/bin`, the `.bin` payload files a strategy refers to.
 
 ### `--cache-dir` and the list files

@@ -29,7 +29,7 @@ pub fn activate(app: &mut AppState) {
             }
             DownloadSubmenuState::SelectTag => {
                 app.status_message = Some(rust_i18n::t!("msg_fetch_zapret_tags").into_owned());
-                match zapret_fetch::fetch_repo_tags("bol-van/zapret") {
+                match zapret_fetch::fetch_repo_tags(zapret_fetch::ZAPRET_REPO) {
                     Ok(tags) => {
                         app.available_nfqws_tags = tags;
                         app.nfqws_tag_index = 0;
