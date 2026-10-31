@@ -71,7 +71,7 @@ fn wt_available() -> bool {
 
     // Fallback: App Execution Alias location for Store-installed Terminal.
     on_path
-        || env::var_os("LOCALAPPDATA").map_or(false, |p| {
+        || env::var_os("LOCALAPPDATA").is_some_and(|p| {
             PathBuf::from(p)
                 .join("Microsoft")
                 .join("WindowsApps")

@@ -23,9 +23,11 @@ pub fn cache_dir() -> PathBuf {
     }
 }
 
-/// Directory holding the downloaded strategy `.bat` files and the lists.
+/// Directory holding the downloaded strategy repository and its lists.
 ///
-/// `REPO_DIR` wins, then `<cache>/zapret-discord-youtube-linux`.
+/// The repository is the lists provider; the strategies themselves live in the
+/// custom-strategies directories. `REPO_DIR` wins, then
+/// `<cache>/zapret-discord-youtube-linux`.
 pub fn repo_dir() -> PathBuf {
     PathBuf::from(
         env::var("REPO_DIR").unwrap_or_else(|_| cache_dir().join(REPO_DIR_NAME).to_string_lossy().into_owned()),
@@ -75,7 +77,7 @@ pub fn config_path() -> PathBuf {
     cache_dir().join(CONFIG_FILENAME)
 }
 
-/// Directory with the user-supplied strategy `.bat` files.
+/// Directory with the user-supplied strategy `.txt` files.
 ///
 /// It lives in the cache directory rather than inside the downloaded repository
 /// so user strategies survive a repository re-download.
@@ -83,9 +85,21 @@ pub fn custom_strategies_dir() -> PathBuf {
     cache_dir().join("custom-strategies")
 }
 
-/// Directory the runtime binary (`nfqws` / `winws.exe`) is installed into.
+/// Directory the runtime binary (`nfqws2` / `winws2.exe`) is installed into.
+///
+/// The zapret2 Lua scripts are installed into its `lua/` subdirectory; see
+/// [`lua_dir`].
 pub fn bin_runtime_dir() -> PathBuf {
     cache_dir().join("bin")
+}
+
+/// Directory of the zapret2 Lua desync scripts.
+///
+/// The strategies drive the desync engine through `--lua-init=@<file>`, and
+/// every platform needs the same pair of scripts, so the path is absolute and
+/// independent of the daemon's working directory.
+pub fn lua_dir() -> PathBuf {
+    bin_runtime_dir().join("lua")
 }
 
 /// Path of the runtime binary for the current platform.
@@ -128,35 +142,32 @@ pub fn nfqws_installed() -> bool {
     binary_path().exists()
 }
 
-/// True when at least one strategy `.bat` is available, either in the
-/// repository root or in the custom-strategies directory.
+/// True when at least one strategy `.txt` is available in one of the
+/// custom-strategies directories.
 pub fn strategies_installed() -> bool {
     let repo_dir = cache_dir().join(REPO_DIR_NAME);
-    if !repo_dir.exists() {
-        return false;
-    }
-    let mut has_bat = false;
-    if let Ok(entries) = std::fs::read_dir(&repo_dir) {
+    let mut has_txt = false;
+    if let Ok(entries) = std::fs::read_dir(repo_dir.join("custom-strategies")) {
         for entry in entries.flatten() {
             if let Ok(name) = entry.file_name().into_string() {
-                if name.ends_with(".bat") {
-                    has_bat = true;
+                if name.ends_with(".txt") {
+                    has_txt = true;
                     break;
                 }
             }
         }
     }
-    if !has_bat {
-        if let Ok(entries) = std::fs::read_dir(repo_dir.join("custom-strategies")) {
+    if !has_txt {
+        if let Ok(entries) = std::fs::read_dir(custom_strategies_dir()) {
             for entry in entries.flatten() {
                 if let Ok(name) = entry.file_name().into_string() {
-                    if name.ends_with(".bat") {
-                        has_bat = true;
+                    if name.ends_with(".txt") {
+                        has_txt = true;
                         break;
                     }
                 }
             }
         }
     }
-    has_bat
+    has_txt
 }

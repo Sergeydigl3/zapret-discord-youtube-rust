@@ -168,9 +168,15 @@ impl AppState {
             interfaces.iter().position(|i| i == &cfg.interface).unwrap_or(0)
         });
 
-        let selected_strategy = saved_cfg
-            .as_ref()
-            .map_or(0, |cfg| strategies.iter().position(|s| s == &cfg.strategy).unwrap_or(0));
+        // A saved name the current set does not know (a strategy the user
+        // deleted, or one left over from the zapret 1 format) falls back to the
+        // general preset rather than to whatever sorts first.
+        let selected_strategy = saved_cfg.as_ref().map_or(default_strategy_index(&strategies), |cfg| {
+            strategies
+                .iter()
+                .position(|s| s == &cfg.strategy)
+                .unwrap_or_else(|| default_strategy_index(&strategies))
+        });
         let tcp_gamefilter = saved_cfg.as_ref().is_some_and(|cfg| cfg.gamefilter_tcp);
         let udp_gamefilter = saved_cfg.as_ref().is_some_and(|cfg| cfg.gamefilter_udp);
 
@@ -415,4 +421,9 @@ impl AppState {
         bc.set(index, !bc.get(index));
         self.autotune_config.block_checks = bc;
     }
+}
+
+/// The index of the bundled general preset, or 0 when it is not in the list.
+fn default_strategy_index(strategies: &[String]) -> usize {
+    strategies.iter().position(|s| s == "general.txt").unwrap_or(0)
 }

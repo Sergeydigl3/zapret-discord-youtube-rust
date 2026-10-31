@@ -1,24 +1,41 @@
 //! Turning a parsed strategy into a command line for the daemon.
 //!
-//! The game-filter defaults and the argument list live together because they are
-//! the two halves of the same conversion: the parser needs to know which
-//! placeholders to expand, and the expansion needs the platform head.
+//! The platform head and the TTL override live here. The parser hands over the
+//! strategy's own tokens with the capture ports taken out, and this module
+//! decides what the daemon actually gets on this OS: Windows receives the
+//! WinDivert capture filters and the Lua libraries, Linux receives the queue
+//! number, the loop-prevention mark and the Lua libraries.
 
 use super::parser::{GameFilterPorts, ParsedStrategy};
+use crate::paths;
 
 /// The arguments that come before the strategy's own parameters.
 ///
-/// Linux marks its packets and picks the queue number; Windows takes the
-/// winDivert filter ports, which are therefore not part of the strategy at all.
+/// Both platforms need the Lua libraries: the whole desync engine of zapret2
+/// lives in `zapret-lib.lua` and `zapret-antidpi.lua`, installed next to the
+/// daemon binary by the downloader. Beyond that, Linux marks its packets and
+/// picks the queue number the firewall diverts to; Windows gets the capture
+/// filters rebuilt from the ports the parser extracted.
 fn platform_head(parsed: &ParsedStrategy) -> Vec<String> {
-    if cfg!(target_os = "windows") {
+    let mut head = if cfg!(target_os = "windows") {
         vec![
-            format!("--wf-tcp={}", parsed.tcp_ports),
-            format!("--wf-udp={}", parsed.udp_ports),
+            format!("--wf-tcp-in={}", parsed.tcp_in),
+            format!("--wf-tcp-out={}", parsed.tcp_out),
+            format!("--wf-udp-in={}", parsed.udp_in),
+            format!("--wf-udp-out={}", parsed.udp_out),
         ]
     } else {
-        vec!["--dpi-desync-fwmark=0x40000000".to_string(), "--qnum=200".to_string()]
+        vec![
+            // The mark the firewall rules skip; 0x40000000 is also nfqws2's
+            // own default, pinned here so the rule and the daemon cannot drift.
+            "--fwmark=0x40000000".to_string(),
+            "--qnum=200".to_string(),
+        ]
+    };
+    for script in ["zapret-lib.lua", "zapret-antidpi.lua"] {
+        head.push(format!("--lua-init=@{}", paths::lua_dir().join(script).display()));
     }
+    head
 }
 
 /// Build the game filter ports block, or `None` when game filtering is off.
@@ -34,63 +51,51 @@ pub fn game_filter(use_tcp: bool, use_udp: bool) -> Option<GameFilterPorts> {
     }
 }
 
-/// The two flags that pin the DPI TTL of the desync'd packets.
+/// The TTL params of a `--lua-desync` token, as nfqws2 spells them.
 ///
-/// A fixed lower bound, not a fixed value: the desync is told to start at `ttl`
-/// and walk up to 20, so the sweep measures the lowest hop count that survives
-/// without also giving up the room winws would otherwise have to adapt.
+/// `ip_autottl=delta,min-max` mirrors the zapret 1 flag
+/// `--dpi-desync-autottl=delta:min-max`: a fixed lower bound, not a fixed
+/// value — the desync starts at `ttl` and walks up to 20, so the sweep measures
+/// the lowest hop count that survives without also giving up the room the
+/// engine would otherwise have to adapt.
+fn autottl_params(ttl: u8) -> [String; 2] {
+    [
+        format!("ip_autottl=1,{}-{}", ttl, 20),
+        format!("ip6_autottl=1,{}-{}", ttl, 20),
+    ]
+}
+
+/// The Lua params that set a packet TTL and would shadow ours.
+const TTL_PARAM_NAMES: [&str; 4] = ["ip_ttl=", "ip6_ttl=", "ip_autottl=", "ip6_autottl="];
+
+/// Rewrite one strategy token for a fixed TTL run.
 ///
-/// A fixed value has to be written into every profile, and before the `--new`
-/// that closes it — see [`build_args`].
-fn push_ttl(args: &mut Vec<String>, ttl: u8) {
-    args.push(format!("--dpi-desync-autottl=1:{}-{}", ttl, 20));
-    args.push(format!("--dpi-desync-autottl6=1:{}-{}", ttl, 20));
+/// Desync functions take their fooling options as `:param=value` segments of
+/// the `--lua-desync` token, so a TTL override both strips the TTL params the
+/// strategy pinned and appends ours — to *every* desync token, because each
+/// one is an independent function instance. Tokens that are not desync calls
+/// have nothing to pin a TTL with and pass through unchanged.
+fn apply_ttl(token: &str, ttl: u8) -> String {
+    let Some(call) = token.strip_prefix("--lua-desync=") else {
+        return token.to_string();
+    };
+    let mut segments: Vec<String> = call
+        .split(':')
+        .filter(|s| !TTL_PARAM_NAMES.iter().any(|p| s.starts_with(p)))
+        .map(str::to_string)
+        .collect();
+    segments.extend(autottl_params(ttl));
+    format!("--lua-desync={}", segments.join(":"))
 }
 
 /// Render the daemon arguments for a parsed strategy.
 pub fn build_args(parsed: &ParsedStrategy, ttl: Option<u8>) -> Vec<String> {
     let mut args = platform_head(parsed);
-    // Stripping only makes sense when a hop count is actually being asked for.
-    // Without this guard an ordinary run would lose the strategy's own autottl
-    // just because a fixed TTL was configured.
-    let strip = ttl.is_some();
-
-    // Each strategy group is a separate desync profile: `--new` finalizes the
-    // current profile and starts a fresh one, so TTL options must be injected
-    // into every group (not just at the end of the whole command line).
-    for param in &parsed.nfqws_params {
-        let mut injected = false;
-        for p in param.split_whitespace() {
-            let p = p.replace('"', "");
-            if p.is_empty() || p == "^" {
-                continue;
-            }
-            // A fixed TTL overrides any TTL/autottl settings baked into the
-            // strategy file, otherwise they would shadow our values.
-            if strip && (p.starts_with("--dpi-desync-ttl") || p.starts_with("--dpi-desync-autottl")) {
-                continue;
-            }
-            // `--new` closes this profile and opens the next one, so a flag
-            // written after it becomes an option of the *following* profile.
-            // Injecting there shifted every fixed TTL one group along, leaving
-            // the first profile — the one the probe domains actually ride on —
-            // with the strategy's own TTL, and a sweep that then changed
-            // nothing between iterations.
-            if p == "--new" {
-                if let Some(t) = ttl {
-                    push_ttl(&mut args, t);
-                    injected = true;
-                }
-            }
-            args.push(p.to_string());
-        }
-        // The last profile of a strategy is not closed by `--new`; its TTL
-        // still has to be written out or the last group is left unpinned.
-        if let Some(t) = ttl {
-            if !injected {
-                push_ttl(&mut args, t);
-            }
-        }
+    for token in &parsed.args {
+        args.push(match ttl {
+            Some(t) => apply_ttl(token, t),
+            None => token.clone(),
+        });
     }
     args
 }
@@ -100,80 +105,109 @@ mod tests {
     use super::*;
     use crate::strategy::parser::ParsedStrategy;
 
-    fn parsed(groups: &[&str]) -> ParsedStrategy {
+    fn parsed(args: &[&str]) -> ParsedStrategy {
         ParsedStrategy {
-            tcp_ports: "80,443".into(),
-            udp_ports: "443".into(),
-            nfqws_params: groups.iter().map(|g| g.to_string()).collect(),
+            tcp_in: "80,443".into(),
+            tcp_out: "80,443".into(),
+            udp_in: "443".into(),
+            udp_out: "443".into(),
+            args: args.iter().map(|s| s.to_string()).collect(),
         }
-    }
-
-    /// How many fixed-TTL flags each `--filter-` profile received, in order.
-    fn ttl_per_profile(args: &[String]) -> Vec<usize> {
-        let mut counts = Vec::new();
-        for a in args {
-            if a.starts_with("--filter-") {
-                counts.push(0);
-            }
-            if a.starts_with("--dpi-desync-autottl=") {
-                let last = counts.last_mut().expect("a TTL flag before any profile");
-                *last += 1;
-            }
-        }
-        counts
-    }
-
-    /// The TTL has to belong to the profile it was written into. `--new` closes
-    /// a profile, so a flag after it silently becomes an option of the next one
-    /// — which left the first profile unpinned and made the sweep measure
-    /// nothing.
-    #[test]
-    fn the_fixed_ttl_lands_inside_its_own_profile() {
-        let args = build_args(
-            &parsed(&[
-                "--filter-tcp=80,443 --dpi-desync=multisplit --new",
-                "--filter-udp=443 --dpi-desync=fake --new",
-                // A strategy's last profile is not closed by `--new`.
-                "--filter-tcp=443 --hostlist-domains=discord.media --dpi-desync=multisplit",
-            ]),
-            Some(4),
-        );
-
-        assert_eq!(ttl_per_profile(&args), vec![1, 1, 1]);
-        // Nothing may open a profile after the last TTL, or the flags would
-        // have been attributed to it.
-        assert_eq!(args.last().map(String::as_str), Some("--dpi-desync-autottl6=1:4-20"));
     }
 
     /// A fixed lower bound, not a fixed value: the sweep measures the lowest
-    /// hop count that survives, and winws keeps its own room to walk up.
+    /// hop count that survives, and the engine keeps its own room to walk up.
     #[test]
-    fn a_fixed_ttl_is_a_lower_bound_not_a_fixed_value() {
-        let args = build_args(&parsed(&["--filter-udp=443 --dpi-desync=fake --new"]), Some(3));
-        assert!(args.iter().any(|a| a == "--dpi-desync-autottl=1:3-20"));
-        assert!(args.iter().any(|a| a == "--dpi-desync-autottl6=1:3-20"));
+    fn a_fixed_ttl_is_an_autottl_lower_bound() {
+        let args = build_args(
+            &parsed(&["--filter-udp=443 --new", "--lua-desync=fake:blob=fake_quic"]),
+            Some(3),
+        );
+        assert!(args
+            .iter()
+            .any(|a| a == "--lua-desync=fake:blob=fake_quic:ip_autottl=1,3-20:ip6_autottl=1,3-20"));
         assert!(
-            !args.iter().any(|a| a.starts_with("--dpi-desync-ttl=")),
-            "a pinned value would take away the room winws adapts in: {args:?}"
+            !args.iter().any(|a| a.contains("ip_ttl=")),
+            "a pinned value would take away the room the engine adapts in: {args:?}"
         );
     }
 
     #[test]
-    fn no_fixed_ttl_means_no_injected_flags() {
-        let args = build_args(&parsed(&["--filter-tcp=80,443 --dpi-desync=multisplit --new"]), None);
-        assert!(!args.iter().any(|a| a.starts_with("--dpi-desync-autottl")));
-        assert!(!args.iter().any(|a| a.starts_with("--dpi-desync-ttl")));
+    fn no_fixed_ttl_means_untouched_tokens() {
+        let args = build_args(&parsed(&["--lua-desync=fake:blob=fake_quic:ip_autottl=2,1-20"]), None);
+        assert_eq!(
+            args.last().map(String::as_str),
+            Some("--lua-desync=fake:blob=fake_quic:ip_autottl=2,1-20")
+        );
     }
 
     /// A strategy that pins its own TTL must not shadow the one being tested.
     #[test]
-    fn a_fixed_ttl_replaces_the_strategys_own() {
+    fn a_fixed_ttl_replaces_every_ttl_param_the_strategy_pinned() {
         let args = build_args(
-            &parsed(&["--filter-udp=443 --dpi-desync-ttl=9 --dpi-desync-autottl=2 --new"]),
+            &parsed(&[
+                "--lua-desync=fake:blob=fake_quic:ip_ttl=9:repeats=6",
+                "--lua-desync=multidisorder:pos=2:ip6_autottl=2,1-20",
+            ]),
             Some(6),
         );
-        assert!(!args.iter().any(|a| a == "--dpi-desync-ttl=9"));
-        assert!(!args.iter().any(|a| a == "--dpi-desync-autottl=2"));
-        assert!(args.iter().any(|a| a == "--dpi-desync-autottl=1:6-20"));
+        assert!(args
+            .iter()
+            .any(|a| a == "--lua-desync=fake:blob=fake_quic:repeats=6:ip_autottl=1,6-20:ip6_autottl=1,6-20"));
+        assert!(args
+            .iter()
+            .any(|a| a == "--lua-desync=multidisorder:pos=2:ip_autottl=1,6-20:ip6_autottl=1,6-20"));
+    }
+
+    /// Tokens that are not desync calls carry no TTL and must survive verbatim.
+    #[test]
+    fn non_desync_tokens_pass_through() {
+        let args = build_args(
+            &parsed(&[
+                "--new",
+                "--blob=fake_quic:@bin/quic_initial_www_google_com.bin",
+                "--hostlist=lists/list-general.txt",
+            ]),
+            Some(4),
+        );
+        assert!(args
+            .iter()
+            .any(|a| a == "--blob=fake_quic:@bin/quic_initial_www_google_com.bin"));
+        assert!(args.iter().any(|a| a == "--hostlist=lists/list-general.txt"));
+    }
+
+    #[test]
+    fn every_desync_token_receives_the_ttl() {
+        let args = build_args(
+            &parsed(&[
+                "--lua-desync=fake:blob=fake_quic",
+                "--new",
+                "--lua-desync=multisplit:pos=2",
+            ]),
+            Some(5),
+        );
+        let count = args.iter().filter(|a| a.contains("ip_autottl=1,5-20")).count();
+        assert_eq!(count, 2, "each desync instance is independent: {args:?}");
+    }
+
+    /// The linux head pins the mark the firewall rules skip and the queue the
+    /// rules divert to; the two must not drift apart. Only meaningful where
+    /// cfg!(target_os = "windows") is false.
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn the_linux_head_carries_mark_queue_and_lua() {
+        let args = platform_head(&parsed(&[]));
+        assert!(args.iter().any(|a| a == "--fwmark=0x40000000"));
+        assert!(args.iter().any(|a| a == "--qnum=200"));
+        assert_eq!(args.iter().filter(|a| a.starts_with("--lua-init=@")).count(), 2);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn the_windows_head_carries_the_capture_filters_and_lua() {
+        let args = platform_head(&parsed(&[]));
+        assert!(args.iter().any(|a| a == "--wf-tcp-in=80,443"));
+        assert!(args.iter().any(|a| a == "--wf-udp-out=443"));
+        assert_eq!(args.iter().filter(|a| a.starts_with("--lua-init=@")).count(), 2);
     }
 }

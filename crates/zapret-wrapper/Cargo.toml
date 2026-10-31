@@ -9,7 +9,6 @@ description = "Framing of zapret-rust: everything that knows what a zapret strat
 zapret-core = { path = "../zapret-core" }
 zapret-fetch = { path = "../zapret-fetch" }
 nix = { version = "0.27", features = ["signal", "user"] }
-regex = "1.10.2"
 rust-i18n = "4.1.0"
 aes = "0.8"
 aes-gcm = "0.10"

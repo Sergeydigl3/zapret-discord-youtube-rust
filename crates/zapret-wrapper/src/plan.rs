@@ -13,7 +13,7 @@ use zapret_core::daemon::LaunchPlan;
 #[derive(Clone, Debug)]
 pub struct RunRequest {
     /// Strategy file name as listed by `strategy::get_strategies`, e.g.
-    /// `discord.bat`. Resolution happens in `plan`.
+    /// `general.txt`. Resolution happens in `plan`.
     pub strategy: String,
     /// Network interface, or `any`. Linux only: nftables and iptables can bind
     /// rules to one output device and WinDivert cannot, so elsewhere there is
@@ -57,12 +57,12 @@ impl RunRequest {
 
 /// Read the strategy, expand it and produce the launch plan.
 ///
-/// Fails when the strategy cannot be read or does not contain exactly one
-/// `--wf-tcp` and one `--wf-udp` block, which is what the firewall backend
-/// needs and what the parser insists on.
+/// Fails when the strategy cannot be read or declares no WinDivert capture
+/// ports, which is what the firewall backend needs and what the parser
+/// insists on.
 pub fn plan(req: &RunRequest) -> Result<LaunchPlan, String> {
     let path = strategy::resolve(&req.strategy);
-    let parsed = strategy::parse_bat_file(
+    let parsed = strategy::parse_strategy_file(
         path.to_str().ok_or("invalid strategy path")?,
         game_filter(req.gamefilter_tcp, req.gamefilter_udp).as_ref(),
     )?;
@@ -73,7 +73,7 @@ pub fn plan(req: &RunRequest) -> Result<LaunchPlan, String> {
         binary: crate::paths::binary_path(),
         work_dir: crate::paths::repo_dir(),
         args: build_args(&parsed, ttl),
-        tcp_ports: parsed.tcp_ports,
-        udp_ports: parsed.udp_ports,
+        tcp_ports: parsed.tcp_ports(),
+        udp_ports: parsed.udp_ports(),
     })
 }
