@@ -13,12 +13,25 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-/// Image name of the zapret daemon on this platform.
+/// Image name of the zapret daemon on this platform (the zapret2 build).
 pub fn daemon_image() -> &'static str {
     if cfg!(target_os = "windows") {
-        "winws.exe"
+        "winws2.exe"
     } else {
-        "nfqws"
+        "nfqws2"
+    }
+}
+
+/// Image names of the daemons this program has ever started, newest last.
+///
+/// zapret 1 (`nfqws` / `winws.exe`) is EOL but may still be installed next to a
+/// migrated cache; the stale sweep clears it so an old binary cannot keep
+/// holding the queue either.
+pub fn daemon_images() -> &'static [&'static str] {
+    if cfg!(target_os = "windows") {
+        &["winws.exe", "winws2.exe"]
+    } else {
+        &["nfqws", "nfqws2"]
     }
 }
 
@@ -91,7 +104,9 @@ pub fn kill_process(image: &str) -> bool {
 /// that have no handle anywhere: a daemon left over from an earlier run, one
 /// started by hand, one belonging to a managed service.
 pub fn kill_stale_zapret() {
-    let _ = kill_process(daemon_image());
+    for image in daemon_images() {
+        let _ = kill_process(image);
+    }
 }
 
 /// Grant `CAP_NET_ADMIN` to the daemon binary so it can use nfqueue.

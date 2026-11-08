@@ -2,7 +2,7 @@
 //!
 //! Two concerns, and nothing else: the firewall rules the daemon needs, and the
 //! daemon process itself. Both are strategy-agnostic. Nothing in this crate
-//! knows what a `.bat` file is, reads the configuration file, resolves a path,
+//! knows what a strategy file is, reads the configuration file, resolves a path,
 //! prints a message or writes a log — the caller fills in a
 //! [`daemon::LaunchPlan`] and turns the [`daemon::LaunchOutcome`] back into
 //! whatever the interface needs.

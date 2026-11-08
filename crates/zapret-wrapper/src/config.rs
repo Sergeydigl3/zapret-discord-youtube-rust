@@ -234,6 +234,26 @@ fn validate_config() -> Result<(), String> {
         updated = true;
     }
 
+    // Migrate strategy names written before the zapret2 migration: those were
+    // `.bat` files describing the old engine, and none of them can run on
+    // zapret2, so a saved `.bat` name resets to the bundled general preset.
+    let lines: Vec<String> = content
+        .lines()
+        .map(|line| {
+            let trimmed = line.trim();
+            if trimmed.starts_with("strategy=") && trimmed.ends_with(".bat") {
+                updated = true;
+                "strategy=general.txt".to_string()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect();
+    content = lines.join("\n");
+    if updated && !content.ends_with('\n') {
+        content.push('\n');
+    }
+
     if updated {
         fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     }

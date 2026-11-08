@@ -2,14 +2,14 @@
 //!
 //! This is the launch kernel: given a fully resolved [`LaunchPlan`] it puts the
 //! firewall in place, grants the capability the queue needs, spawns
-//! `nfqws` / `winws`, keeps the child handle and tears everything down again.
+//! `nfqws2` / `winws2`, keeps the child handle and tears everything down again.
 //!
 //! "Is zapret running?" is answered from that handle, never from a scan of the
 //! machine. The only zapret processes this program does not own are the ones it
 //! deliberately has to get out of the way of — a leftover of an earlier run, a
 //! service it does not manage — and [`free_queue`] deals with those by name.
 //!
-//! It deliberately knows nothing about strategies. It does not parse a `.bat`,
+//! It deliberately knows nothing about strategies. It does not parse a strategy file,
 //! does not know what an alias or a list is, does not read the configuration
 //! file, does not resolve a single path on its own and does not print or log a
 //! single line. Everything it needs arrives in the plan, everything it observes
@@ -68,7 +68,7 @@ static DAEMON: Mutex<Option<Daemon>> = Mutex::new(None);
 /// is the seam: the kernel never has to learn what a strategy is.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LaunchPlan {
-    /// `nfqws` or `winws.exe`.
+    /// `nfqws2` or `winws2.exe`.
     pub binary: PathBuf,
     /// Directory the daemon runs in. Relative `bin/` and `lists/` paths baked
     /// into a command line resolve against it.
@@ -100,7 +100,7 @@ impl std::fmt::Display for LaunchError {
         match self {
             LaunchError::BinaryMissing(p) => write!(f, "binary not found: {:?}", p),
             LaunchError::CaptureFile(p, e) => write!(f, "failed to create capture file {:?}: {}", p, e),
-            LaunchError::Spawn(e) => write!(f, "failed to start nfqws: {}", e),
+            LaunchError::Spawn(e) => write!(f, "failed to start nfqws2: {}", e),
             LaunchError::Firewall(e) => write!(f, "firewall setup error: {}", e),
         }
     }
@@ -207,7 +207,7 @@ impl LaunchPlan {
     /// because a strategy test measured against no rules proves nothing.
     ///
     /// The daemon's output still goes to `capture` rather than to the null
-    /// device, and the file is left in place: when winws rejects an argument it
+    /// device, and the file is left in place: when winws2 rejects an argument it
     /// says so and exits, and that one line is the only explanation a sweep ever
     /// gets. There is no sleep here, so the caller reads the file later — after
     /// whatever wait it does anyway.

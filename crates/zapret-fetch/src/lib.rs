@@ -30,8 +30,8 @@ use platform_matrix::detect_platform_dir;
 
 pub use github::fetch_repo_tags;
 
-pub const ZAPRET_REPO: &str = "bol-van/zapret";
-pub const ZAPRET_REC_VER: &str = "v72.13";
+pub const ZAPRET_REPO: &str = "bol-van/zapret2";
+pub const ZAPRET_REC_VER: &str = "v1.0.6";
 pub const STRAT_REC_VER: &str = "9503dc045133000af8075e066f09bb469008e530";
 
 const STRAT_REPO_ZIP: &str = "https://github.com/Flowseal/zapret-discord-youtube/archive/refs/heads/main.zip";
@@ -45,13 +45,14 @@ const STRAT_REPO_ZIP: &str = "https://github.com/Flowseal/zapret-discord-youtube
 pub struct InstallTargets {
     /// Root for the temporary download artefacts.
     pub cache_dir: PathBuf,
-    /// Where `nfqws` / `winws.exe` and, on Windows, the WinDivert files go.
+    /// Where `nfqws2` / `winws2.exe`, the `lua/` scripts and, on Windows, the
+    /// WinDivert files go.
     pub runtime_bin_dir: PathBuf,
     /// Root of the unpacked strategy repository.
     pub strategies_dir: PathBuf,
 }
 
-/// Grant `CAP_NET_ADMIN` to a freshly installed `nfqws` so it can use nfqueue
+/// Grant `CAP_NET_ADMIN` to a freshly installed `nfqws2` so it can use nfqueue
 /// without full root.
 ///
 /// Reports "the command ran and said no" separately from "there is no `setcap`
@@ -72,7 +73,7 @@ fn try_set_cap(bin_path: &Path) -> Option<bool> {
     }
 }
 
-pub fn download_nfqws(targets: &InstallTargets, version: &str) -> Result<(), String> {
+pub fn download_zapret(targets: &InstallTargets, version: &str) -> Result<(), String> {
     if version == "skip" {
         return Ok(());
     }
@@ -87,14 +88,25 @@ pub fn download_nfqws(targets: &InstallTargets, version: &str) -> Result<(), Str
 
     let tag = github::resolve_tag(version)?;
     println!("{}{}", rust_i18n::t!("msg_using_tag"), tag);
-    let archive = format!("zapret-{}.tar.gz", tag);
+    // The Windows release asset is a zip; every other platform ships a tar.gz.
+    // Both wrap the same tree in a `zapret2-<tag>/` root directory; the zip
+    // unpacker strips that root, the tar unpacker keeps it.
+    let windows = env::consts::OS == "windows";
+    let (archive, unpacked) = if windows {
+        (format!("zapret2-{}.zip", tag), tmp_root(&targets.cache_dir))
+    } else {
+        (
+            format!("zapret2-{}.tar.gz", tag),
+            tmp_root(&targets.cache_dir).join(format!("zapret2-{}", tag)),
+        )
+    };
     let url = format!(
         "https://github.com/{}/releases/download/{}/{}",
         ZAPRET_REPO, tag, archive
     );
 
     // Use local temp directory inside cache_dir to avoid Windows Defender blocks
-    let tmp_dir = targets.cache_dir.join(".tmp_zapret_download");
+    let tmp_dir = tmp_root(&targets.cache_dir);
     let _ = fs::remove_dir_all(&tmp_dir);
     let _ = fs::create_dir_all(&tmp_dir);
     let tmp_archive = tmp_dir.join(&archive);
@@ -108,13 +120,17 @@ pub fn download_nfqws(targets: &InstallTargets, version: &str) -> Result<(), Str
     std::io::copy(&mut response, &mut file).map_err(|e| format!("{}{}", rust_i18n::t!("err_write_arc"), e))?;
 
     println!("{}", rust_i18n::t!("msg_ext_arc"));
-    archive::unpack_tar_gz(&tmp_archive, &tmp_dir)?;
+    if windows {
+        archive::unpack_zip(&tmp_archive, &tmp_dir)?;
+    } else {
+        archive::unpack_tar_gz(&tmp_archive, &tmp_dir)?;
+    }
 
-    let expected_bin_path = tmp_dir.join(format!("zapret-{}", tag)).join("binaries").join(platform);
+    let expected_bin_path = unpacked.join("binaries").join(platform);
 
     if expected_bin_path.exists() {
-        if env::consts::OS == "windows" {
-            // For Windows, we need winws.exe, WinDivert.dll, WinDivert64.sys, cygwin1.dll, etc.
+        if windows {
+            // For Windows, we need winws2.exe, WinDivert.dll, WinDivert64.sys, cygwin1.dll, etc.
             // Copy everything in the platform folder.
             for entry in fs::read_dir(&expected_bin_path)
                 .map_err(|e| format!("{}{}", rust_i18n::t!("err_read_bin"), e))?
@@ -126,7 +142,7 @@ pub fn download_nfqws(targets: &InstallTargets, version: &str) -> Result<(), Str
             }
             println!("{}", rust_i18n::t!("msg_inst_win_ok"));
         } else {
-            let bin_name = "nfqws";
+            let bin_name = "nfqws2";
             let bin_file = expected_bin_path.join(bin_name);
             if bin_file.exists() {
                 let dest = bin_dir.join(bin_name);
@@ -142,7 +158,7 @@ pub fn download_nfqws(targets: &InstallTargets, version: &str) -> Result<(), Str
                 }
                 println!("{}{}", rust_i18n::t!("msg_inst_nux_ok"), bin_name);
 
-                // Set CAP_NET_ADMIN so nfqws can use nfqueue without full root
+                // Set CAP_NET_ADMIN so nfqws2 can use nfqueue without full root
                 if try_set_cap(&bin_dir.join(bin_name)) == Some(true) {
                     println!("{}", rust_i18n::t!("msg_setcap_ok"));
                 }
@@ -154,7 +170,39 @@ pub fn download_nfqws(targets: &InstallTargets, version: &str) -> Result<(), Str
         return Err(format!("Could not find binaries path {:?}", expected_bin_path));
     }
 
+    // The desync logic lives in Lua scripts shipped next to the binaries in the
+    // release archive; strategies reference them through --lua-init.
+    let lua_src = unpacked.join("lua");
+    if lua_src.is_dir() {
+        copy_dir(&lua_src, &bin_dir.join("lua"))?;
+    } else {
+        return Err(format!("Could not find lua scripts in {:?}", unpacked));
+    }
+
     let _ = fs::remove_dir_all(tmp_dir);
+    Ok(())
+}
+
+/// The scratch directory an archive is downloaded and unpacked into.
+fn tmp_root(cache_dir: &Path) -> PathBuf {
+    cache_dir.join(".tmp_zapret_download")
+}
+
+/// Recursively copy a directory tree, creating `dst` as needed.
+fn copy_dir(src: &Path, dst: &Path) -> Result<(), String> {
+    fs::create_dir_all(dst).map_err(|e| format!("{}{:?}: {}", rust_i18n::t!("err_read_bin"), dst, e))?;
+    for entry in fs::read_dir(src)
+        .map_err(|e| format!("{}{:?}: {}", rust_i18n::t!("err_read_bin"), src, e))?
+        .flatten()
+    {
+        let dest = dst.join(entry.file_name());
+        if entry.path().is_dir() {
+            copy_dir(&entry.path(), &dest)?;
+        } else {
+            fs::copy(entry.path(), &dest)
+                .map_err(|e| format!("{}{:?}: {}", rust_i18n::t!("err_copy_file"), entry.file_name(), e))?;
+        }
+    }
     Ok(())
 }
 
@@ -204,8 +252,8 @@ pub fn install_dependencies(targets: &InstallTargets, nfqws_ver: &str, strat_ver
 
     let mut errors = Vec::new();
     if nfqws_ver != "skip" {
-        if let Err(e) = download_nfqws(targets, nfqws_ver) {
-            errors.push(format!("nfqws error: {}", e));
+        if let Err(e) = download_zapret(targets, nfqws_ver) {
+            errors.push(format!("nfqws2 error: {}", e));
         }
     }
     if strat_ver != "skip" {
