@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/compare/zapret-rust-v2.2.0...zapret-rust-v2.2.1) (2026-11-08)
+
+
+### 🐛 Исправления ошибок
+
+* **tui:** release the mouse while an external program runs ([7d5f6d5](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/commit/7d5f6d5f129d4c549b56dfa37b05f398ccf2c773))
+
 ## [2.2.0](https://github.com/Sergeydigl3/zapret-discord-youtube-rust/compare/zapret-rust-v2.1.0...zapret-rust-v2.2.0) (2026-09-30)
 
 
