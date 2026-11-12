@@ -1,10 +1,10 @@
-//! The autotune screens: the menu, the domain-file editor, the protocol and
-//! block-check toggles, the preset and strategy multi-selects, and the results.
+//! The autotune screens: the menu, the domain-file editor, the protocol
+//! toggles, the preset and strategy multi-selects, and the results.
 
 use zapret_wrapper::domains::PRESETS;
 use zapret_wrapper::run::queue_in_use;
 
-use crate::state::screens::{ActiveScreen, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState};
+use crate::state::screens::{ActiveScreen, AutotuneMenuState, AutotuneProtocolsState};
 use crate::state::AppState;
 
 use super::on_activate;
@@ -25,10 +25,6 @@ pub fn activate(app: &mut AppState) {
             AutotuneMenuState::Protocols => {
                 app.autotune_protocols_menu = AutotuneProtocolsState::Http;
                 app.open(ActiveScreen::AutotuneProtocolsSubmenu);
-            }
-            AutotuneMenuState::BlockChecks => {
-                app.autotune_block_checks_menu = AutotuneBlockChecksState::DnsSpoof;
-                app.open(ActiveScreen::AutotuneBlockChecksSubmenu);
             }
             AutotuneMenuState::EditDomains => {
                 app.domain_files_index = 0;
@@ -70,12 +66,6 @@ pub fn activate(app: &mut AppState) {
                 app.autotune_config.check_quic = !app.autotune_config.check_quic;
             }
             AutotuneProtocolsState::Back => {
-                app.back();
-            }
-        },
-        ActiveScreen::AutotuneBlockChecksSubmenu => match app.autotune_block_checks_menu.check_index() {
-            Some(i) => app.toggle_block_check(i),
-            None => {
                 app.back();
             }
         },
@@ -130,7 +120,6 @@ pub fn cycle(app: &mut AppState, forward: bool) {
             }
         },
         ActiveScreen::AutotuneProtocolsSubmenu => on_activate(app),
-        ActiveScreen::AutotuneBlockChecksSubmenu => on_activate(app),
         // The multi-selects act on both arrows, exactly as they always have.
         ActiveScreen::AutotunePresetSelectionSubmenu | ActiveScreen::AutotuneStrategiesSubmenu => on_activate(app),
         ActiveScreen::AutotuneResultsSubmenu => {

@@ -1,9 +1,7 @@
-use ratatui::style::Style;
-use zapret_wrapper::autotune::BlockCheckType;
 use zapret_wrapper::domains::PRESETS;
 
 use crate::menus::{toggles, Menu, Row};
-use crate::state::screens::{AutotuneBlockChecksState, AutotuneProtocolsState};
+use crate::state::screens::AutotuneProtocolsState;
 use crate::state::AppState;
 use crate::theme::Theme;
 
@@ -17,18 +15,6 @@ fn protocol_status(app: &AppState) -> String {
         mark(app.autotune_config.check_tls13),
         mark(app.autotune_config.check_quic)
     )
-}
-
-/// How many of the six block checks are on, and whether that is all or none of
-/// them — a count alone makes "all of them" look like a subset.
-fn block_check_status(app: &AppState) -> (String, Style) {
-    let enabled = app.autotune_config.block_checks.count_enabled();
-    let total = BlockCheckType::all().len();
-    match (enabled, total) {
-        (0, _) => (rust_i18n::t!("val_off").into_owned(), Theme::off()),
-        (n, t) if n == t => (rust_i18n::t!("val_on").into_owned(), Theme::on()),
-        (n, t) => (format!("{n}/{t}"), Theme::value()),
-    }
 }
 
 pub fn render_config(app: &AppState) -> Menu {
@@ -67,7 +53,6 @@ pub fn render_config(app: &AppState) -> Menu {
         )
     };
 
-    let (block_checks, block_style) = block_check_status(app);
     let has_results = app.has_autotune_results_file;
     let results = if has_results {
         rust_i18n::t!("menu_autotune_view").to_string()
@@ -83,11 +68,6 @@ pub fn render_config(app: &AppState) -> Menu {
             rust_i18n::t!("menu_autotune_protocols"),
             format!("< {} >", protocol_status(app)),
         ),
-        Row::value(
-            rust_i18n::t!("menu_autotune_blockchecks"),
-            format!("< {block_checks} >"),
-        )
-        .styled_value(block_style),
         Row::new(rust_i18n::t!("menu_autotune_edit_domains")),
         Row::value(rust_i18n::t!("menu_autotune_results"), results).styled_value(if has_results {
             Theme::value()
@@ -151,23 +131,6 @@ pub fn render_protocols(app: &AppState, cursor: AutotuneProtocolsState) -> Menu 
     };
 
     Menu::new(rust_i18n::t!("tui_title_autotune_proto"), rows).at(index)
-}
-
-pub fn render_blockchecks(app: &AppState, cursor: AutotuneBlockChecksState) -> Menu {
-    let all = BlockCheckType::all();
-    let mut rows = toggles(
-        all.iter()
-            .enumerate()
-            .map(|(i, ty)| (ty.name().to_string(), app.autotune_config.block_checks.get(i))),
-    );
-    rows.push(Row::new(rust_i18n::t!("menu_autotune_back")));
-
-    let index = match cursor {
-        AutotuneBlockChecksState::Back => BlockCheckType::all().len(),
-        other => other.index(),
-    };
-
-    Menu::new(rust_i18n::t!("tui_title_autotune_bc"), rows).at(index)
 }
 
 pub fn render_presets(app: &AppState) -> Menu {

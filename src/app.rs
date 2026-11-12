@@ -81,10 +81,10 @@ pub fn run_headless(args: &Cli) {
 
 fn run_inner(args: &Cli, force_headless: bool) {
     #[cfg(target_os = "linux")]
-    let mut use_interface = args.interface.clone().unwrap_or_else(|| "any".to_string());
-    let mut use_strategy = args.strategy.as_deref().map(strategy::normalize_name);
-    let mut use_gamefilter_tcp = args.gamefiltertcp;
-    let mut use_gamefilter_udp = args.gamefilterudp;
+    let mut use_interface = args.run.interface.clone().unwrap_or_else(|| "any".to_string());
+    let mut use_strategy = args.run.strategy.as_deref().map(strategy::normalize_name);
+    let mut use_gamefilter_tcp = args.run.gamefiltertcp;
+    let mut use_gamefilter_udp = args.run.gamefilterudp;
     // `None` means no explicit file was loaded: TTL and router then come from
     // the default configuration, as they always did.
     let mut use_ttl_from_config: Option<Option<u8>> = None;
@@ -98,7 +98,7 @@ fn run_inner(args: &Cli, force_headless: bool) {
     let mut use_backend: ChosenBackend = ();
     let mut is_interactive = !force_headless;
 
-    if let Some(config_file) = &args.config {
+    if let Some(config_file) = &args.run.config {
         println!("{}{}", rust_i18n::t!("msg_load_cfg"), config_file);
         match config::load_config(config_file) {
             Ok(cfg) => {
@@ -146,17 +146,17 @@ fn run_inner(args: &Cli, force_headless: bool) {
     // one-off invocation is for. The interactive path keeps its old rule: a
     // strategy flag means "run once and exit".
     if force_headless {
-        if let Some(strategy) = &args.strategy {
+        if let Some(strategy) = &args.run.strategy {
             use_strategy = Some(strategy::normalize_name(strategy));
         }
         #[cfg(target_os = "linux")]
-        if let Some(interface) = &args.interface {
+        if let Some(interface) = &args.run.interface {
             use_interface = interface.clone();
         }
-        if args.gamefiltertcp {
+        if args.run.gamefiltertcp {
             use_gamefilter_tcp = true;
         }
-        if args.gamefilterudp {
+        if args.run.gamefilterudp {
             use_gamefilter_udp = true;
         }
     } else if use_strategy.is_some() {

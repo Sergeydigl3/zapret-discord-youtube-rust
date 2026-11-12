@@ -2,17 +2,6 @@ use std::collections::HashMap;
 use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::Mutex;
 
-pub const TEST_DOMAINS: &[&str] = &["discord.com", "youtube.com", "cdn.discordapp.com"];
-
-pub const KNOWN_IPS: &[(&str, &[&str])] = &[
-    (
-        "discord.com",
-        &["162.159.128.233", "162.159.135.232", "162.159.136.232"],
-    ),
-    ("youtube.com", &["142.250.150.46", "216.58.209.46", "142.250.185.78"]),
-    ("google.com", &["142.250.185.78", "216.58.215.14"]),
-];
-
 static DNS_CACHE: Mutex<Option<HashMap<String, Vec<IpAddr>>>> = Mutex::new(None);
 
 pub fn resolve_domain(domain: &str) -> Vec<IpAddr> {

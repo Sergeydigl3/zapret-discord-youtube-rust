@@ -55,29 +55,11 @@ fn get_test_domains() -> Vec<String> {
 
 /// Check that the domain is reachable over TLS 1.3.
 ///
-/// `-k` skips certificate verification: the probe only checks that the TCP/TLS
-/// connection gets through the DPI, and `googlevideo.com` (apex of YouTube's
-/// video CDN) serves a wildcard cert that does not match the bare hostname.
-///
-/// The autotune probes run their own curl checks with different arguments and
-/// different timeouts, so this one is deliberately not shared with them.
-fn curl_tls_ok(domain: &str) -> bool {
-    std::process::Command::new("curl")
-        .arg("-s")
-        .arg("-k")
-        .args([
-            "--tlsv1.3",
-            "--connect-timeout",
-            "3",
-            "--max-time",
-            "3",
-            "-o",
-            crate::platform::null_device(),
-        ])
-        .arg(format!("https://{}", domain))
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+/// This uses the same in-process probe as the autotune sweep, so both features
+/// ask the network the same question and neither depends on an external
+/// `curl` binary. The autotune probe uses its own timeout and request count.
+fn tls_ok(domain: &str) -> bool {
+    crate::autotune::probe::test_tls13(domain, 1)
 }
 
 /// Wait until the daemon this program just started is up.
@@ -167,7 +149,7 @@ pub fn autopick_ttl(
 
         let mut all_ok = true;
         for domain in &domains {
-            let ok = curl_tls_ok(domain);
+            let ok = tls_ok(domain);
             if !ok {
                 all_ok = false;
             }

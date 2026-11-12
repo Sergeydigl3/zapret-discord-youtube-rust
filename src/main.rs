@@ -42,7 +42,7 @@ fn main() {
 
     let args = Cli::parse();
 
-    if let Some(ref d) = args.cache_dir {
+    if let Some(ref d) = args.common.cache_dir {
         std::env::set_var("ZAPRET_CACHE_DIR", d);
     }
 

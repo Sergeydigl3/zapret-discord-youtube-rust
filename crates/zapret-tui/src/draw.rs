@@ -32,8 +32,8 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::menus::{self, Menu};
 use crate::state::{
-    ActiveScreen, AppState, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState, DownloadDepsMenuState,
-    DownloadSubmenuState, ExtendedMenuState, FakesMenuState, GamefilterMenuState, MainMenuState, TtlMenuState,
+    ActiveScreen, AppState, AutotuneMenuState, AutotuneProtocolsState, DownloadDepsMenuState, DownloadSubmenuState,
+    ExtendedMenuState, FakesMenuState, GamefilterMenuState, MainMenuState, TtlMenuState,
 };
 use crate::theme::Theme;
 use crate::views;
@@ -206,9 +206,6 @@ fn menu_for(app: &AppState) -> Menu {
         ActiveScreen::AutotuneEditDomainsSubmenu => menus::autotune_menu::render_domain_files(app),
         ActiveScreen::AutotuneProtocolsSubmenu => {
             menus::autotune_menu::render_protocols(app, app.autotune_protocols_menu)
-        }
-        ActiveScreen::AutotuneBlockChecksSubmenu => {
-            menus::autotune_menu::render_blockchecks(app, app.autotune_block_checks_menu)
         }
         ActiveScreen::AutotunePresetSelectionSubmenu => menus::autotune_menu::render_presets(app),
         ActiveScreen::AutotuneStrategiesSubmenu => menus::autotune_menu::render_strategies(app),
@@ -424,7 +421,6 @@ fn help_key(app: &AppState) -> &'static str {
             AutotuneMenuState::NumRequests => "help_autotune_req",
             AutotuneMenuState::Strategies => "help_autotune_strat_sel",
             AutotuneMenuState::Protocols => "help_autotune_proto",
-            AutotuneMenuState::BlockChecks => "help_autotune_blockchecks",
             AutotuneMenuState::EditDomains => "help_autotune_edit_domains",
             AutotuneMenuState::Results => "help_autotune_results_sel",
             AutotuneMenuState::Run => "help_autotune_run",
@@ -432,10 +428,6 @@ fn help_key(app: &AppState) -> &'static str {
         },
         ActiveScreen::AutotuneProtocolsSubmenu => match app.autotune_protocols_menu {
             AutotuneProtocolsState::Back => "help_back",
-            _ => "help_autotune_toggle",
-        },
-        ActiveScreen::AutotuneBlockChecksSubmenu => match app.autotune_block_checks_menu {
-            AutotuneBlockChecksState::Back => "help_back",
             _ => "help_autotune_toggle",
         },
         ActiveScreen::AutotuneEditDomainsSubmenu => "help_autotune_edit_domains",

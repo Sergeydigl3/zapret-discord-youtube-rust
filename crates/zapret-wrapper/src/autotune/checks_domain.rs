@@ -1,13 +1,24 @@
-use std::io::{ErrorKind, Read, Write};
-use std::net::SocketAddr;
+use std::io::{self, ErrorKind, Read};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
+use super::probe::{test_http, test_quic, test_tls12, test_tls13};
 use super::types::{status_char, AutotuneConfig, CheckStatus, DomainCheckResult};
 
-use super::checks_network::try_tcp_connect_domain;
-use super::dns::resolve_domain;
-use super::probe::test_tls;
-use super::quic;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(4);
+
+/// Connect to a domain, trying every address DNS returned.
+fn try_tcp_connect_domain(domain: &str, port: u16) -> Result<TcpStream, io::Error> {
+    let addrs = (domain, port).to_socket_addrs()?;
+    let mut last_err = io::Error::other("no addresses");
+    for addr in addrs {
+        match TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
+            Ok(stream) => return Ok(stream),
+            Err(e) => last_err = e,
+        }
+    }
+    Err(last_err)
+}
 
 /// Result to report when a per-domain check thread died before producing one.
 ///
@@ -23,8 +34,6 @@ pub fn domain_check_error() -> DomainCheckResult {
         quic: CheckStatus::Error,
         baseline_pass: false,
         detail: "check thread panicked".to_string(),
-        http_count: 0,
-        quic_count: 0,
     }
 }
 
@@ -47,74 +56,12 @@ pub fn check_domain_alive(domain: &str) -> CheckStatus {
     }
 }
 
-pub fn check_domain_http(domain: &str, num_req: usize) -> (CheckStatus, usize) {
-    let mut success = 0;
-    for _ in 0..num_req {
-        match try_tcp_connect_domain(domain, 80) {
-            Ok(mut stream) => {
-                let req = format!("GET / HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", domain);
-                let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
-                let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                if stream.write(req.as_bytes()).is_ok() {
-                    let mut buf = [0u8; 16];
-                    match stream.read(&mut buf) {
-                        Ok(n) if n > 0 => success += 1,
-                        _ => {
-                            return (CheckStatus::Fail, success);
-                        }
-                    }
-                } else {
-                    return (CheckStatus::Fail, success);
-                }
-            }
-            Err(_) => {
-                return (CheckStatus::Fail, success);
-            }
-        }
-    }
-    let status = if success > 0 {
+fn status(ok: bool) -> CheckStatus {
+    if ok {
         CheckStatus::Pass
     } else {
         CheckStatus::Fail
-    };
-    (status, success)
-}
-
-pub fn check_domain_tls(domain: &str, num_req: usize) -> CheckStatus {
-    for _ in 0..num_req {
-        match try_tcp_connect_domain(domain, 443) {
-            Ok(mut stream) => {
-                let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                let mut buf = [0u8; 1];
-                let _ = stream.read(&mut buf);
-            }
-            Err(_) => {
-                return CheckStatus::Fail;
-            }
-        }
     }
-    CheckStatus::Pass
-}
-
-pub fn check_domain_quic(domain: &str, num_req: usize) -> (CheckStatus, usize) {
-    let ips = resolve_domain(domain);
-    if ips.is_empty() {
-        return (CheckStatus::Skip, 0);
-    }
-    let mut success = 0;
-    for &ip in ips.iter().take(2) {
-        let addr = SocketAddr::new(ip, 443);
-        if quic::probe_quic(addr, domain, num_req.max(1), Duration::from_secs(2)) {
-            success += 1;
-            break;
-        }
-    }
-    let status = if success > 0 {
-        CheckStatus::Pass
-    } else {
-        CheckStatus::Fail
-    };
-    (status, success)
 }
 
 pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult {
@@ -122,76 +69,61 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
         return domain_check_error();
     }
     let alive = check_domain_alive(domain);
-    let detail;
+    let n = config.num_requests;
 
-    let (http, tls12, tls13, quic, http_count, quic_count) = if alive == CheckStatus::Pass {
-        let mut parts = Vec::new();
+    // TLS 1.3 is the baseline: a browser needs it for these sites, so it also
+    // decides which domains count as blocked before a strategy is tested.
+    let baseline_ok = alive == CheckStatus::Pass && test_tls13(domain, n);
+    let baseline_pass = if alive == CheckStatus::Pass {
+        baseline_ok
+    } else {
+        alive == CheckStatus::Skip
+    };
 
-        let (http, hc) = if config.check_http {
-            let (s, c) = check_domain_http(domain, config.num_requests);
-            parts.push(format!("HTTP:{} ({}/{})", status_char(&s), c, config.num_requests));
-            (s, c)
-        } else {
-            (CheckStatus::Skip, 0)
-        };
-
-        let tls = if config.check_tls12 || config.check_tls13 {
-            check_domain_tls(domain, config.num_requests)
-        } else {
-            CheckStatus::Skip
-        };
-
-        let tls12 = if config.check_tls12 {
-            parts.push(format!("TLS1.2:{}", status_char(&tls)));
-            tls.clone()
-        } else {
-            CheckStatus::Skip
-        };
-
-        let tls13 = if config.check_tls13 {
-            parts.push(format!("TLS1.3:{}", status_char(&tls)));
-            tls.clone()
-        } else {
-            CheckStatus::Skip
-        };
-
-        let (quic, qc) = if config.check_quic {
-            let (s, c) = check_domain_quic(domain, config.num_requests);
-            parts.push(format!("QUIC:{} ({}/{})", status_char(&s), c, config.num_requests));
-            (s, c)
-        } else {
-            (CheckStatus::Skip, 0)
-        };
-
-        detail = parts.join(" ");
-        (http, tls12, tls13, quic, hc, qc)
-    } else if alive == CheckStatus::Skip {
-        detail = "Domain unreachable (skipped)".to_string();
+    let (http, tls12, tls13, quic) = if alive == CheckStatus::Pass {
         (
-            CheckStatus::Skip,
-            CheckStatus::Skip,
-            CheckStatus::Skip,
-            CheckStatus::Skip,
-            0,
-            0,
+            if config.check_http {
+                status(test_http(domain, n))
+            } else {
+                CheckStatus::Skip
+            },
+            if config.check_tls12 {
+                status(test_tls12(domain, n))
+            } else {
+                CheckStatus::Skip
+            },
+            if config.check_tls13 {
+                status(baseline_ok)
+            } else {
+                CheckStatus::Skip
+            },
+            if config.check_quic {
+                status(test_quic(domain, n))
+            } else {
+                CheckStatus::Skip
+            },
         )
     } else {
-        detail = "Domain appears blocked (alive check failed)".to_string();
         (
             CheckStatus::Skip,
             CheckStatus::Skip,
             CheckStatus::Skip,
             CheckStatus::Skip,
-            0,
-            0,
         )
     };
 
-    // Baseline TLS 1.3 test: real TLS handshake + HTTP request
-    let baseline_pass = if alive == CheckStatus::Pass {
-        test_tls(domain, "--tlsv1.3", config.num_requests)
+    let detail = if alive == CheckStatus::Pass {
+        format!(
+            "HTTP:{} TLS1.2:{} TLS1.3:{} QUIC:{}",
+            status_char(&http),
+            status_char(&tls12),
+            status_char(&tls13),
+            status_char(&quic)
+        )
+    } else if alive == CheckStatus::Skip {
+        "Domain unreachable (skipped)".to_string()
     } else {
-        alive == CheckStatus::Skip
+        "Domain appears blocked (alive check failed)".to_string()
     };
 
     DomainCheckResult {
@@ -203,7 +135,5 @@ pub fn check_domain(config: &AutotuneConfig, domain: &str) -> DomainCheckResult 
         quic,
         baseline_pass,
         detail,
-        http_count,
-        quic_count,
     }
 }

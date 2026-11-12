@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use zapret_wrapper::autotune::{self, AutotuneConfig, BlockCheckType, BlockChecks, SweepEvent};
+use zapret_wrapper::autotune::{self, AutotuneConfig, SweepEvent};
 use zapret_wrapper::config::{self, RunConfig};
 use zapret_wrapper::domains;
 use zapret_wrapper::fakes::{self, FakeTarget};
@@ -32,7 +32,7 @@ fn execute(args: &Cli, action: Action) -> Result<(), String> {
         Action::Run => {
             // Reject a mistyped strategy before the firewall is touched, and
             // let a shorthand such as `discord` resolve to `discord.bat`.
-            if let Some(strategy) = &args.strategy {
+            if let Some(strategy) = &args.run.strategy {
                 resolve_strategy_name(strategy)?;
             }
             crate::app::run_headless(args);
@@ -161,11 +161,11 @@ fn apply_settings(args: &Cli) -> Result<(), String> {
     }
 
     let path = config_path(args);
-    ensure_config(&path, args.config.is_some())?;
+    ensure_config(&path, args.run.config.is_some())?;
     let mut cfg = load_config(&path)?;
 
     #[cfg(target_os = "linux")]
-    if let Some(interface) = &args.set_interface {
+    if let Some(interface) = &args.settings.set_interface {
         if !zapret_wrapper::platform::get_interfaces()
             .iter()
             .any(|i| i == interface)
@@ -175,39 +175,39 @@ fn apply_settings(args: &Cli) -> Result<(), String> {
         cfg.interface = interface.clone();
     }
 
-    if let Some(strategy) = &args.set_strategy {
+    if let Some(strategy) = &args.settings.set_strategy {
         cfg.strategy = resolve_strategy_name(strategy)?;
     }
 
-    if let Some(enabled) = args.set_gamefilter_tcp {
+    if let Some(enabled) = args.settings.set_gamefilter_tcp {
         cfg.gamefilter_tcp = enabled;
     }
-    if let Some(enabled) = args.set_gamefilter_udp {
+    if let Some(enabled) = args.settings.set_gamefilter_udp {
         cfg.gamefilter_udp = enabled;
     }
 
     #[cfg(target_os = "linux")]
-    if let Some(backend) = &args.set_backend {
+    if let Some(backend) = &args.settings.set_backend {
         cfg.backend = resolve_backend(backend)?;
     }
 
     #[cfg(target_os = "linux")]
-    if let Some(enabled) = args.set_router {
+    if let Some(enabled) = args.settings.set_router {
         cfg.router = enabled;
     }
 
-    if let Some(ttl) = &args.set_ttl {
+    if let Some(ttl) = &args.settings.set_ttl {
         cfg.dpi_desync_ttl = parse_ttl(ttl)?;
     }
 
-    if let Some(mode) = &args.set_ipset_mode {
+    if let Some(mode) = &args.settings.set_ipset_mode {
         apply_ipset_mode(mode)?;
     }
 
-    if let Some(file) = &args.set_fake_discord {
+    if let Some(file) = &args.settings.set_fake_discord {
         set_fake(file, FakeTarget::DiscordUdp, &mut cfg)?;
     }
-    if let Some(file) = &args.set_fake_gamefilter {
+    if let Some(file) = &args.settings.set_fake_gamefilter {
         set_fake(file, FakeTarget::GameUdp, &mut cfg)?;
     }
 
@@ -215,7 +215,8 @@ fn apply_settings(args: &Cli) -> Result<(), String> {
 }
 
 fn config_path(args: &Cli) -> PathBuf {
-    args.config
+    args.run
+        .config
         .as_ref()
         .map(PathBuf::from)
         .unwrap_or_else(paths::config_path)
@@ -240,7 +241,7 @@ fn load_config(path: &Path) -> Result<RunConfig, String> {
 /// The configuration a one-shot action should use.
 fn effective_config(args: &Cli) -> Result<RunConfig, String> {
     let path = config_path(args);
-    ensure_config(&path, args.config.is_some())?;
+    ensure_config(&path, args.run.config.is_some())?;
     load_config(&path)
 }
 
@@ -301,14 +302,6 @@ fn domain_preset_list() -> String {
 
 fn protocol_list() -> String {
     autotune::types::PROTOCOL_NAMES.join(", ")
-}
-
-fn block_check_list() -> String {
-    autotune::types::BlockCheckType::all()
-        .iter()
-        .map(|check| check.keyword())
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 fn parse_ipset_mode(value: &str) -> Result<IpsetMode, String> {
@@ -493,7 +486,7 @@ fn run_autotune(args: &Cli) -> Result<(), String> {
     let autotune_config = build_autotune_config(args)?;
 
     #[cfg(target_os = "linux")]
-    let interface = args.interface.clone().unwrap_or_else(|| cfg.interface.clone());
+    let interface = args.run.interface.clone().unwrap_or_else(|| cfg.interface.clone());
     #[cfg(target_os = "linux")]
     let backend = zapret_core::firewall::LinuxBackend::from_config(&cfg.backend);
     #[cfg(target_os = "windows")]
@@ -530,11 +523,11 @@ fn run_autotune(args: &Cli) -> Result<(), String> {
 fn build_autotune_config(args: &Cli) -> Result<AutotuneConfig, String> {
     let mut cfg = AutotuneConfig::default();
 
-    if let Some(presets) = &args.autotune_presets {
+    if let Some(presets) = &args.autotune.autotune_presets {
         cfg.preset_indices = parse_presets(presets)?;
     }
 
-    if let Some(requests) = args.autotune_requests {
+    if let Some(requests) = args.autotune.autotune_requests {
         if requests == 0 {
             return Err(rust_i18n::t!("cli_err_requests").to_string());
         }
@@ -542,7 +535,7 @@ fn build_autotune_config(args: &Cli) -> Result<AutotuneConfig, String> {
     }
 
     let strategies = zapret_wrapper::strategy::get_strategies();
-    cfg.strategy_indices = match &args.autotune_strategies {
+    cfg.strategy_indices = match &args.autotune.autotune_strategies {
         Some(value) => parse_strategies(value, &strategies)?,
         // A headless run without an explicit selection means "test what is
         // installed"; the TUI makes the user tick them one by one.
@@ -553,16 +546,12 @@ fn build_autotune_config(args: &Cli) -> Result<AutotuneConfig, String> {
     cfg.check_tls12 = true;
     cfg.check_tls13 = true;
     cfg.check_quic = true;
-    if let Some(protocols) = &args.autotune_protocols {
+    if let Some(protocols) = &args.autotune.autotune_protocols {
         let (http, tls12, tls13, quic) = parse_protocols(protocols)?;
         cfg.check_http = http;
         cfg.check_tls12 = tls12;
         cfg.check_tls13 = tls13;
         cfg.check_quic = quic;
-    }
-
-    if let Some(checks) = &args.autotune_block_checks {
-        cfg.block_checks = parse_block_checks(checks)?;
     }
 
     Ok(cfg)
@@ -658,40 +647,6 @@ fn parse_protocols(value: &str) -> Result<(bool, bool, bool, bool), String> {
     Ok((http, tls12, tls13, quic))
 }
 
-fn parse_block_checks(value: &str) -> Result<BlockChecks, String> {
-    let tokens = split_list(value);
-    if tokens.is_empty() || (tokens.len() == 1 && tokens[0].eq_ignore_ascii_case("none")) {
-        return Ok(BlockChecks {
-            enabled: vec![false; BlockCheckType::all().len()],
-        });
-    }
-    if tokens.len() == 1 && tokens[0].eq_ignore_ascii_case("all") {
-        return Ok(BlockChecks::all_enabled());
-    }
-
-    let mut enabled = vec![false; BlockCheckType::all().len()];
-    for token in tokens {
-        let index = match token.to_ascii_lowercase().as_str() {
-            "dns" | "dns-spoof" | "dnsspoof" => 0,
-            "tcp-rst" | "tcprst" | "rst" => 1,
-            "sni" | "sni-block" => 2,
-            "siberian" | "siberian-block" => 3,
-            "quic" | "quic-block" => 4,
-            "cidr" | "cidr-whitelist" => 5,
-            _ => {
-                return Err(rust_i18n::t!("cli_err_block_checks")
-                    .replace("{}", &token)
-                    .replace("{valid}", &block_check_list()))
-            }
-        };
-        enabled[index] = true;
-    }
-
-    // Keep the order documented by `BlockCheckType::all`; the index mapping
-    // above is that order.
-    Ok(BlockChecks { enabled })
-}
-
 fn run_ttl_autopick(args: &Cli) -> Result<(), String> {
     if !paths::nfqws_installed() {
         return Err(rust_i18n::t!("msg_err_nfqws_missing").to_string());
@@ -702,6 +657,7 @@ fn run_ttl_autopick(args: &Cli) -> Result<(), String> {
 
     let mut cfg = effective_config(args)?;
     let strategy = args
+        .run
         .strategy
         .clone()
         .filter(|s| !s.is_empty())
@@ -712,7 +668,7 @@ fn run_ttl_autopick(args: &Cli) -> Result<(), String> {
     let strategy = resolve_strategy_name(&strategy)?;
 
     #[cfg(target_os = "linux")]
-    let interface = args.interface.clone().unwrap_or_else(|| cfg.interface.clone());
+    let interface = args.run.interface.clone().unwrap_or_else(|| cfg.interface.clone());
     #[cfg(target_os = "linux")]
     let backend = zapret_core::firewall::LinuxBackend::from_config(&cfg.backend);
     #[cfg(target_os = "windows")]
@@ -776,7 +732,7 @@ fn run_service(args: &Cli, action: ServiceAction) -> Result<(), String> {
             }
             let exe = std::env::current_exe().map_err(|e| e.to_string())?;
             let config_path = config_path(args);
-            ensure_config(&config_path, args.config.is_some())?;
+            ensure_config(&config_path, args.run.config.is_some())?;
             manager
                 .install(&exe, &config_path, &paths::cache_dir())
                 .and_then(|_| manager.start())?;
@@ -862,16 +818,10 @@ mod tests {
     }
 
     #[test]
-    fn protocols_and_block_checks_parse_lists() {
+    fn protocols_parse_lists() {
         assert_eq!(parse_protocols("none").unwrap(), (false, false, false, false));
         assert_eq!(parse_protocols("all").unwrap(), (true, true, true, true));
         assert_eq!(parse_protocols("http, tls1.3").unwrap(), (true, false, true, false));
         assert!(parse_protocols("http,bogus").is_err());
-
-        assert_eq!(parse_block_checks("none").unwrap().count_enabled(), 0);
-        assert_eq!(parse_block_checks("all").unwrap().count_enabled(), 6);
-        let checks = parse_block_checks("dns,cidr").unwrap();
-        assert!(checks.get(0) && checks.get(5) && !checks.get(1));
-        assert!(parse_block_checks("bogus").is_err());
     }
 }

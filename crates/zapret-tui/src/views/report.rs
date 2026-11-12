@@ -82,15 +82,6 @@ fn muted(text: impl Into<String>) -> Cell {
     (text.into(), Style::default().fg(Color::DarkGray))
 }
 
-fn verdict(status: &CheckStatus) -> Cell {
-    match status {
-        CheckStatus::Pass => (rust_i18n::t!("autotune_result_pass").into_owned(), Theme::ok()),
-        CheckStatus::Fail => (rust_i18n::t!("autotune_result_fail").into_owned(), Theme::bad()),
-        CheckStatus::Skip => (rust_i18n::t!("autotune_result_skip").into_owned(), Theme::warn()),
-        CheckStatus::Error => (rust_i18n::t!("autotune_result_error").into_owned(), Theme::bad()),
-    }
-}
-
 /// Fit `text` into `width` columns, measuring what the terminal will actually
 /// draw rather than how many code points the string has.
 fn pad(text: &str, width: u16, align: Alignment) -> String {
@@ -379,28 +370,6 @@ fn ranking_table(entries: &[Ranked], width: u16) -> Vec<Line<'static>> {
     table(rust_i18n::t!("atv_section_rank").to_string(), &cols, rows)
 }
 
-fn net_table(results: &AutotuneResults, width: u16) -> Vec<Line<'static>> {
-    let check_w = 12;
-    let verdict_w = 14;
-    let cols = vec![
-        Column::new(rust_i18n::t!("atv_col_check").to_string(), check_w),
-        Column::new(rust_i18n::t!("atv_col_verdict").to_string(), verdict_w),
-        Column::new(
-            rust_i18n::t!("atv_col_detail").to_string(),
-            room(check_w + verdict_w, 3, width),
-        ),
-    ];
-
-    let names = ["DNS", "TCP RST", "SNI", "SIBERIAN", "QUIC", "CIDR"];
-    let rows = names
-        .iter()
-        .zip(&results.block_results)
-        .map(|(name, check)| vec![plain(*name), verdict(&check.status), muted(check.detail.clone())])
-        .collect();
-
-    table(rust_i18n::t!("atv_section_net").to_string(), &cols, rows)
-}
-
 /// What "pick this one" looks like, and the ranking that produced it.
 fn build_summary(results: &AutotuneResults, width: u16) -> Vec<Line<'static>> {
     let ranked = ranking(results);
@@ -427,8 +396,6 @@ fn build_summary(results: &AutotuneResults, width: u16) -> Vec<Line<'static>> {
         lines.extend(callout(&ranked, width));
         lines.extend(ranking_table(&ranked, width));
     }
-
-    lines.extend(net_table(results, width));
 
     lines.push(Line::from(Span::styled(
         format!(" {}", rust_i18n::t!("atv_section_common")),
@@ -675,7 +642,7 @@ mod tests {
     use super::*;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
-    use zapret_wrapper::autotune::{CheckResult, DomainCheckResult};
+    use zapret_wrapper::autotune::DomainCheckResult;
 
     fn dc(domain: &str, http: bool, tls12: bool, tls13: bool, quic: bool) -> DomainProtocolCheck {
         DomainProtocolCheck {
@@ -715,8 +682,6 @@ mod tests {
             quic: CheckStatus::Fail,
             baseline_pass: false,
             detail: String::new(),
-            http_count: 0,
-            quic_count: 0,
         }
     }
 
@@ -726,11 +691,6 @@ mod tests {
     /// nothing at all.
     pub(super) fn sample() -> AutotuneResults {
         AutotuneResults {
-            block_results: vec![
-                CheckResult::fail("Possible DNS spoofing: discord.com resolved to sinkhole IPs: [0.0.0.0]"),
-                CheckResult::pass("TCP connections successful, no RST detected"),
-                CheckResult::skip("Not selected"),
-            ],
             preset_results: vec![
                 PresetResult {
                     preset_name: "Discord".into(),
@@ -819,7 +779,6 @@ mod tests {
     #[test]
     fn a_domain_that_opens_on_one_protocol_is_not_counted_as_stable() {
         let results = AutotuneResults {
-            block_results: Vec::new(),
             preset_results: vec![PresetResult {
                 preset_name: "One".into(),
                 domain_checks: Vec::new(),
