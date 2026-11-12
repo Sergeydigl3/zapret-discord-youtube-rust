@@ -507,3 +507,23 @@ pub fn draw(f: &mut Frame, app: &mut AppState) {
         f.render_widget(Paragraph::new(clip(service_line(app), status.width)), status);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// Terminals disagree on how wide an emoji followed by U+FE0F is: the
+    /// width table calls it one cell, many terminals draw two. The mismatch
+    /// shifts the rest of the line and leaves stale characters behind when the
+    /// screen changes. UI strings use emoji that are wide on their own instead.
+    #[test]
+    fn ui_text_has_no_emoji_presentation_selector() {
+        for text in [
+            include_str!("../../../locales/ru.yml"),
+            include_str!("../../../locales/en.yml"),
+        ] {
+            assert!(
+                !text.contains('\u{fe0f}'),
+                "UI text must not rely on the emoji presentation selector"
+            );
+        }
+    }
+}
