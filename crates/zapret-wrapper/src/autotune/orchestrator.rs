@@ -327,7 +327,7 @@ pub fn run_all(
                     if tls13_ok {
                         tls13_works = true;
                     }
-                    if quic_works {
+                    if quic_ok {
                         quic_works = true;
                     }
 
@@ -386,7 +386,7 @@ pub fn run_all(
 
                 crate::run::stop_quiet(backend);
 
-                let works = pass.len() >= blocked_domains.len() / 2;
+                let works = pass.len() * 2 >= blocked_domains.len();
                 if works {
                     working_names.insert(strat_name.clone());
                 }

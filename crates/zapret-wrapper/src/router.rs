@@ -16,12 +16,20 @@ const UNKNOWN: u8 = 2;
 
 static PREV: AtomicU8 = AtomicU8::new(UNKNOWN);
 static FILE_OWNED: AtomicBool = AtomicBool::new(false);
+/// Whether this process turned forwarding on, so a stop knows to undo it even
+/// when the configuration file changed or a custom `--config` was used.
+static ACTIVE: AtomicBool = AtomicBool::new(false);
 
 /// Whether router mode is switched on in the configuration file.
 pub fn enabled() -> bool {
     crate::config::load_config(&crate::paths::config_path().to_string_lossy())
         .map(|cfg| cfg.router)
         .unwrap_or(false)
+}
+
+/// Whether this process started router mode and still has to undo it.
+pub fn active() -> bool {
+    ACTIVE.load(Ordering::Relaxed)
 }
 
 /// Start forwarding and leave it on across reboots.
@@ -33,6 +41,9 @@ pub fn enable() -> Result<(), String> {
     if PREV.load(Ordering::Relaxed) == UNKNOWN {
         PREV.store(read_proc().unwrap_or(UNKNOWN), Ordering::Relaxed);
     }
+    // Remember the attempt, not just success: a partial enable may still have
+    // flipped `/proc`, and `disable` puts the previous value back.
+    ACTIVE.store(true, Ordering::Relaxed);
 
     let mut err = None;
 
@@ -56,6 +67,7 @@ pub fn enable() -> Result<(), String> {
 /// Best effort on every step: a machine that cannot be un-routed is an
 /// inconvenience, not a reason to fail a stop.
 pub fn disable() {
+    ACTIVE.store(false, Ordering::Relaxed);
     if FILE_OWNED.swap(false, Ordering::Relaxed) {
         let _ = fs::remove_file(SYSCTL_FILE);
     }

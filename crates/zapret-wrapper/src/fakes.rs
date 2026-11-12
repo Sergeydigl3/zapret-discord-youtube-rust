@@ -102,9 +102,19 @@ pub fn load_fakes_state() -> FakesState {
     }
 }
 
-pub fn replace_active_fake(state: &FakesState, target: &FakeTarget, source: &FakeFile) -> Result<(), String> {
+/// Copy the chosen payload over the active one.
+///
+/// The configuration update is deliberately separate: the TUI writes the
+/// default `conf.env`, while the CLI may have been pointed at another file with
+/// `--config`. [`replace_active_fake`] is the default-file convenience wrapper.
+pub fn apply_active_fake(state: &FakesState, target: &FakeTarget, source: &FakeFile) -> Result<(), String> {
     let dest = state.bin_dir.join(target.active_filename());
     fs::copy(&source.path, &dest).map_err(|e| format!("{}: {}", source.filename, e))?;
+    Ok(())
+}
+
+pub fn replace_active_fake(state: &FakesState, target: &FakeTarget, source: &FakeFile) -> Result<(), String> {
+    apply_active_fake(state, target, source)?;
 
     let (mut discord, mut game) = crate::config::load_active_fakes();
     match target {

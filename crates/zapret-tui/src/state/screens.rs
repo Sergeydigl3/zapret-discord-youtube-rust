@@ -299,7 +299,7 @@ impl ExtendedMenuState {
 /// are three different decisions, so they get three rows.
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum TtlMenuState {
-    /// Leave the setting alone: the DPI-desync feature stays off.
+    /// Clear the fixed hop count: the strategy's own automatic TTL stays in use.
     DontTouch,
     /// Pin an explicit hop count.
     SetValue,

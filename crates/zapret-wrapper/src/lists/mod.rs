@@ -15,6 +15,23 @@ pub enum IpsetMode {
     Custom,
 }
 
+impl IpsetMode {
+    /// Every mode, in the order the CLI and the menu document them.
+    pub fn all() -> &'static [Self] {
+        &[Self::None, Self::Any, Self::Loaded, Self::Custom]
+    }
+
+    /// The stable keyword accepted by `--set-ipset-mode`.
+    pub fn keyword(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Any => "any",
+            Self::Loaded => "loaded",
+            Self::Custom => "custom",
+        }
+    }
+}
+
 impl std::fmt::Display for IpsetMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {

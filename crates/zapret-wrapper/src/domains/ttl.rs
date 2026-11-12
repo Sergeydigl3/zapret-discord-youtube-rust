@@ -116,7 +116,7 @@ pub enum TtlEvent {
     Found(u8),
 }
 
-/// Sweep TTL from 1 to 20, running winws with a fixed TTL each time and
+/// Sweep TTL from 3 to 20, running winws with a fixed TTL each time and
 /// probing real domains. Returns the first (minimum) working TTL.
 ///
 /// `on_event` is asked after every event; returning `false` stops the sweep

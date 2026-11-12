@@ -66,7 +66,22 @@ impl BlockCheckType {
             Self::CidrWhitelist => "CIDR",
         }
     }
+
+    /// The stable keyword accepted by `--autotune-block-checks`.
+    pub fn keyword(&self) -> &'static str {
+        match self {
+            Self::DnsSpoof => "dns",
+            Self::TcpRst => "tcp-rst",
+            Self::SniBlock => "sni",
+            Self::SiberianBlock => "siberian",
+            Self::QuicBlock => "quic",
+            Self::CidrWhitelist => "cidr",
+        }
+    }
 }
+
+/// Protocol switches accepted by `--autotune-protocols`, in help order.
+pub const PROTOCOL_NAMES: &[&str] = &["http", "tls12", "tls13", "quic"];
 
 #[derive(Debug, Clone)]
 pub struct BlockChecks {
@@ -75,7 +90,9 @@ pub struct BlockChecks {
 
 impl BlockChecks {
     pub fn all_enabled() -> Self {
-        Self { enabled: vec![true; 6] }
+        Self {
+            enabled: vec![true; BlockCheckType::all().len()],
+        }
     }
 
     pub fn get(&self, idx: usize) -> bool {

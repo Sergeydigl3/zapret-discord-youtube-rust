@@ -78,8 +78,8 @@ in
       '';
     };
 
-    gamefilterTcp = mkEnableOption "the TCP game filter (ports 50000-50100)";
-    gamefilterUdp = mkEnableOption "the UDP game filter (ports 50000-50100)";
+    gamefilterTcp = mkEnableOption "gamefilter TCP (ports 1024-65535)";
+    gamefilterUdp = mkEnableOption "gamefilter UDP (ports 1024-65535)";
 
     backend = mkOption {
       type = types.enum [ "nftables" "iptables" ];

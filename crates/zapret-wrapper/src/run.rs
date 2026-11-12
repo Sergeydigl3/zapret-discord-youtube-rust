@@ -107,7 +107,7 @@ fn launch(
 ) -> Result<LaunchOutcome, LaunchError> {
     #[cfg(target_os = "linux")]
     {
-        let router = crate::router::enabled();
+        let router = req.router.unwrap_or_else(crate::router::enabled);
         if router {
             report_router(crate::router::enable());
         }
@@ -128,7 +128,7 @@ fn launch_quiet(
 ) -> Result<LaunchOutcome, LaunchError> {
     #[cfg(target_os = "linux")]
     {
-        let router = crate::router::enabled();
+        let router = req.router.unwrap_or_else(crate::router::enabled);
         if router {
             let _ = crate::router::enable();
         }
@@ -197,7 +197,7 @@ pub fn stop_quiet(backend: &dyn FirewallBackend) {
 /// Hand the network back the way it was found. No-op without router mode.
 #[cfg(target_os = "linux")]
 fn stop_router() {
-    if crate::router::enabled() {
+    if crate::router::active() {
         crate::router::disable();
     }
 }
