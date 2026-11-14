@@ -38,7 +38,6 @@ pub enum ActiveScreen {
     AutotuneSubmenu,
     AutotuneEditDomainsSubmenu,
     AutotuneProtocolsSubmenu,
-    AutotuneBlockChecksSubmenu,
     AutotunePresetSelectionSubmenu,
     AutotuneStrategiesSubmenu,
     AutotuneResultsSubmenu,
@@ -68,7 +67,6 @@ impl ActiveScreen {
             Self::AutotuneSubmenu => rust_i18n::t!("tui_title_autotune").into_owned(),
             Self::AutotuneEditDomainsSubmenu => rust_i18n::t!("tui_title_autotune_edit_domains").into_owned(),
             Self::AutotuneProtocolsSubmenu => rust_i18n::t!("tui_title_autotune_proto").into_owned(),
-            Self::AutotuneBlockChecksSubmenu => rust_i18n::t!("tui_title_autotune_bc").into_owned(),
             Self::AutotunePresetSelectionSubmenu => rust_i18n::t!("tui_title_autotune_presets").into_owned(),
             Self::AutotuneStrategiesSubmenu => rust_i18n::t!("tui_title_autotune_strat").into_owned(),
             Self::AutotuneResultsSubmenu => rust_i18n::t!("tui_title_autotune_results").into_owned(),
@@ -299,7 +297,7 @@ impl ExtendedMenuState {
 /// are three different decisions, so they get three rows.
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum TtlMenuState {
-    /// Leave the setting alone: the DPI-desync feature stays off.
+    /// Clear the fixed hop count: the strategy's own automatic TTL stays in use.
     DontTouch,
     /// Pin an explicit hop count.
     SetValue,
@@ -430,7 +428,6 @@ pub enum AutotuneMenuState {
     NumRequests,
     Strategies,
     Protocols,
-    BlockChecks,
     EditDomains,
     Results,
     Run,
@@ -438,12 +435,11 @@ pub enum AutotuneMenuState {
 }
 
 impl AutotuneMenuState {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 8] = [
         Self::PresetSelection,
         Self::NumRequests,
         Self::Strategies,
         Self::Protocols,
-        Self::BlockChecks,
         Self::EditDomains,
         Self::Results,
         Self::Run,
@@ -482,58 +478,6 @@ impl AutotuneProtocolsState {
 
     pub fn prev(self) -> Self {
         step_in(&Self::ALL, self, false)
-    }
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum AutotuneBlockChecksState {
-    DnsSpoof,
-    TcpRst,
-    SniBlock,
-    SiberianBlock,
-    QuicBlock,
-    CidrWhitelist,
-    Back,
-}
-
-impl AutotuneBlockChecksState {
-    /// The six checks, in the order they are drawn. `Back` is not one: it is a
-    /// row below them, not a seventh check.
-    pub const CHECKS: [Self; 6] = [
-        Self::DnsSpoof,
-        Self::TcpRst,
-        Self::SniBlock,
-        Self::SiberianBlock,
-        Self::QuicBlock,
-        Self::CidrWhitelist,
-    ];
-    pub const ALL: [Self; 7] = [
-        Self::DnsSpoof,
-        Self::TcpRst,
-        Self::SniBlock,
-        Self::SiberianBlock,
-        Self::QuicBlock,
-        Self::CidrWhitelist,
-        Self::Back,
-    ];
-
-    pub fn next(self) -> Self {
-        step_in(&Self::ALL, self, true)
-    }
-
-    pub fn prev(self) -> Self {
-        step_in(&Self::ALL, self, false)
-    }
-
-    /// Where this row sits, which is also its index into
-    /// [`BlockCheckType::all`](zapret_wrapper::autotune::BlockCheckType::all).
-    pub fn index(self) -> usize {
-        position_in(&Self::ALL, self)
-    }
-
-    /// Which check this row toggles, or `None` for the way back.
-    pub fn check_index(self) -> Option<usize> {
-        Self::CHECKS.iter().position(|c| *c == self)
     }
 }
 
@@ -776,13 +720,6 @@ impl AppState {
                 if total > 0 {
                     self.autotune_preset_index = Self::cycle_index(self.autotune_preset_index, total, forward);
                 }
-            }
-            ActiveScreen::AutotuneBlockChecksSubmenu => {
-                self.autotune_block_checks_menu = if forward {
-                    self.autotune_block_checks_menu.next()
-                } else {
-                    self.autotune_block_checks_menu.prev()
-                };
             }
             ActiveScreen::AutotuneStrategiesSubmenu => {
                 let max = self.strategies.len() + 1; // +1 for Back

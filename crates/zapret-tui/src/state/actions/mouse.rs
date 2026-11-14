@@ -22,8 +22,8 @@ use crate::mouse::WHEEL_LINES;
 #[cfg(target_os = "windows")]
 use crate::state::screens::DefenderMenuState;
 use crate::state::screens::{
-    ActiveScreen, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState, DownloadDepsMenuState,
-    DownloadSubmenuState, ExtendedMenuState, FakesMenuState, GamefilterMenuState, TtlMenuState,
+    ActiveScreen, AutotuneMenuState, AutotuneProtocolsState, DownloadDepsMenuState, DownloadSubmenuState,
+    ExtendedMenuState, FakesMenuState, GamefilterMenuState, TtlMenuState,
 };
 use crate::state::AppState;
 
@@ -115,9 +115,6 @@ fn cursor_at(app: &mut AppState, row: usize) -> bool {
         ActiveScreen::AutotuneProtocolsSubmenu => {
             set(&AutotuneProtocolsState::ALL, row, |s| app.autotune_protocols_menu = s)
         }
-        ActiveScreen::AutotuneBlockChecksSubmenu => set(&AutotuneBlockChecksState::ALL, row, |s| {
-            app.autotune_block_checks_menu = s
-        }),
         ActiveScreen::DownloadDepsSubmenu => set(&DownloadDepsMenuState::ALL, row, |s| app.download_deps_menu = s),
         ActiveScreen::DownloadZapretSubmenu => set(&DownloadSubmenuState::ALL, row, |s| app.download_zapret_menu = s),
         ActiveScreen::DownloadStrategiesSubmenu => {

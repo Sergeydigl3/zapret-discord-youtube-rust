@@ -54,7 +54,6 @@ pub fn on_activate(app: &mut AppState) {
         ActiveScreen::AutotuneSubmenu
         | ActiveScreen::AutotuneEditDomainsSubmenu
         | ActiveScreen::AutotuneProtocolsSubmenu
-        | ActiveScreen::AutotuneBlockChecksSubmenu
         | ActiveScreen::AutotunePresetSelectionSubmenu
         | ActiveScreen::AutotuneStrategiesSubmenu
         | ActiveScreen::AutotuneResultsSubmenu => autotune::activate(app),
@@ -96,7 +95,6 @@ pub fn on_cycle(app: &mut AppState, forward: bool) {
         ActiveScreen::AutotuneSubmenu
         | ActiveScreen::AutotuneEditDomainsSubmenu
         | ActiveScreen::AutotuneProtocolsSubmenu
-        | ActiveScreen::AutotuneBlockChecksSubmenu
         | ActiveScreen::AutotunePresetSelectionSubmenu
         | ActiveScreen::AutotuneStrategiesSubmenu
         | ActiveScreen::AutotuneResultsSubmenu => autotune::cycle(app, forward),

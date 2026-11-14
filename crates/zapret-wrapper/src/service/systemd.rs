@@ -10,6 +10,13 @@ impl SystemdManager {
     const SERVICE_NAME: &'static str = "zapret-rust";
     const SERVICE_PATH: &'static str = "/etc/systemd/system/zapret-rust.service";
 
+    /// NixOS builds `/etc` from the system configuration and keeps it
+    /// read-only. Services there are declared in `configuration.nix`, not
+    /// written by programs, so installing or removing a unit cannot work.
+    fn is_nixos() -> bool {
+        Path::new("/etc/NIXOS").exists()
+    }
+
     fn run_command(&self, args: &[&str]) -> Result<(), String> {
         let output = Command::new("systemctl")
             .args(args)
@@ -49,6 +56,10 @@ impl ServiceManager for SystemdManager {
     }
 
     fn install(&self, exe_path: &Path, config_path: &Path, cache_dir: &Path) -> Result<(), String> {
+        if Self::is_nixos() {
+            return Err(rust_i18n::t!("err_nixos_service").to_string());
+        }
+
         let paths = daemon_paths(exe_path, config_path, cache_dir)?;
 
         let service_content = format!(
@@ -79,6 +90,10 @@ WantedBy=multi-user.target
     }
 
     fn uninstall(&self) -> Result<(), String> {
+        if Self::is_nixos() {
+            return Err(rust_i18n::t!("err_nixos_service").to_string());
+        }
+
         // Stop service first (ignore errors if it's not running or doesn't exist)
         let _ = self.run_command(&["stop", Self::SERVICE_NAME]);
         let _ = self.run_command(&["disable", Self::SERVICE_NAME]);

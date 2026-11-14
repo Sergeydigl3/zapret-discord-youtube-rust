@@ -1,8 +1,8 @@
 //! Cancellation of a running autotune sweep.
 //!
-//! This lived inside the DTO module because the flag and the process control
-//! were declared together. Killing probe processes is process management, so it
-//! belongs next to the other process handling rather than among data types.
+//! The probes are in-process HTTP/TLS/QUIC calls, so there is no child process
+//! to kill: a cancelled sweep stops as soon as the request in flight returns,
+//! and every probe checks the flag before it starts another one.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -18,10 +18,4 @@ pub fn is_cancelled() -> bool {
 
 pub fn trigger_cancel() {
     CANCELLED.store(true, Ordering::Relaxed);
-    kill_active_curls();
-}
-
-/// Force-kill the probe processes a cancelled sweep left running.
-pub fn kill_active_curls() {
-    zapret_core::process::kill_process("curl");
 }

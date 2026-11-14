@@ -3,6 +3,10 @@
 //! One iteration is: ask the TUI for a configuration (unless we were given one
 //! on the command line), start zapret in the foreground, wait until the user
 //! stops it, then either exit or hand control back to the TUI.
+//!
+//! [`run_headless`] skips the TUI entirely: the saved configuration (or
+//! `--config`) is the starting point, the run flags override it, and the loop
+//! exits after one run.
 
 use std::process::exit;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -64,21 +68,37 @@ fn backend_info(_chosen: ChosenBackend) -> String {
     String::new()
 }
 
-pub fn run(args: Cli) {
+pub fn run(args: &Cli) {
+    run_inner(args, false);
+}
+
+/// Run one launch without ever opening the TUI.
+///
+/// Used by `--run` / `--no-tui` after the CLI has applied any `--set-*` flags.
+pub fn run_headless(args: &Cli) {
+    run_inner(args, true);
+}
+
+fn run_inner(args: &Cli, force_headless: bool) {
     #[cfg(target_os = "linux")]
-    let mut use_interface = args.interface.clone();
-    let mut use_strategy = args.strategy.clone();
-    let mut use_gamefilter_tcp = args.gamefiltertcp;
-    let mut use_gamefilter_udp = args.gamefilterudp;
+    let mut use_interface = args.run.interface.clone().unwrap_or_else(|| "any".to_string());
+    let mut use_strategy = args.run.strategy.as_deref().map(strategy::normalize_name);
+    let mut use_gamefilter_tcp = args.run.gamefiltertcp;
+    let mut use_gamefilter_udp = args.run.gamefilterudp;
+    // `None` means no explicit file was loaded: TTL and router then come from
+    // the default configuration, as they always did.
+    let mut use_ttl_from_config: Option<Option<u8>> = None;
+    #[cfg(target_os = "linux")]
+    let mut use_router_from_config: Option<bool> = None;
     #[cfg(target_os = "linux")]
     let mut use_backend: ChosenBackend = LinuxBackend::Nftables;
     // Windows has no choice to remember, so nothing writes to it.
     #[cfg(target_os = "windows")]
     #[allow(unused_mut)]
     let mut use_backend: ChosenBackend = ();
-    let mut is_interactive = true;
+    let mut is_interactive = !force_headless;
 
-    if let Some(config_file) = &args.config {
+    if let Some(config_file) = &args.run.config {
         println!("{}{}", rust_i18n::t!("msg_load_cfg"), config_file);
         match config::load_config(config_file) {
             Ok(cfg) => {
@@ -86,12 +106,14 @@ pub fn run(args: Cli) {
                 {
                     use_interface = cfg.interface;
                 }
-                use_strategy = Some(cfg.strategy);
+                use_strategy = Some(cfg.strategy).filter(|s| !s.is_empty());
                 use_gamefilter_tcp = cfg.gamefilter_tcp;
                 use_gamefilter_udp = cfg.gamefilter_udp;
+                use_ttl_from_config = Some(cfg.dpi_desync_ttl);
                 #[cfg(target_os = "linux")]
                 {
                     use_backend = LinuxBackend::from_config(&cfg.backend);
+                    use_router_from_config = Some(cfg.router);
                 }
                 is_interactive = false;
             }
@@ -99,6 +121,43 @@ pub fn run(args: Cli) {
                 println!("{}{}", rust_i18n::t!("err_load_cfg"), e);
                 exit(1);
             }
+        }
+    } else if force_headless {
+        // `--no-tui` / `--run` without an explicit file uses the configuration
+        // the TUI saved last, so a script only has to pass what it changes.
+        if let Ok(cfg) = config::load_config(&paths::config_path().to_string_lossy()) {
+            #[cfg(target_os = "linux")]
+            {
+                use_interface = cfg.interface;
+            }
+            use_strategy = Some(cfg.strategy).filter(|s| !s.is_empty());
+            use_gamefilter_tcp = cfg.gamefilter_tcp;
+            use_gamefilter_udp = cfg.gamefilter_udp;
+            use_ttl_from_config = Some(cfg.dpi_desync_ttl);
+            #[cfg(target_os = "linux")]
+            {
+                use_backend = LinuxBackend::from_config(&cfg.backend);
+                use_router_from_config = Some(cfg.router);
+            }
+        }
+    }
+
+    // In a headless run the command line wins over the file, which is what a
+    // one-off invocation is for. The interactive path keeps its old rule: a
+    // strategy flag means "run once and exit".
+    if force_headless {
+        if let Some(strategy) = &args.run.strategy {
+            use_strategy = Some(strategy::normalize_name(strategy));
+        }
+        #[cfg(target_os = "linux")]
+        if let Some(interface) = &args.run.interface {
+            use_interface = interface.clone();
+        }
+        if args.run.gamefiltertcp {
+            use_gamefilter_tcp = true;
+        }
+        if args.run.gamefilterudp {
+            use_gamefilter_udp = true;
         }
     } else if use_strategy.is_some() {
         is_interactive = false;
@@ -197,6 +256,15 @@ pub fn run(args: Cli) {
         );
 
         let req = zapret_wrapper::plan::RunRequest::new(&strategy_file, use_gamefilter_tcp, use_gamefilter_udp);
+        let req = match use_ttl_from_config {
+            Some(ttl) => req.with_config_ttl(ttl),
+            None => req,
+        };
+        #[cfg(target_os = "linux")]
+        let req = match use_router_from_config {
+            Some(router) => req.with_router(router),
+            None => req,
+        };
         #[cfg(target_os = "linux")]
         let req = req.with_interface(&use_interface);
         run::run_foreground(&req, backend.as_ref());

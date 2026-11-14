@@ -106,7 +106,21 @@ pub fn config_path() -> std::path::PathBuf {
 }
 
 pub fn save_config(cfg: &RunConfig) -> Result<(), String> {
-    let path = config_path();
+    save_config_to(&config_path(), cfg)
+}
+
+/// Write the configuration to `path`.
+///
+/// The CLI accepts `--config FILE` for both reading and writing, while the TUI
+/// always uses [`config_path`]. Keeping the body here means the two entry points
+/// cannot drift apart.
+pub fn save_config_to(path: &std::path::Path, cfg: &RunConfig) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Cannot create config directory '{}': {}", parent.display(), e))?;
+        }
+    }
     let ttl = cfg.dpi_desync_ttl.map(|v| v.to_string()).unwrap_or_default();
     let mut content = String::new();
     #[cfg(target_os = "linux")]
@@ -116,7 +130,7 @@ pub fn save_config(cfg: &RunConfig) -> Result<(), String> {
         cfg.strategy, cfg.gamefilter_tcp, cfg.gamefilter_udp, cfg.backend, cfg.active_discord_fake,
         cfg.active_gamefilter_fake, ttl,
     ));
-    fs::write(&path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
+    fs::write(path, &content).map_err(|e| format!("Cannot write config '{}': {}", path.display(), e))?;
     Ok(())
 }
 

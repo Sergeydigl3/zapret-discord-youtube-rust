@@ -3535,6 +3535,7 @@ dependencies = [
  "regex",
  "rust-i18n",
  "sha2 0.10.9",
+ "ureq",
  "windows-service",
  "zapret-core",
  "zapret-fetch",

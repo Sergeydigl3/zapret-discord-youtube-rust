@@ -6,10 +6,9 @@
 //!
 //! ```text
 //!   types             what a check result looks like
-//!   cancel            abort flag, and how the running probes are stopped
-//!   dns / quic        raw reachability: resolving, TCP, HTTP/3
-//!   probe             raw reachability: the curl transports (HTTP, TLS, QUIC)
-//!   checks_network    what the network is blocking right now (DNS, RST, SNI, ...)
+//!   cancel            abort flag
+//!   dns / quic        resolving names and the raw QUIC probe
+//!   probe             HTTP and TLS requests through the platform's TLS stack
 //!   checks_domain     per-domain reachability through and without the tunnel
 //!   progress          the event stream the sweep reports through
 //!   orchestrator      the sweep itself: strategy x domain x protocol
@@ -25,9 +24,8 @@
 
 pub mod cancel;
 mod checks_domain;
-mod checks_network;
 mod dns;
-mod probe;
+pub(crate) mod probe;
 mod quic;
 
 pub mod orchestrator;
@@ -40,6 +38,6 @@ pub use orchestrator::run_all;
 pub use progress::{LogLevel, SweepEvent};
 pub use storage::{load_results_file, save_results_file, RESULTS_FILE};
 pub use types::{
-    status_char, status_str_file, AutotuneConfig, AutotuneResults, BlockCheckType, BlockChecks, CheckResult,
-    CheckStatus, DomainCheckResult, DomainProtocolCheck, PresetResult, StrategyCheckResult,
+    status_char, status_str_file, AutotuneConfig, AutotuneResults, CheckStatus, DomainCheckResult, DomainProtocolCheck,
+    PresetResult, StrategyCheckResult,
 };

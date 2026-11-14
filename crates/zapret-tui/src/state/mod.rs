@@ -14,9 +14,9 @@ use zapret_wrapper::fakes::FakesState;
 use zapret_wrapper::lists::IpsetMode;
 
 pub use screens::{
-    ActiveScreen, AutotuneBlockChecksState, AutotuneMenuState, AutotuneProtocolsState, AutotuneReportTab,
-    DownloadDepsMenuState, DownloadSubmenuState, ExtendedMenuState, FakesMenuState, FakesSelectTarget,
-    GamefilterMenuState, History, MainMenuState, TtlMenuState, VersionTarget,
+    ActiveScreen, AutotuneMenuState, AutotuneProtocolsState, AutotuneReportTab, DownloadDepsMenuState,
+    DownloadSubmenuState, ExtendedMenuState, FakesMenuState, FakesSelectTarget, GamefilterMenuState, History,
+    MainMenuState, TtlMenuState, VersionTarget,
 };
 
 #[cfg(target_os = "windows")]
@@ -111,7 +111,6 @@ pub struct AppState {
     pub autotune_menu: AutotuneMenuState,
     pub autotune_menu_index: usize,
     pub autotune_protocols_menu: AutotuneProtocolsState,
-    pub autotune_block_checks_menu: AutotuneBlockChecksState,
     pub autotune_preset_index: usize,
     pub autotune_strat_index: usize,
     pub autotune_results_index: usize,
@@ -261,7 +260,6 @@ impl AppState {
             autotune_menu: AutotuneMenuState::PresetSelection,
             autotune_menu_index: 0,
             autotune_protocols_menu: AutotuneProtocolsState::Http,
-            autotune_block_checks_menu: AutotuneBlockChecksState::DnsSpoof,
             autotune_preset_index: 0,
             autotune_strat_index: 0,
             autotune_results_index: 0,
@@ -408,11 +406,5 @@ impl AppState {
             .get(self.selected_interface)
             .map(|s| s.as_str())
             .unwrap_or("any")
-    }
-
-    pub(crate) fn toggle_block_check(&mut self, index: usize) {
-        let mut bc = self.autotune_config.block_checks.clone();
-        bc.set(index, !bc.get(index));
-        self.autotune_config.block_checks = bc;
     }
 }

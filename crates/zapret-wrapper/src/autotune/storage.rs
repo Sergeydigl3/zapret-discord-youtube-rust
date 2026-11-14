@@ -28,13 +28,6 @@ pub fn save_results_file(results: &AutotuneResults) -> Result<String, String> {
         secs
     );
 
-    let check_names = ["DNS", "TCP RST", "SNI", "SIBERIAN", "QUIC", "CIDR"];
-    let _ = writeln!(file, "--- {} ---", rust_i18n::t!("autotune_net_results"));
-    for (name, check) in check_names.iter().zip(&results.block_results) {
-        let _ = writeln!(file, "  {}: {}", name, status_str_file(&check.status));
-    }
-    let _ = writeln!(file);
-
     for pr in &results.preset_results {
         let _ = writeln!(
             file,
@@ -45,15 +38,13 @@ pub fn save_results_file(results: &AutotuneResults) -> Result<String, String> {
         for dc in &pr.domain_checks {
             let _ = writeln!(
                 file,
-                "  {}: alive={} HTTP:{}({}) TLS1.2:{} TLS1.3:{} QUIC:{}({}) baseline={}",
+                "  {}: alive={} HTTP:{} TLS1.2:{} TLS1.3:{} QUIC:{} baseline={}",
                 dc.domain,
                 status_str_file(&dc.alive),
                 status_str_file(&dc.http),
-                dc.http_count,
                 status_str_file(&dc.tls12),
                 status_str_file(&dc.tls13),
                 status_str_file(&dc.quic),
-                dc.quic_count,
                 status_str_file(if dc.baseline_pass {
                     &CheckStatus::Pass
                 } else {

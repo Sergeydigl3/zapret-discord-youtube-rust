@@ -6,12 +6,10 @@ use crate::domains::{get_domains_for_preset, PRESETS};
 use zapret_core::firewall::FirewallBackend;
 
 use super::checks_domain::{check_domain, domain_check_error};
-use super::checks_network::run_network_checks;
-use super::probe::{test_http, test_quic, test_tls};
+use super::probe::{test_http, test_quic, test_tls12, test_tls13};
 use super::storage::{restore_ipset, save_ipset, save_results_file, set_ipset_any};
 use super::types::{
-    AutotuneConfig, AutotuneResults, BlockCheckType, CheckStatus, DomainCheckResult, DomainProtocolCheck, PresetResult,
-    StrategyCheckResult,
+    AutotuneConfig, AutotuneResults, DomainCheckResult, DomainProtocolCheck, PresetResult, StrategyCheckResult,
 };
 
 /// The strategies the sweep will test, as (display name, file name).
@@ -94,10 +92,13 @@ pub fn run_all(
     let _ttl_guard = TtlGuard { original_ttl };
     let _ = crate::config::save_ttl(None);
 
-    // Run network checks once (shared across all presets)
-    on_event(SweepEvent::Phase(rust_i18n::t!("autotune_phase_net").into_owned()));
-    let block_results = run_network_checks(&config.block_checks);
-    let net_check_count = config.block_checks.count_enabled();
+    // Everything a cancelled sweep still owes the caller: the checks that
+    // finished, the presets that finished, and how long it took.
+    let partial = |preset_results: Vec<PresetResult>| AutotuneResults {
+        preset_results,
+        common_strategies: Vec::new(),
+        elapsed_secs: start_instant.elapsed().as_secs(),
+    };
 
     let all_strategies = crate::strategy::get_strategies();
     let loaded = load_strategies(&config.strategy_indices, &all_strategies);
@@ -105,8 +106,9 @@ pub fn run_all(
 
     let proto_steps = count_protocol_steps(config);
 
-    // Calculate total steps upfront: network checks + per-preset baseline domain checks + strategy tests
-    let mut total = net_check_count;
+    // Calculate total steps upfront: per-preset baseline domain checks plus
+    // strategy tests.
+    let mut total = 0;
     for &preset_idx in config.preset_indices.iter() {
         let domain_count = get_domains_for_preset(preset_idx).len();
         let baseline_steps = domain_count * (1 + proto_steps);
@@ -120,41 +122,6 @@ pub fn run_all(
 
     let mut report = Reporter::new(on_event, total);
     let mut done = 0;
-
-    // Everything a cancelled sweep still owes the caller: the checks that
-    // finished, the presets that finished, and how long it took.
-    let partial = |preset_results: Vec<PresetResult>| AutotuneResults {
-        block_results: block_results.clone(),
-        preset_results,
-        common_strategies: Vec::new(),
-        elapsed_secs: start_instant.elapsed().as_secs(),
-    };
-
-    // === Network checks ===
-    for _result in block_results.iter() {
-        done += 1;
-        if !report.step(done) {
-            report.log(LogLevel::Bad, rust_i18n::t!("autotune_cancelled"));
-            return partial(Vec::new());
-        }
-    }
-
-    // What the network is doing, in one line: the log is empty for a minute
-    // otherwise, and this is the first thing the result depends on.
-    let detected: Vec<&str> = BlockCheckType::all()
-        .iter()
-        .zip(&block_results)
-        .filter(|(_, r)| r.status == CheckStatus::Fail)
-        .map(|(kind, _)| kind.name())
-        .collect();
-    if detected.is_empty() {
-        report.log(LogLevel::Good, rust_i18n::t!("autotune_log_net_clean"));
-    } else {
-        report.log(
-            LogLevel::Bad,
-            rust_i18n::t!("autotune_log_net_blocked").replace("{}", &detected.join(", ")),
-        );
-    }
 
     let mut preset_results: Vec<PresetResult> = Vec::new();
     let mut all_working_strategy_names: Vec<std::collections::HashSet<String>> = Vec::new();
@@ -294,8 +261,8 @@ pub fn run_all(
                                 di * PROTOCOLS + proto,
                                 s.spawn(move || match proto {
                                     0 => test_http(domain, n),
-                                    1 => test_tls(domain, "--tlsv1.2", n),
-                                    2 => test_tls(domain, "--tlsv1.3", n),
+                                    1 => test_tls12(domain, n),
+                                    2 => test_tls13(domain, n),
                                     _ => test_quic(domain, n),
                                 }),
                             ));
@@ -327,7 +294,7 @@ pub fn run_all(
                     if tls13_ok {
                         tls13_works = true;
                     }
-                    if quic_works {
+                    if quic_ok {
                         quic_works = true;
                     }
 
@@ -386,7 +353,7 @@ pub fn run_all(
 
                 crate::run::stop_quiet(backend);
 
-                let works = pass.len() >= blocked_domains.len() / 2;
+                let works = pass.len() * 2 >= blocked_domains.len();
                 if works {
                     working_names.insert(strat_name.clone());
                 }
@@ -507,7 +474,6 @@ pub fn run_all(
     }
 
     let results = AutotuneResults {
-        block_results,
         preset_results,
         common_strategies,
         elapsed_secs: start_instant.elapsed().as_secs(),

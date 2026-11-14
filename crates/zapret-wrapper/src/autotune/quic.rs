@@ -315,7 +315,7 @@ fn build_initial_frames(ch: &[u8]) -> Vec<u8> {
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ProbeOutcome {
+enum ProbeOutcome {
     Reply,
     NoReply,
     Error,
@@ -353,12 +353,6 @@ fn send_one_probe(sock: &std::net::UdpSocket, server_name: &str) -> ProbeOutcome
         }
         Err(_) => ProbeOutcome::Error,
     }
-}
-
-/// Sends one genuine QUIC v1 Initial packet on an already connected socket and
-/// reports whether a reply arrived (using the socket's read timeout).
-pub fn send_probe(sock: &std::net::UdpSocket, server_name: &str) -> ProbeOutcome {
-    send_one_probe(sock, server_name)
 }
 
 /// Sends genuine QUIC v1 Initial packets to `addr` and reports whether any

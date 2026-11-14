@@ -31,3 +31,22 @@ pub fn resolve(strategy_file: &str) -> PathBuf {
         repo_dir.join(strategy_file)
     }
 }
+
+/// Accept the file stem as well as the full name.
+///
+/// The TUI always passes a name from [`discovery::get_strategies`] (for example
+/// `discord.bat`), while a script writer naturally types `--strategy discord`.
+/// The returned name is the one that [`resolve`] finds, or the input unchanged
+/// when neither spelling exists (so the caller can report the original).
+pub fn normalize_name(strategy_file: &str) -> String {
+    if resolve(strategy_file).is_file() {
+        return strategy_file.to_string();
+    }
+    if !strategy_file.ends_with(".bat") {
+        let with_bat = format!("{}.bat", strategy_file);
+        if resolve(&with_bat).is_file() {
+            return with_bat;
+        }
+    }
+    strategy_file.to_string()
+}

@@ -4,8 +4,8 @@ pub struct DomainPreset {
 }
 
 /// One editable text file per preset (index-aligned with `PRESETS`).
-/// For built-in presets the file holds EXTRA domains added to the defaults;
-/// for the last (Custom) preset the file is the full domain list.
+/// Each file is created with the full built-in list; after that the file is the
+/// whole list, so removing a line removes the domain from the check.
 pub const PRESET_FILES: &[&str] = &[
     "autotune_preset_discord.txt",
     "autotune_preset_youtube.txt",

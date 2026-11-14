@@ -21,17 +21,12 @@ fn platform_head(parsed: &ParsedStrategy) -> Vec<String> {
     }
 }
 
-/// Build the game filter ports block, or `None` when game filtering is off.
+/// The game-filter switches the user asked for, or `None` when both are off.
 pub fn game_filter(use_tcp: bool, use_udp: bool) -> Option<GameFilterPorts> {
-    if use_tcp || use_udp {
-        Some(GameFilterPorts {
-            ports: "1024-65535".to_string(),
-            tcp_ports: "1024-65535".to_string(),
-            udp_ports: "1024-65535".to_string(),
-        })
-    } else {
-        None
-    }
+    (use_tcp || use_udp).then_some(GameFilterPorts {
+        tcp: use_tcp,
+        udp: use_udp,
+    })
 }
 
 /// The two flags that pin the DPI TTL of the desync'd packets.
@@ -163,6 +158,20 @@ mod tests {
         let args = build_args(&parsed(&["--filter-tcp=80,443 --dpi-desync=multisplit --new"]), None);
         assert!(!args.iter().any(|a| a.starts_with("--dpi-desync-autottl")));
         assert!(!args.iter().any(|a| a.starts_with("--dpi-desync-ttl")));
+    }
+
+    #[test]
+    fn gamefilter_tcp_and_udp_are_independent() {
+        assert_eq!(
+            game_filter(true, false),
+            Some(GameFilterPorts { tcp: true, udp: false })
+        );
+        assert_eq!(
+            game_filter(false, true),
+            Some(GameFilterPorts { tcp: false, udp: true })
+        );
+        assert_eq!(game_filter(true, true), Some(GameFilterPorts { tcp: true, udp: true }));
+        assert_eq!(game_filter(false, false), None);
     }
 
     /// A strategy that pins its own TTL must not shadow the one being tested.
